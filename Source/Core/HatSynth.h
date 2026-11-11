@@ -95,7 +95,7 @@ struct HatSynthSettings {
     return 440.0f * std::pow(2.0f, totalNotes / 12.0f);
 }
 
-// Biquad filter state
+// Biquad filter state for audio filtering
 struct BiquadState {
     float x1 = 0.0f;
     float x2 = 0.0f;
@@ -142,40 +142,32 @@ struct AllpassDiffuser {
     }
 };
 
-// Algorithmic stereo shimmer reverb with gate choke
+// Algorithmic 4-line feedback delay network (FDN) shimmer reverb with gate choke
 class GatedStereoReverb {
 public:
     void prepare(double sampleRate);
     void reset() noexcept;
-    [[nodiscard]] StereoFrame process(float inLeft, float inRight, float size, float decayMs, float damp, float gateMs, double sampleRate) noexcept;
+    [[nodiscard]] StereoFrame process(
+        float inLeft, float inRight,
+        float size, float decayMs, float damp, float gateMs,
+        double sampleRate) noexcept;
 
 private:
-    [[nodiscard]] static float readHermite(const std::vector<float>& buffer, double delaySamples, int writePos) noexcept;
+    std::array<AllpassDiffuser, 2> inputDiffusersL_;
+    std::array<AllpassDiffuser, 2> inputDiffusersR_;
 
-    AllpassDiffuser diffL1_;
-    AllpassDiffuser diffL2_;
-    AllpassDiffuser diffL3_;
-    AllpassDiffuser diffR1_;
-    AllpassDiffuser diffR2_;
-    AllpassDiffuser diffR3_;
-    std::vector<float> delayL1_;
-    std::vector<float> delayL2_;
-    std::vector<float> delayL3_;
-    std::vector<float> delayR1_;
-    std::vector<float> delayR2_;
-    std::vector<float> delayR3_;
-    int writeL1_ = 0, writeL2_ = 0, writeL3_ = 0;
-    int writeR1_ = 0, writeR2_ = 0, writeR3_ = 0;
-    float dampStateL1_ = 0.0f, dampStateL2_ = 0.0f;
-    float dampStateR1_ = 0.0f, dampStateR2_ = 0.0f;
-    float hpfStateL_ = 0.0f, hpfStateR_ = 0.0f;
-    double lfoPhaseL_ = 0.0;
-    double lfoPhaseR_ = 0.0;
+    std::array<std::vector<float>, 4> delayLines_;
+    std::array<size_t, 4> writeIndices_{};
+    std::array<size_t, 4> delayLengths_{};
+    std::array<float, 4> dampStates_{};
+
+    float hpfStateL_ = 0.0f;
+    float hpfStateR_ = 0.0f;
     int sampleCounter_ = 0;
     float gateEnvelope_ = 1.0f;
 };
 
-// Pure C++20 Tunable Open Hi-Hat Synthesizer
+// Studio-Grade Tunable Open Hi-Hat Synthesizer
 class HatSynth {
 public:
     void prepare(double sampleRate);
@@ -195,6 +187,7 @@ public:
 
 private:
     [[nodiscard]] float generateNoiseSample(NoiseType type) noexcept;
+    [[nodiscard]] float generateChickSample(ChickType type, float freqHz, int ageSamples, float level) noexcept;
 
     double sampleRate_ = 48000.0;
     bool isPlaying_ = false;
@@ -204,42 +197,56 @@ private:
     int totalSamplesPlayed_ = 0;
     int totalDurationSamples_ = 0;
 
-    // Stick micro-bounce timing
+    // Stick micro-bounce articulation
     int preChickCount_ = 1;
     std::array<int, 5> burstStartSamples_{};
     std::array<float, 5> burstAmplitudes_{};
     std::array<float, 5> burstPans_{};
     int mainHitSample_ = 0;
 
-    // 6-oscillator metallic cymbal phase accumulators
+    // PolyBLEP anti-aliased bronze metallic oscillators
     std::array<float, 6> metalPhases_{};
+    std::array<float, 6> metalDt_{};
 
-    // Filter states
-    BiquadState metalFilterL_{};
-    BiquadState metalFilterR_{};
+    // Filter states for metallic body
+    BiquadState metalBPF_L_{};
+    BiquadState metalBPF_R_{};
     BiquadState metalHPF_L_{};
     BiquadState metalHPF_R_{};
-    BiquadState noiseHPF_L_{};
-    BiquadState noiseHPF_R_{};
-    BiquadState noiseLPF_L_{};
-    BiquadState noiseLPF_R_{};
-    BiquadState chickBPF_{};
 
-    // Filter cache to avoid recalculating biquad trig every sample
-    float lastHPF_ = -1.0f;
-    float lastLPF_ = -1.0f;
-    float b0_h_ = 0.0f, b1_h_ = 0.0f, b2_h_ = 0.0f, a1_h_ = 0.0f, a2_h_ = 0.0f;
-    float b0_l_ = 0.0f, b1_l_ = 0.0f, b2_l_ = 0.0f, a1_l_ = 0.0f, a2_l_ = 0.0f;
+    // Filter states for air sizzle noise (4-pole 24dB/oct cascaded filters)
+    BiquadState noiseHPF1_L_{};
+    BiquadState noiseHPF1_R_{};
+    BiquadState noiseHPF2_L_{};
+    BiquadState noiseHPF2_R_{};
+    BiquadState noiseLPF1_L_{};
+    BiquadState noiseLPF1_R_{};
+    BiquadState noiseLPF2_L_{};
+    BiquadState noiseLPF2_R_{};
 
-    // PRNG seed for deterministic and jittered cymbal sizzle
-    uint32_t prngState_ = 0x2468ACE1;
+    // Filter cache for noise cutoff
+    float lastNoiseHPF_ = -1.0f;
+    float lastNoiseLPF_ = -1.0f;
+    float b0_nh1_ = 0.0f, b1_nh1_ = 0.0f, b2_nh1_ = 0.0f, a1_nh1_ = 0.0f, a2_nh1_ = 0.0f;
+    float b0_nh2_ = 0.0f, b1_nh2_ = 0.0f, b2_nh2_ = 0.0f, a1_nh2_ = 0.0f, a2_nh2_ = 0.0f;
+    float b0_nl1_ = 0.0f, b1_nl1_ = 0.0f, b2_nl1_ = 0.0f, a1_nl1_ = 0.0f, a2_nl1_ = 0.0f;
+    float b0_nl2_ = 0.0f, b1_nl2_ = 0.0f, b2_nl2_ = 0.0f, a1_nl2_ = 0.0f, a2_nl2_ = 0.0f;
+
+    // Filter cache for metal body
+    float lastMetalFreq_ = -1.0f;
+    float lastMetalQ_ = -1.0f;
+    float b0_mb_ = 0.0f, b1_mb_ = 0.0f, b2_mb_ = 0.0f, a1_mb_ = 0.0f, a2_mb_ = 0.0f;
+    float b0_mh_ = 0.0f, b1_mh_ = 0.0f, b2_mh_ = 0.0f, a1_mh_ = 0.0f, a2_mh_ = 0.0f;
+
+    // PRNG and noise state
+    uint32_t prngState_ = 0x854378A1;
     float pinkB0_ = 0.0f, pinkB1_ = 0.0f, pinkB2_ = 0.0f;
     float lofiHeld_ = 0.0f;
     int lofiCounter_ = 0;
 
-    // Delay buffer for Haas/stereo shimmer width
-    std::vector<float> widthDelayBuffer_;
-    int widthDelayWritePos_ = 0;
+    // Stereo phase diffuser for silk air decorrelation
+    AllpassDiffuser noiseDiffL_{};
+    AllpassDiffuser noiseDiffR_{};
 
     // Gated Shimmer Reverb
     GatedStereoReverb reverb_;

@@ -27,6 +27,7 @@ namespace {
 
 void DistortionShaper::reset() noexcept {
     toneFilterState_ = 0.0f;
+    exciterHpState_ = 0.0f;
 }
 
 float DistortionShaper::processSample(
@@ -34,35 +35,41 @@ float DistortionShaper::processSample(
     DistortionType type,
     float drive,
     float tone,
-    double /*sampleRate*/) noexcept {
+    double sampleRate) noexcept {
     if (drive <= 0.001f) {
         return input;
     }
 
-    const float gain = dbToLin(drive * 24.0f);
+    const float gain = dbToLin(drive * 20.0f);
     const float x = input * gain;
     float shaped = 0.0f;
 
     switch (type) {
         case DistortionType::Tape: {
-            shaped = (std::tanh(x * 1.35f + 0.06f) - std::tanh(0.06f)) * 0.88f;
+            shaped = std::tanh(x * 1.2f) * 0.95f;
             break;
         }
         case DistortionType::Tube: {
             if (x >= 0.0f) {
-                shaped = x / (1.0f + x);
+                shaped = x / (1.0f + 0.8f * x);
             } else {
-                shaped = x / (1.0f - 0.45f * x);
+                shaped = x / (1.0f - 0.4f * x);
             }
-            shaped *= 1.3f;
+            shaped *= 1.15f;
             break;
         }
         case DistortionType::HardClip: {
-            shaped = std::clamp(x * 1.4f, -1.0f, 1.0f);
+            shaped = std::clamp(x * 1.3f, -1.0f, 1.0f);
             break;
         }
         case DistortionType::Wavefold: {
-            shaped = std::sin(x * pi() * 0.65f);
+            // Crystal High-Sheen Exciter with soft analog saturation
+            const double sRate = (sampleRate > 1000.0) ? sampleRate : 48000.0;
+            const float alpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * 4500.0 / sRate));
+            exciterHpState_ += alpha * (x - exciterHpState_);
+            const float highPass = x - exciterHpState_;
+            const float excitedAir = std::tanh(highPass * (1.5f + drive * 2.0f));
+            shaped = std::tanh(x * 0.75f) + excitedAir * 0.35f;
             break;
         }
     }
@@ -71,9 +78,9 @@ float DistortionShaper::processSample(
     if (type == DistortionType::HardClip) {
         compGain = 1.0f / (1.0f + drive * 0.35f);
     } else if (type == DistortionType::Wavefold) {
-        compGain = 1.0f / (1.0f + drive * 0.45f);
+        compGain = 1.0f / (1.0f + drive * 0.40f);
     } else {
-        compGain = 1.0f / (1.0f + drive * 0.75f);
+        compGain = 1.0f / (1.0f + drive * 0.60f);
     }
     float output = shaped * compGain;
 

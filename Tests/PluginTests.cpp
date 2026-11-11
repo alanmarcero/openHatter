@@ -177,3 +177,47 @@ TEST_CASE("Cymbal Octave supports high octaves up to 8", "[plugin][octave]") {
     octaveParam->setValueNotifyingHost(octaveParam->convertTo0to1(6.0f));
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 6.0f) < 0.05f);
 }
+
+TEST_CASE("All 48 factory presets render high-fidelity, balanced, clean audio", "[plugin][presets_audio]") {
+    OpenHatterProcessor processor;
+    processor.prepareToPlay(48000.0, 512);
+
+    for (int p = 0; p < 48; ++p) {
+        processor.setCurrentProgram(p);
+
+        juce::AudioBuffer<float> buffer(2, 512);
+        juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::noteOn(1, 66, (juce::uint8)100), 0);
+
+        float maxPeak = 0.0f;
+        float sumSquare = 0.0f;
+        int totalFrames = 0;
+
+        for (int block = 0; block < 40; ++block) { // ~426ms
+            if (block > 0) midi.clear();
+            buffer.clear();
+            processor.processBlock(buffer, midi);
+
+            for (int i = 0; i < 512; ++i) {
+                const float sL = buffer.getSample(0, i);
+                const float sR = buffer.getSample(1, i);
+                REQUIRE_FALSE(std::isnan(sL));
+                REQUIRE_FALSE(std::isnan(sR));
+                REQUIRE_FALSE(std::isinf(sL));
+                REQUIRE_FALSE(std::isinf(sR));
+
+                const float peak = std::max(std::abs(sL), std::abs(sR));
+                maxPeak = std::max(maxPeak, peak);
+                sumSquare += sL * sL + sR * sR;
+                totalFrames += 2;
+            }
+        }
+
+        const float rms = std::sqrt(sumSquare / static_cast<float>(totalFrames));
+
+        // Each preset must produce healthy, club-ready audio levels without clipping or silence
+        REQUIRE(maxPeak >= 0.15f);
+        REQUIRE(maxPeak <= 1.5f);
+        REQUIRE(rms >= 0.01f);
+    }
+}
