@@ -8,10 +8,10 @@ using namespace openhatter::params;
 const std::vector<FactoryPreset>& factoryPresets() {
     static const std::vector<FactoryPreset> kPresets = {
         // ====================================================================
-        // 01 - 12: Anjunabeats & Above & Beyond Progressive Trance
+        // 01 - 12: Progressive & Melodic Trance
         // ====================================================================
         {
-            "01 Init Anjuna Off-Beat Hat",
+            "01 Init Velvet Off-Beat Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 8.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.65f },
                 { kToneMode, 1.0f }, { kToneNote, 6.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2900.0f }, { kToneQ, 3.2f }, { kToneDecay, 210.0f }, { kTonePitchEnv, 2.0f }, { kTonePitchDecay, 15.0f }, { kToneLevel, 0.76f },
@@ -25,7 +25,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "02 Above & Beyond Sun & Moon",
+            "02 Sun & Moon Silk 909",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 7.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.60f },
                 { kToneMode, 1.0f }, { kToneNote, 9.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3200.0f }, { kToneQ, 3.0f }, { kToneDecay, 240.0f }, { kTonePitchEnv, 1.8f }, { kTonePitchDecay, 18.0f }, { kToneLevel, 0.78f },
@@ -39,7 +39,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "03 Group Therapy Silk 909",
+            "03 Melodic Silk 909",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 6.0f }, { kPreDecay, 4.0f }, { kPreJitter, 0.03f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.65f },
                 { kToneMode, 0.0f }, { kToneNote, 9.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3000.0f }, { kToneQ, 3.4f }, { kToneDecay, 195.0f }, { kTonePitchEnv, 3.0f }, { kTonePitchDecay, 14.0f }, { kToneLevel, 0.82f },
@@ -53,7 +53,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "04 Anjunabeats Volume Classic",
+            "04 Progressive Volume Classic",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 8.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.06f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.68f },
                 { kToneMode, 1.0f }, { kToneNote, 5.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2850.0f }, { kToneQ, 3.2f }, { kToneDecay, 215.0f }, { kTonePitchEnv, 2.5f }, { kTonePitchDecay, 16.0f }, { kToneLevel, 0.80f },
@@ -67,7 +67,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "05 Paavo Silky Shimmer",
+            "05 Silky Shimmer Velvet Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 6.0f }, { kPreDecay, 4.0f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.52f },
                 { kToneMode, 1.0f }, { kToneNote, 11.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3450.0f }, { kToneQ, 2.8f }, { kToneDecay, 260.0f }, { kTonePitchEnv, 1.5f }, { kTonePitchDecay, 20.0f }, { kToneLevel, 0.72f },
@@ -81,7 +81,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "06 Jono Tuned F# Open Hat",
+            "06 Tuned F# Open Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 7.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.65f },
                 { kToneMode, 1.0f }, { kToneNote, 6.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3050.0f }, { kToneQ, 4.0f }, { kToneDecay, 220.0f }, { kTonePitchEnv, 2.8f }, { kTonePitchDecay, 14.0f }, { kToneLevel, 0.85f },
@@ -95,7 +95,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "07 Tony Deep Progressive Air",
+            "07 Deep Progressive Air",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 10.0f }, { kPreDecay, 6.5f }, { kPreJitter, 0.08f }, { kFlamSpread, 0.40f }, { kPreLevel, 0.60f },
                 { kToneMode, 1.0f }, { kToneNote, 2.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2500.0f }, { kToneQ, 2.6f }, { kToneDecay, 200.0f }, { kTonePitchEnv, 1.8f }, { kTonePitchDecay, 16.0f }, { kToneLevel, 0.72f },
@@ -109,7 +109,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "08 Ilan Bluestone Big Trance Hat",
+            "08 Stadium Big Trance Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 8.5f }, { kPreDecay, 5.5f }, { kPreJitter, 0.06f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.78f },
                 { kToneMode, 0.0f }, { kToneNote, 7.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3300.0f }, { kToneQ, 3.8f }, { kToneDecay, 230.0f }, { kTonePitchEnv, 4.5f }, { kTonePitchDecay, 13.0f }, { kToneLevel, 0.88f },
@@ -123,7 +123,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "09 Sunny Lax Uplifting Sheen",
+            "09 Uplifting Sheen Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 7.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.65f },
                 { kToneMode, 2.0f }, { kToneNote, 4.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3600.0f }, { kToneQ, 3.8f }, { kToneDecay, 220.0f }, { kTonePitchEnv, 3.5f }, { kTonePitchDecay, 15.0f }, { kToneLevel, 0.84f },
@@ -137,7 +137,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "10 Oliver Smith Crisp Off-Beat",
+            "10 Crisp Off-Beat Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 6.0f }, { kPreDecay, 4.0f }, { kPreJitter, 0.03f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.68f },
                 { kToneMode, 0.0f }, { kToneNote, 0.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2900.0f }, { kToneQ, 3.6f }, { kToneDecay, 175.0f }, { kTonePitchEnv, 3.2f }, { kTonePitchDecay, 12.0f }, { kToneLevel, 0.84f },
@@ -151,7 +151,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "11 Andrew Bayer Club Pocket",
+            "11 Club Pocket Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 9.5f }, { kPreDecay, 6.0f }, { kPreJitter, 0.08f }, { kFlamSpread, 0.40f }, { kPreLevel, 0.72f },
                 { kToneMode, 3.0f }, { kToneNote, 10.0f }, { kToneOctave, 5.0f }, { kToneFine, 0.0f }, { kToneFreq, 2500.0f }, { kToneQ, 3.8f }, { kToneDecay, 190.0f }, { kTonePitchEnv, 5.0f }, { kTonePitchDecay, 14.0f }, { kToneLevel, 0.85f },
@@ -165,7 +165,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "12 Anjunadeep Warm Velvet Hat",
+            "12 Deep Warm Velvet Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 11.0f }, { kPreDecay, 7.0f }, { kPreJitter, 0.12f }, { kFlamSpread, 0.45f }, { kPreLevel, 0.58f },
                 { kToneMode, 1.0f }, { kToneNote, 9.0f }, { kToneOctave, 5.0f }, { kToneFine, 0.0f }, { kToneFreq, 2200.0f }, { kToneQ, 2.4f }, { kToneDecay, 210.0f }, { kTonePitchEnv, 1.5f }, { kTonePitchDecay, 18.0f }, { kToneLevel, 0.70f },
@@ -180,10 +180,10 @@ const std::vector<FactoryPreset>& factoryPresets() {
         },
 
         // ====================================================================
-        // 13 - 18: Daniel Kandi & Always Alive Emotional 138 Uplifting
+        // 13 - 18: Emotional 138 Uplifting
         // ====================================================================
         {
-            "13 Daniel Kandi 138 Euphoria",
+            "13 Euphoria 138 Open Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 6.5f }, { kPreDecay, 4.5f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.70f },
                 { kToneMode, 2.0f }, { kToneNote, 6.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 4300.0f }, { kToneQ, 4.2f }, { kToneDecay, 220.0f }, { kTonePitchEnv, 4.5f }, { kTonePitchDecay, 12.0f }, { kToneLevel, 0.88f },
@@ -197,7 +197,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "14 Kandi Always Alive Sparkle",
+            "14 Always Alive Sparkle",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 7.0f }, { kPreDecay, 4.5f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.72f },
                 { kToneMode, 2.0f }, { kToneNote, 9.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 4600.0f }, { kToneQ, 4.6f }, { kToneDecay, 235.0f }, { kTonePitchEnv, 5.0f }, { kTonePitchDecay, 13.0f }, { kToneLevel, 0.90f },
@@ -211,7 +211,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "15 Kandi Emotional Breakdown Hat",
+            "15 Emotional Breakdown Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 8.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.58f },
                 { kToneMode, 1.0f }, { kToneNote, 1.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 3900.0f }, { kToneQ, 3.4f }, { kToneDecay, 270.0f }, { kTonePitchEnv, 2.5f }, { kTonePitchDecay, 18.0f }, { kToneLevel, 0.78f },
@@ -225,7 +225,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "16 Kandi vs Ferry Peak Time",
+            "16 Peak Time Dual Drive",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 7.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.78f },
                 { kToneMode, 0.0f }, { kToneNote, 4.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3350.0f }, { kToneQ, 3.8f }, { kToneDecay, 205.0f }, { kTonePitchEnv, 4.0f }, { kTonePitchDecay, 14.0f }, { kToneLevel, 0.88f },
@@ -239,7 +239,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "17 Always Alive Tuned C#7",
+            "17 Euphoric Tuned C#7",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 6.0f }, { kPreDecay, 4.0f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.68f },
                 { kToneMode, 2.0f }, { kToneNote, 1.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 4500.0f }, { kToneQ, 5.2f }, { kToneDecay, 200.0f }, { kTonePitchEnv, 3.5f }, { kTonePitchDecay, 12.0f }, { kToneLevel, 0.92f },
@@ -268,10 +268,10 @@ const std::vector<FactoryPreset>& factoryPresets() {
         },
 
         // ====================================================================
-        // 19 - 24: Sean Tyas & Degenerate Driving Tech / Uplifting 140
+        // 19 - 24: Driving Tech / Uplifting 140
         // ====================================================================
         {
-            "19 Sean Tyas Lift 140 BPM",
+            "19 Uplifting 140 BPM Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 5.5f }, { kPreDecay, 4.0f }, { kPreJitter, 0.03f }, { kFlamSpread, 0.30f }, { kPreLevel, 0.78f },
                 { kToneMode, 2.0f }, { kToneNote, 7.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 4700.0f }, { kToneQ, 4.8f }, { kToneDecay, 180.0f }, { kTonePitchEnv, 6.0f }, { kTonePitchDecay, 10.0f }, { kToneLevel, 0.92f },
@@ -285,7 +285,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "20 Tyas Tytanium Laser Hat",
+            "20 Titanium Laser Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 6.0f }, { kPreDecay, 4.0f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.30f }, { kPreLevel, 0.80f },
                 { kToneMode, 2.0f }, { kToneNote, 4.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 4900.0f }, { kToneQ, 6.2f }, { kToneDecay, 170.0f }, { kTonePitchEnv, 9.0f }, { kTonePitchDecay, 10.0f }, { kToneLevel, 0.94f },
@@ -299,7 +299,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "21 Tyas Degenerate Acid Sizzle",
+            "21 Degenerate Acid Sizzle",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 6.5f }, { kPreDecay, 4.5f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.82f },
                 { kToneMode, 3.0f }, { kToneNote, 9.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3700.0f }, { kToneQ, 5.5f }, { kToneDecay, 175.0f }, { kTonePitchEnv, 7.0f }, { kTonePitchDecay, 11.0f }, { kToneLevel, 0.92f },
@@ -313,7 +313,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "22 Tyas Rolling Off-Beat",
+            "22 Rolling Off-Beat Tech Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 5.0f }, { kPreDecay, 3.5f }, { kPreJitter, 0.03f }, { kFlamSpread, 0.30f }, { kPreLevel, 0.74f },
                 { kToneMode, 0.0f }, { kToneNote, 6.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3300.0f }, { kToneQ, 4.0f }, { kToneDecay, 160.0f }, { kTonePitchEnv, 4.0f }, { kTonePitchDecay, 10.0f }, { kToneLevel, 0.86f },
@@ -327,7 +327,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "23 Tyas Tech-Trance Snap",
+            "23 Tech-Trance Snap Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 5.0f }, { kPreDecay, 3.5f }, { kPreJitter, 0.02f }, { kFlamSpread, 0.30f }, { kPreLevel, 0.76f },
                 { kToneMode, 3.0f }, { kToneNote, 2.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 4200.0f }, { kToneQ, 5.0f }, { kToneDecay, 145.0f }, { kTonePitchEnv, 8.0f }, { kTonePitchDecay, 9.0f }, { kToneLevel, 0.90f },
@@ -341,7 +341,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "24 Tyas Underground Warehouse",
+            "24 Underground Warehouse Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 8.0f }, { kPreDecay, 5.5f }, { kPreJitter, 0.07f }, { kFlamSpread, 0.38f }, { kPreLevel, 0.82f },
                 { kToneMode, 0.0f }, { kToneNote, 5.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2950.0f }, { kToneQ, 4.2f }, { kToneDecay, 195.0f }, { kTonePitchEnv, 5.5f }, { kTonePitchDecay, 13.0f }, { kToneLevel, 0.90f },
@@ -356,10 +356,10 @@ const std::vector<FactoryPreset>& factoryPresets() {
         },
 
         // ====================================================================
-        // 25 - 30: Ferry Corsten, Gouryella & Flashover Classics
+        // 25 - 30: High-Energy Melodic Classics
         // ====================================================================
         {
-            "25 Ferry Corsten Gouryella Air",
+            "25 Celestial Trance Air",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 9.0f }, { kPreDecay, 6.0f }, { kPreJitter, 0.08f }, { kFlamSpread, 0.40f }, { kPreLevel, 0.74f },
                 { kToneMode, 0.0f }, { kToneNote, 8.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3200.0f }, { kToneQ, 3.4f }, { kToneDecay, 245.0f }, { kTonePitchEnv, 3.2f }, { kTonePitchDecay, 16.0f }, { kToneLevel, 0.86f },
@@ -373,7 +373,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "26 System F Out Of The Blue 909",
+            "26 Out Of The Blue 909",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 7.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.76f },
                 { kToneMode, 0.0f }, { kToneNote, 5.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2900.0f }, { kToneQ, 3.4f }, { kToneDecay, 220.0f }, { kTonePitchEnv, 3.5f }, { kTonePitchDecay, 15.0f }, { kToneLevel, 0.90f },
@@ -387,7 +387,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "27 Corsten Punk Driven Hat",
+            "27 Punk Driven Open Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 7.5f }, { kPreDecay, 5.0f }, { kPreJitter, 0.06f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.84f },
                 { kToneMode, 3.0f }, { kToneNote, 4.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2800.0f }, { kToneQ, 4.6f }, { kToneDecay, 185.0f }, { kTonePitchEnv, 6.5f }, { kTonePitchDecay, 12.0f }, { kToneLevel, 0.92f },
@@ -401,7 +401,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "28 Veracocha Carte Blanche",
+            "28 Carte Blanche 909",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 7.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.72f },
                 { kToneMode, 0.0f }, { kToneNote, 10.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3400.0f }, { kToneQ, 3.6f }, { kToneDecay, 230.0f }, { kTonePitchEnv, 3.2f }, { kTonePitchDecay, 15.0f }, { kToneLevel, 0.88f },
@@ -415,7 +415,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "29 Gouryella Anahera Shimmer",
+            "29 Celestial Anahera Shimmer",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 9.0f }, { kPreDecay, 6.0f }, { kPreJitter, 0.08f }, { kFlamSpread, 0.40f }, { kPreLevel, 0.68f },
                 { kToneMode, 2.0f }, { kToneNote, 3.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 4200.0f }, { kToneQ, 3.8f }, { kToneDecay, 265.0f }, { kTonePitchEnv, 3.2f }, { kTonePitchDecay, 18.0f }, { kToneLevel, 0.84f },
@@ -429,7 +429,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "30 Flashover Tuned Ride-Hat",
+            "30 High-Tension Ride-Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 8.0f }, { kPreDecay, 5.0f }, { kPreJitter, 0.06f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.76f },
                 { kToneMode, 2.0f }, { kToneNote, 7.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3500.0f }, { kToneQ, 5.8f }, { kToneDecay, 320.0f }, { kTonePitchEnv, 4.0f }, { kTonePitchDecay, 16.0f }, { kToneLevel, 0.94f },
@@ -447,7 +447,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
         // 31 - 40: Armada, ASOT & Classic Dutch Underground Trance
         // ====================================================================
         {
-            "31 Armada Mainstage Off-Beat",
+            "31 Mainstage Off-Beat Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 6.5f }, { kPreDecay, 4.5f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.76f },
                 { kToneMode, 0.0f }, { kToneNote, 7.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3150.0f }, { kToneQ, 3.6f }, { kToneDecay, 210.0f }, { kTonePitchEnv, 4.5f }, { kTonePitchDecay, 13.0f }, { kToneLevel, 0.88f },
@@ -461,7 +461,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "32 ASOT 138 Anthem Open Hat",
+            "32 Trance 138 Anthem Open Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 7.0f }, { kPreDecay, 4.5f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.80f },
                 { kToneMode, 2.0f }, { kToneNote, 9.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3650.0f }, { kToneQ, 4.2f }, { kToneDecay, 220.0f }, { kTonePitchEnv, 5.0f }, { kTonePitchDecay, 13.0f }, { kToneLevel, 0.90f },
@@ -475,7 +475,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "33 Armind Progressive Pocket",
+            "33 Melodic Progressive Pocket",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 7.5f }, { kPreDecay, 5.0f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.65f },
                 { kToneMode, 1.0f }, { kToneNote, 2.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2700.0f }, { kToneQ, 3.0f }, { kToneDecay, 195.0f }, { kTonePitchEnv, 3.0f }, { kTonePitchDecay, 14.0f }, { kToneLevel, 0.80f },
@@ -517,7 +517,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "36 Aly & Fila FSOE Golden Hat",
+            "36 FSOE Golden Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 6.5f }, { kPreDecay, 4.5f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.76f },
                 { kToneMode, 2.0f }, { kToneNote, 5.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 4400.0f }, { kToneQ, 4.4f }, { kToneDecay, 225.0f }, { kTonePitchEnv, 4.5f }, { kTonePitchDecay, 13.0f }, { kToneLevel, 0.90f },
@@ -531,7 +531,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "37 Giuseppe Ottaviani Live 909",
+            "37 Live Rig Punch 909",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 5.5f }, { kPreDecay, 4.0f }, { kPreJitter, 0.03f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.76f },
                 { kToneMode, 0.0f }, { kToneNote, 9.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3100.0f }, { kToneQ, 3.8f }, { kToneDecay, 185.0f }, { kTonePitchEnv, 4.0f }, { kTonePitchDecay, 12.0f }, { kToneLevel, 0.90f },
@@ -545,7 +545,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "38 John O'Callaghan Subculture",
+            "38 Subculture Tech Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 6.5f }, { kPreDecay, 4.5f }, { kPreJitter, 0.05f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.82f },
                 { kToneMode, 0.0f }, { kToneNote, 2.0f }, { kToneOctave, 7.0f }, { kToneFine, 0.0f }, { kToneFreq, 3900.0f }, { kToneQ, 4.5f }, { kToneDecay, 180.0f }, { kTonePitchEnv, 5.5f }, { kTonePitchDecay, 11.0f }, { kToneLevel, 0.92f },
@@ -559,7 +559,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "39 Bryan Kearney Kearnage Bite",
+            "39 Hard Tech Sizzle Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 5.5f }, { kPreDecay, 4.0f }, { kPreJitter, 0.04f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.86f },
                 { kToneMode, 3.0f }, { kToneNote, 6.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3450.0f }, { kToneQ, 5.8f }, { kToneDecay, 155.0f }, { kTonePitchEnv, 8.0f }, { kTonePitchDecay, 10.0f }, { kToneLevel, 0.94f },
@@ -573,7 +573,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "40 Cosmic Gate Wake Your Mind",
+            "40 Wake Your Mind Open Hat",
             {
                 { kPreBursts, 2.0f }, { kPreSpread, 8.5f }, { kPreDecay, 5.5f }, { kPreJitter, 0.07f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.76f },
                 { kToneMode, 3.0f }, { kToneNote, 4.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2750.0f }, { kToneQ, 3.8f }, { kToneDecay, 200.0f }, { kTonePitchEnv, 5.0f }, { kTonePitchDecay, 14.0f }, { kToneLevel, 0.86f },
@@ -591,7 +591,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
         // 41 - 48: Modern EDM, Progressive & Underground Club Utility Hats
         // ====================================================================
         {
-            "41 Pryda Progressive Crisp Hat",
+            "41 Arena Progressive Crisp Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 6.0f }, { kPreDecay, 4.0f }, { kPreJitter, 0.03f }, { kFlamSpread, 0.35f }, { kPreLevel, 0.65f },
                 { kToneMode, 0.0f }, { kToneNote, 7.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 3050.0f }, { kToneQ, 3.2f }, { kToneDecay, 175.0f }, { kTonePitchEnv, 3.0f }, { kTonePitchDecay, 12.0f }, { kToneLevel, 0.82f },
@@ -605,7 +605,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
             }
         },
         {
-            "42 Mau5hau5 Tight Pluck Hat",
+            "42 Electro House Pluck Hat",
             {
                 { kPreBursts, 1.0f }, { kPreSpread, 5.0f }, { kPreDecay, 3.5f }, { kPreJitter, 0.02f }, { kFlamSpread, 0.30f }, { kPreLevel, 0.62f },
                 { kToneMode, 3.0f }, { kToneNote, 5.0f }, { kToneOctave, 6.0f }, { kToneFine, 0.0f }, { kToneFreq, 2850.0f }, { kToneQ, 4.2f }, { kToneDecay, 130.0f }, { kTonePitchEnv, 3.5f }, { kTonePitchDecay, 10.0f }, { kToneLevel, 0.80f },
