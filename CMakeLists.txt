@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OpenHatter VERSION 1.0.0 LANGUAGES C CXX)
+project(OpenHatter VERSION 1.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,7 +31,8 @@ if(OH_BUILD_PLUGIN)
 
     juce_add_binary_data(HatterAssets SOURCES
         assets/openhatter-faceplate.png
-        assets/mad-hatter.png)
+        assets/mad-hatter.png
+        assets/cyber-hatter-hero.png)
     set_target_properties(HatterAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
     juce_add_plugin(OpenHatter
