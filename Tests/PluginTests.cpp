@@ -58,7 +58,7 @@ TEST_CASE("OpenHatterProcessor renders audio upon MIDI note-on", "[plugin]") {
 
 TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]") {
     OpenHatterProcessor proc1;
-    proc1.setCurrentProgram(12); // Daniel Kandi 138 Euphoria
+    proc1.setCurrentProgram(12); // Euphoria 138 Open Hat
 
     juce::MemoryBlock block;
     proc1.getStateInformation(block);
@@ -99,7 +99,7 @@ TEST_CASE("OpenHatterEditor instantiates with correct dimensions and captures li
 
     // 2. Capture Advanced Mode screenshot
     if (auto* hatterEditor = dynamic_cast<OpenHatterEditor*>(editor.get())) {
-        processor.setCurrentProgram(12); // 13 Daniel Kandi 138 Euphoria
+        processor.setCurrentProgram(12); // 13 Euphoria 138 Open Hat
         hatterEditor->setAdvancedView(true);
         juce::Image advSnapshot = editor->createComponentSnapshot(editor->getLocalBounds());
         REQUIRE(advSnapshot.isValid());

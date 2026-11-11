@@ -119,48 +119,48 @@ Dynamics processing stage for off-beat level consistency and peak control.
 
 | Index | Name | Style |
 |---|---|---|
-| 01 | Init Anjuna Off-Beat Hat | Balanced F#6 Anjuna Silk open hat with crisp air and tight gate |
-| 02 | Above & Beyond Sun & Moon | G#6 silky progressive trance hat with soft attack swell and wide sheen |
-| 03 | Group Therapy Silk 909 | A6 classic 909 metallic matrix with clean high-passed air |
-| 04 | Anjunabeats Volume Classic | F6 dual-bounce progressive open hat with velvet shimmer tail |
-| 05 | Paavo Silky Shimmer | B6 airy velvet shimmer hat with gentle pedal chick |
-| 06 | Jono Tuned F# Open Hat | Resonant F#6 bell focus with tight 185 ms gated space |
-| 07 | Tony Deep Progressive Air | D6 warm progressive hat with soft attack and silk noise |
-| 08 | Ilan Bluestone Big Trance Hat | G6 stadium progressive hat with tube sheen and wide stereo image |
-| 09 | Sunny Lax Uplifting Sheen | E6 FM bell partials with crystal exciter top end |
-| 10 | Oliver Smith Crisp Off-Beat | C6 tight 225 ms decay for clean 128-132 BPM off-beat grooves |
-| 11 | Andrew Bayer Club Pocket | A#5 analog 808/909 hybrid with 4.5 ms sidechain pocket swell |
-| 12 | Anjunadeep Warm Velvet Hat | A5 warm velvet noise open hat with gentle low-pass roll-off |
-| 13 | Daniel Kandi 138 Euphoria | F#7 uplifting FM bell hat with bright 19.5 kHz air and crystal sheen |
-| 14 | Kandi Always Alive Sparkle | A7 high-register uplifting shimmer hat with wide stereo tail |
-| 15 | Kandi Emotional Breakdown Hat | C#7 long 380 ms breakdown open hat with hall shimmer |
-| 16 | Kandi vs Ferry Peak Time | E6 driving 909 peak-time hat with tube harmonic warmth |
-| 17 | Always Alive Tuned C#7 | C#7 high-Q tuned bell-hat for melodic uplifting arrangements |
+| 01 | Init Velvet Off-Beat Hat | Balanced F#6 velvet open hat with crisp air and tight gate |
+| 02 | Sun & Moon Silk 909 | G#6 silky progressive trance hat with soft attack swell and wide sheen |
+| 03 | Melodic Silk 909 | A6 classic 909 metallic matrix with clean high-passed air |
+| 04 | Progressive Volume Classic | F6 dual-bounce progressive open hat with velvet shimmer tail |
+| 05 | Silky Shimmer Velvet Hat | B6 airy velvet shimmer hat with gentle pedal chick |
+| 06 | Tuned F# Open Hat | Resonant F#6 bell focus with tight 185 ms gated space |
+| 07 | Deep Progressive Air | D6 warm progressive hat with soft attack and silk noise |
+| 08 | Stadium Big Trance Hat | G6 stadium progressive hat with tube sheen and wide stereo image |
+| 09 | Uplifting Sheen Hat | E6 FM bell partials with crystal exciter top end |
+| 10 | Crisp Off-Beat Hat | C6 tight 225 ms decay for clean 128-132 BPM off-beat grooves |
+| 11 | Club Pocket Hat | A#5 analog 808/909 hybrid with 4.5 ms sidechain pocket swell |
+| 12 | Deep Warm Velvet Hat | A5 warm velvet noise open hat with gentle low-pass roll-off |
+| 13 | Euphoria 138 Open Hat | F#7 uplifting FM bell hat with bright 19.5 kHz air and crystal sheen |
+| 14 | Always Alive Sparkle | A7 high-register uplifting shimmer hat with wide stereo tail |
+| 15 | Emotional Breakdown Hat | C#7 long 380 ms breakdown open hat with hall shimmer |
+| 16 | Peak Time Dual Drive | E6 driving 909 peak-time hat with tube harmonic warmth |
+| 17 | Euphoric Tuned C#7 | C#7 high-Q tuned bell-hat for melodic uplifting arrangements |
 | 18 | Nordic Uplifting Silver Hat | B6 silky silver top end with velvet shimmer decay |
-| 19 | Sean Tyas Lift 140 BPM | G7 fast-attack 140 BPM uplifting hat with laser tick transient |
-| 20 | Tyas Tytanium Laser Hat | E7 high-resonance FM bell hat with crystal exciter bite |
-| 21 | Tyas Degenerate Acid Sizzle | A6 analog pulse matrix with lo-fi sizzle and hard clip punch |
-| 22 | Tyas Rolling Off-Beat | F#6 short 195 ms open hat tailored for fast rolling basslines |
-| 23 | Tyas Tech-Trance Snap | D7 ultra-tight 180 ms tech-trance hat with 115 ms choke gate |
-| 24 | Tyas Underground Warehouse | F6 909 warehouse hat with tube drive and 12-bit sizzle |
-| 25 | Ferry Corsten Gouryella Air | G#6 wide euphoric 909 open hat with 340 ms tail and hall space |
-| 26 | System F Out Of The Blue 909 | F6 classic late-90s Dutch trance 909 open hat |
-| 27 | Corsten Punk Driven Hat | E6 driven electro-trance hat with tube saturation |
-| 28 | Veracocha Carte Blanche | A#6 bright classic uplifting 909 hat with wide stereo spread |
-| 29 | Gouryella Anahera Shimmer | D#7 expansive FM shimmer hat with 720 ms reverb decay |
-| 30 | Flashover Tuned Ride-Hat | G6 extended 350 ms ride-hat hybrid with resonant bell tone |
-| 31 | Armada Mainstage Off-Beat | G6 punchy mainstage trance open hat with balanced compression |
-| 32 | ASOT 138 Anthem Open Hat | A6 uplifting anthem hat with FM bell partials and wide air |
-| 33 | Armind Progressive Pocket | D6 warm progressive off-beat hat with pedal chick |
+| 19 | Uplifting 140 BPM Hat | G7 fast-attack 140 BPM uplifting hat with laser tick transient |
+| 20 | Titanium Laser Hat | E7 high-resonance FM bell hat with crystal exciter bite |
+| 21 | Degenerate Acid Sizzle | A6 analog pulse matrix with lo-fi sizzle and hard clip punch |
+| 22 | Rolling Off-Beat Tech Hat | F#6 short 195 ms open hat tailored for fast rolling basslines |
+| 23 | Tech-Trance Snap Hat | D7 ultra-tight 180 ms tech-trance hat with 115 ms choke gate |
+| 24 | Underground Warehouse Hat | F6 909 warehouse hat with tube drive and 12-bit sizzle |
+| 25 | Celestial Trance Air | G#6 wide euphoric 909 open hat with 340 ms tail and hall space |
+| 26 | Out Of The Blue 909 | F6 classic late-90s Dutch trance 909 open hat |
+| 27 | Punk Driven Open Hat | E6 driven electro-trance hat with tube saturation |
+| 28 | Carte Blanche 909 | A#6 bright classic uplifting 909 hat with wide stereo spread |
+| 29 | Celestial Anahera Shimmer | D#7 expansive FM shimmer hat with 720 ms reverb decay |
+| 30 | High-Tension Ride-Hat | G6 extended 350 ms ride-hat hybrid with resonant bell tone |
+| 31 | Mainstage Off-Beat Hat | G6 punchy mainstage trance open hat with balanced compression |
+| 32 | Trance 138 Anthem Open Hat | A6 uplifting anthem hat with FM bell partials and wide air |
+| 33 | Melodic Progressive Pocket | D6 warm progressive off-beat hat with pedal chick |
 | 34 | Who's Afraid Of 138?! Sizzle | F#7 high-energy 138 BPM sizzle hat with fast compressor catch |
 | 35 | Dutch Trance 1999 Classic 909 | F#6 vintage 909 open hat with authentic 12-bit sizzle |
-| 36 | Aly & Fila FSOE Golden Hat | F7 golden uplifting hat with 1.75 kHz high-pass clarity |
-| 37 | Giuseppe Ottaviani Live 909 | A6 punchy live-rig 909 open hat with tight 160 ms gate |
-| 38 | John O'Callaghan Subculture | D7 driving underground subculture hat with crisp stick attack |
-| 39 | Bryan Kearney Kearnage Bite | F#6 aggressive tech-trance hat with hard-clipped transient |
-| 40 | Cosmic Gate Wake Your Mind | E6 progressive tech-trance hat with analog pulse body |
-| 41 | Pryda Progressive Crisp Hat | G6 clean progressive house/trance off-beat hat |
-| 42 | Mau5hau5 Tight Pluck Hat | F6 short 155 ms deadmau5-style tight open hat |
+| 36 | FSOE Golden Hat | F7 golden uplifting hat with 1.75 kHz high-pass clarity |
+| 37 | Live Rig Punch 909 | A6 punchy live-rig 909 open hat with tight 160 ms gate |
+| 38 | Subculture Tech Hat | D7 driving underground subculture hat with crisp stick attack |
+| 39 | Hard Tech Sizzle Hat | F#6 aggressive tech-trance hat with hard-clipped transient |
+| 40 | Wake Your Mind Open Hat | E6 progressive tech-trance hat with analog pulse body |
+| 41 | Arena Progressive Crisp Hat | G6 clean progressive house/trance off-beat hat |
+| 42 | Electro House Pluck Hat | F6 short 155 ms tight electro open hat |
 | 43 | Festival Mainstage Wide Hat | A6 ultra-wide 3-bounce festival open hat |
 | 44 | Underground Bunker 808-909 | F#5 dark bunker 808/909 hybrid hat |
 | 45 | Off-Beat Sidechain Swell Hat | F#6 14 ms attack swell for natural off-beat pump against kicks |
