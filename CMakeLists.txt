@@ -36,6 +36,7 @@ if(OH_BUILD_PLUGIN)
     set_target_properties(HatterAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
     juce_add_plugin(OpenHatter
+        VERSION "${PROJECT_VERSION}"
         COMPANY_NAME "Alan Marcero"
         BUNDLE_ID "com.alanmarcero.openhatter"
         PRODUCT_NAME "openHatter"
