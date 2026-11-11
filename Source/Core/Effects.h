@@ -33,6 +33,7 @@ public:
 
 private:
     float toneFilterState_ = 0.0f;
+    float exciterHpState_ = 0.0f;
 };
 
 // ============================================================================
