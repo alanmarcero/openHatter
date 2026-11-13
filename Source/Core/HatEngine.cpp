@@ -176,7 +176,6 @@ void HatEngine::reset() noexcept {
     distR_.reset();
     compressor_.reset();
     limiter_.reset();
-    wavPlayHead_ = -1.0;
     reversePlayHead_ = -1;
     reverseDuration_ = 0;
     isReversing_ = false;
@@ -242,7 +241,7 @@ void HatEngine::triggerHat(
     double bpm,
     double beatsPerBar,
     float velocity,
-    int semitoneOffset,
+    int midiNoteNumber,
     bool reverseCue) noexcept {
     triggerSerial_++;
     currentHatProgress_ = 0.0f;
@@ -253,7 +252,7 @@ void HatEngine::triggerHat(
         reverseDuration_ = std::min(reverseDuration_, static_cast<int>(reverseBufferL_.size()));
 
         std::vector<float> forwardL, forwardR;
-        synth_.renderBlock(forwardL, forwardR, settings.synth, velocity, semitoneOffset);
+        synth_.renderMidiBlock(forwardL, forwardR, settings.synth, velocity, midiNoteNumber);
 
         const int copyCount = std::min(reverseDuration_, static_cast<int>(forwardL.size()));
         for (int i = 0; i < reverseDuration_; ++i) {
@@ -271,12 +270,7 @@ void HatEngine::triggerHat(
         isReversing_ = true;
     }
 
-    if (wavCache_.isLocked()) {
-        wavPlayHead_ = 0.0;
-        wavVelocity_ = velocity;
-    } else {
-        synth_.trigger(settings.synth, velocity, semitoneOffset);
-    }
+    synth_.triggerMidi(settings.synth, velocity, midiNoteNumber);
 }
 
 void HatEngine::process(
@@ -298,20 +292,10 @@ void HatEngine::process(
             ccBrightness_ = static_cast<float>(cc.value) / 127.0f;
         } else if (cc.controller == 120 || cc.controller == 123) {
             synth_.reset();
-            wavPlayHead_ = -1.0;
             reversePlayHead_ = -1;
         } else if (cc.controller == 121) {
             ccVolume_ = 1.0f;
             ccBrightness_ = 1.0f;
-        }
-    }
-
-    if (settings.lockIn != previousLockState_) {
-        previousLockState_ = settings.lockIn;
-        if (settings.lockIn && !wavCache_.isLocked()) {
-            lockCurrentHat(settings);
-        } else if (!settings.lockIn && wavCache_.isLocked()) {
-            unlockHat();
         }
     }
 
@@ -326,48 +310,22 @@ void HatEngine::process(
     for (int sample = 0; sample < numSamples; ++sample) {
         while (triggerIdx < static_cast<int>(midiTriggers.size()) && midiTriggers[triggerIdx].sampleOffset <= sample) {
             const auto& trig = midiTriggers[triggerIdx++];
-            int semitoneOffset = 0;
-            if (settings.noteTracking && !trig.audition) {
-                const int rootMidi = 12 * (settings.synth.octave + 1) + settings.synth.note;
-                semitoneOffset = trig.noteNumber - rootMidi;
-            }
-            triggerHat(settings, ppq, transport.bpm, beatsPerBar, trig.velocity, semitoneOffset, trig.audition);
+            triggerHat(settings, ppq, transport.bpm, beatsPerBar, trig.velocity, trig.noteNumber, trig.audition);
         }
 
         float sL = 0.0f;
         float sR = 0.0f;
-
-        if (wavCache_.isLocked()) {
-            const auto& cachedLeft = wavCache_.left();
-            const auto& cachedRight = wavCache_.right();
-            if (wavPlayHead_ >= 0.0 && wavPlayHead_ < static_cast<double>(cachedLeft.size())) {
-                const auto firstFrame = static_cast<size_t>(wavPlayHead_);
-                const auto secondFrame = std::min(firstFrame + 1, cachedLeft.size() - 1);
-                const float fraction = static_cast<float>(wavPlayHead_ - static_cast<double>(firstFrame));
-                const float sourceRightA = firstFrame < cachedRight.size() ? cachedRight[firstFrame] : cachedLeft[firstFrame];
-                const float sourceRightB = secondFrame < cachedRight.size() ? cachedRight[secondFrame] : cachedLeft[secondFrame];
-                sL = std::lerp(cachedLeft[firstFrame], cachedLeft[secondFrame], fraction) * wavVelocity_;
-                sR = std::lerp(sourceRightA, sourceRightB, fraction) * wavVelocity_;
-                const double cacheRate = wavCache_.sampleRate() > 0.0 ? wavCache_.sampleRate() : sampleRate_;
-                wavPlayHead_ += cacheRate / sampleRate_;
-                currentHatProgress_ = static_cast<float>(wavPlayHead_ / static_cast<double>(cachedLeft.size()));
-            } else {
-                wavPlayHead_ = -1.0;
-                currentHatProgress_ = 1.0f;
+        if (synth_.isPlaying()) {
+            auto activeSettings = settings.synth;
+            if (std::abs(ccBrightness_ - 1.0f) > 0.001f) {
+                activeSettings.noiseLPF = std::clamp(settings.synth.noiseLPF * ccBrightness_, 800.0f, 20000.0f);
             }
+            const auto frame = synth_.processSample(activeSettings);
+            sL = frame.left;
+            sR = frame.right;
+            currentHatProgress_ = synth_.getEnvelopeProgress();
         } else {
-            if (synth_.isPlaying()) {
-                auto activeSettings = settings.synth;
-                if (std::abs(ccBrightness_ - 1.0f) > 0.001f) {
-                    activeSettings.noiseLPF = std::clamp(settings.synth.noiseLPF * ccBrightness_, 800.0f, 20000.0f);
-                }
-                const auto frame = synth_.processSample(activeSettings);
-                sL = frame.left;
-                sR = frame.right;
-                currentHatProgress_ = synth_.getEnvelopeProgress();
-            } else {
-                currentHatProgress_ = 1.0f;
-            }
+            currentHatProgress_ = 1.0f;
         }
 
         if (reversePlayHead_ >= 0 && reversePlayHead_ < reverseDuration_) {
@@ -379,24 +337,22 @@ void HatEngine::process(
             isReversing_ = false;
         }
 
-        if (!wavCache_.isLocked()) {
-            if (settings.effects.distMix > 0.001f) {
-                const float wetDistL = distL_.processSample(sL, settings.effects.distType, settings.effects.distDrive, settings.effects.distTone, sampleRate_);
-                const float wetDistR = distR_.processSample(sR, settings.effects.distType, settings.effects.distDrive, settings.effects.distTone, sampleRate_);
-                sL = sL * (1.0f - settings.effects.distMix) + wetDistL * settings.effects.distMix;
-                sR = sR * (1.0f - settings.effects.distMix) + wetDistR * settings.effects.distMix;
-            }
-
-            if (settings.effects.stereoWidth != 1.0f) {
-                const float mid = (sL + sR) * 0.5f;
-                const float side = (sL - sR) * 0.5f * settings.effects.stereoWidth;
-                sL = mid + side;
-                sR = mid - side;
-            }
-
-            compressor_.process(sL, sR, settings.effects.compressor);
-            limiter_.process(sL, sR, settings.effects.limiter);
+        if (settings.effects.distMix > 0.001f) {
+            const float wetDistL = distL_.processSample(sL, settings.effects.distType, settings.effects.distDrive, settings.effects.distTone, sampleRate_);
+            const float wetDistR = distR_.processSample(sR, settings.effects.distType, settings.effects.distDrive, settings.effects.distTone, sampleRate_);
+            sL = sL * (1.0f - settings.effects.distMix) + wetDistL * settings.effects.distMix;
+            sR = sR * (1.0f - settings.effects.distMix) + wetDistR * settings.effects.distMix;
         }
+
+        if (settings.effects.stereoWidth != 1.0f) {
+            const float mid = (sL + sR) * 0.5f;
+            const float side = (sL - sR) * 0.5f * settings.effects.stereoWidth;
+            sL = mid + side;
+            sR = mid - side;
+        }
+
+        compressor_.process(sL, sR, settings.effects.compressor);
+        limiter_.process(sL, sR, settings.effects.limiter);
 
         sL *= masterGain;
         sR *= masterGain;

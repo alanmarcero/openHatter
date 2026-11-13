@@ -47,7 +47,10 @@ public:
     std::atomic<float> displayBeatsPerBar{ 4.0f };
     std::atomic<float> displayHatProgress{ 1.0f };
     std::atomic<float> displayVelocity{ 1.0f };
+    std::atomic<int> displayMidiNoteNumber{ 60 };
+    std::atomic<float> displayMidiFrequency{ 261.625565f };
     std::atomic<uint32_t> displayTriggerCount{ 0 };
+    std::atomic<bool> displayMidiNoteReceived{ false };
     std::atomic<bool> displayLockedIn{ false };
 
 private:

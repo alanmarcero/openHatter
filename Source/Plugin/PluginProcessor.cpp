@@ -54,11 +54,16 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
 
     std::vector<openhatter::core::MidiTrigger> triggers;
     std::vector<openhatter::core::MidiCcEvent> ccEvents;
+    int auditionNote = displayMidiNoteNumber.load(std::memory_order_relaxed);
 
     for (const auto meta : midi) {
         const auto msg = meta.getMessage();
         if (msg.isNoteOn()) {
             const float vel = msg.getFloatVelocity();
+            auditionNote = msg.getNoteNumber();
+            displayMidiNoteNumber.store(auditionNote, std::memory_order_relaxed);
+            displayMidiFrequency.store(openhatter::core::midiNoteToHz(auditionNote), std::memory_order_relaxed);
+            displayMidiNoteReceived.store(true, std::memory_order_relaxed);
             displayVelocity.store(vel, std::memory_order_relaxed);
             triggers.push_back({
                 .sampleOffset = meta.samplePosition,
@@ -76,10 +81,9 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     }
 
     if (auditionPending_.exchange(false)) {
-        displayVelocity.store(1.0f, std::memory_order_relaxed);
         triggers.push_back({
             .sampleOffset = 0,
-            .noteNumber = 66, // F#4
+            .noteNumber = auditionNote,
             .velocity = 1.0f,
             .audition = true
         });
@@ -94,7 +98,7 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     displayBeatPhase.store(engine_.currentBeatPhase());
     displayHatProgress.store(engine_.currentHatProgress());
     displayTriggerCount.store(engine_.triggerSerial());
-    displayLockedIn.store(engine_.isHatLocked());
+    displayLockedIn.store(false, std::memory_order_relaxed);
 }
 
 juce::AudioProcessorEditor* OpenHatterProcessor::createEditor() {
@@ -131,15 +135,9 @@ void OpenHatterProcessor::setCurrentProgram(int index) {
 
 void OpenHatterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = parameters.copyState();
-    state.setProperty("preset_catalog_version", 2, nullptr);
+    state.setProperty("preset_catalog_version", 3, nullptr);
     for (size_t i = 0; i < sectionLocks_.size(); ++i)
         state.setProperty("section_lock_" + juce::String(i), sectionLocks_[i].load(std::memory_order_relaxed), nullptr);
-    if (engine_.isHatLocked()) {
-        const auto wav = engine_.wavCache().toWavBytes();
-        if (!wav.empty()) {
-            state.setProperty("locked_wav", juce::MemoryBlock(wav.data(), wav.size()).toBase64Encoding(), nullptr);
-        }
-    }
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
@@ -148,6 +146,7 @@ void OpenHatterProcessor::setStateInformation(const void* data, int sizeInBytes)
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState != nullptr && xmlState->hasTagName(parameters.state.getType())) {
         auto state = juce::ValueTree::fromXml(*xmlState);
+        state.removeProperty("locked_wav", nullptr);
         parameters.replaceState(state);
         const bool hasV2Catalog = static_cast<int>(state.getProperty("preset_catalog_version", 0)) >= 2;
         for (size_t i = 0; i < sectionLocks_.size(); ++i) {
@@ -157,14 +156,7 @@ void OpenHatterProcessor::setStateInformation(const void* data, int sizeInBytes)
         }
         if (auto* presetParam = parameters.getRawParameterValue(openhatter::params::kPreset))
             currentProgram_ = std::clamp(static_cast<int>(*presetParam), 0, getNumPrograms() - 1);
-        if (state.hasProperty("locked_wav")) {
-            juce::MemoryBlock block;
-            block.fromBase64Encoding(state.getProperty("locked_wav").toString());
-            const auto* bytePtr = static_cast<const uint8_t*>(block.getData());
-            std::vector<uint8_t> wavBytes(bytePtr, bytePtr + block.getSize());
-            engine_.restoreLockedWav(wavBytes);
-            displayLockedIn.store(true);
-        }
+        displayLockedIn.store(false, std::memory_order_relaxed);
     }
 }
 

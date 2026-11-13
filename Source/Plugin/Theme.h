@@ -4,20 +4,24 @@
 
 namespace openhatter::theme {
 
-inline const juce::Colour kBackground{ 0xff080c10 };
-inline const juce::Colour kPanel{ 0xff0c1219 };
-inline const juce::Colour kPanelEdge{ 0xff1e2d3e };
-inline const juce::Colour kKnobBody{ 0xff141d27 };
-inline const juce::Colour kTrack{ 0xff243447 };
-inline const juce::Colour kText{ 0xfff4f7fb };
-inline const juce::Colour kTextDim{ 0xff9cb0c6 };
+inline const juce::Colour kBackground{ 0xff101716 };
+inline const juce::Colour kPanel{ 0xff1a2421 };
+inline const juce::Colour kPanelEdge{ 0xff34433d };
+inline const juce::Colour kKnobBody{ 0xff202d28 };
+inline const juce::Colour kTrack{ 0xff3d524a };
+inline const juce::Colour kText{ 0xfff3f1e8 };
+inline const juce::Colour kTextDim{ 0xffa8b1a7 };
 
-// Signature Cyber / Trance Cymbal Palette
-inline const juce::Colour kAccentCyan{ 0xff00e5ff };       // Electric neon cyan
-inline const juce::Colour kAccentAmber{ 0xffffb703 };      // Shimmering bronze / gold cymbal amber
-inline const juce::Colour kAccentViolet{ 0xffc77dff };     // Uplifting trance violet
-inline const juce::Colour kAccentNeonGreen{ 0xff00f5d4 };  // Off-beat strobe emerald / mint
-inline const juce::Colour kAccentFlame{ 0xfffb8500 };      // Exciter drive orange
-inline const juce::Colour kAccentDim{ 0xff3b4b5e };
+inline const juce::Colour kAccentBrass{ 0xffd7ae68 };
+inline const juce::Colour kAccentAqua{ 0xff77cfc0 };
+inline const juce::Colour kAccentCoral{ 0xffe88970 };
+inline const juce::Colour kAccentDim{ 0xff53645c };
+
+// Keep the look-and-feel accents mapped to the current palette.
+inline const juce::Colour kAccentCyan = kAccentAqua;
+inline const juce::Colour kAccentAmber = kAccentBrass;
+inline const juce::Colour kAccentViolet = kAccentCoral;
+inline const juce::Colour kAccentNeonGreen = kAccentAqua;
+inline const juce::Colour kAccentFlame = kAccentCoral;
 
 } // namespace openhatter::theme

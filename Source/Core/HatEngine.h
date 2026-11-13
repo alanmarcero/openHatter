@@ -49,8 +49,6 @@ struct HatEffectSettings {
 struct EngineSettings {
     HatSynthSettings synth{};
     HatEffectSettings effects{};
-    bool noteTracking = false;     // false = Fixed (root), true = Note tracking
-    bool lockIn = false;           // Lock in rendered WAV buffer
     bool bypass = false;
 };
 
@@ -110,12 +108,11 @@ private:
         double bpm,
         double beatsPerBar,
         float velocity,
-        int semitoneOffset,
+        int midiNoteNumber,
         bool reverseCue) noexcept;
 
     double sampleRate_ = 48000.0;
     double fallbackPpq_ = 0.0;
-    bool previousLockState_ = false;
 
     HatSynth synth_;
     DistortionShaper distL_;
@@ -124,8 +121,6 @@ private:
     BrickwallLimiter limiter_;
 
     HatWavCache wavCache_;
-    double wavPlayHead_ = -1.0;
-    float wavVelocity_ = 1.0f;
 
     // Reverse swell buffer
     std::vector<float> reverseBufferL_;
