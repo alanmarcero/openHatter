@@ -83,7 +83,10 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
     auto* hatterEditor = dynamic_cast<OpenHatterEditor*>(editor.get());
     REQUIRE(hatterEditor != nullptr);
 
-    const auto screenshots = juce::File::getCurrentWorkingDirectory().getChildFile("assets");
+    auto screenshots = juce::File::getCurrentWorkingDirectory().getChildFile("assets");
+    if (!screenshots.isDirectory())
+        screenshots = juce::File::getCurrentWorkingDirectory().getParentDirectory().getChildFile("assets");
+    REQUIRE(screenshots.isDirectory());
     const std::array<const char*, 3> pageNames { "hat", "motion", "fx" };
     for (int mode = 0; mode < 2; ++mode) {
         hatterEditor->setAdvancedView(mode == 1);
@@ -134,7 +137,7 @@ TEST_CASE("Lock Pitch preserves note, octave, and fine pitch across preset chang
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - 4.0f) < 0.05f);
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFine)->load() - 15.0f) < 0.5f);
 
-    processor.setCurrentProgram(10); // Preset 11 has octave 5 default
+    processor.setCurrentProgram(10); // Aurora Step has octave 7 default
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 8.0f) < 0.05f);
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFreq)->load() - 3600.0f) < 5.0f);
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - 4.0f) < 0.05f);
@@ -142,7 +145,7 @@ TEST_CASE("Lock Pitch preserves note, octave, and fine pitch across preset chang
 
     lockParam->setValueNotifyingHost(0.0f);
     processor.setCurrentProgram(10);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 5.0f) < 0.05f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 7.0f) < 0.05f);
 }
 
 TEST_CASE("Cymbal Octave supports high octaves up to 8", "[plugin][octave]") {
