@@ -199,10 +199,9 @@ const std::vector<FactoryPreset>& factoryPresets() {
 }
 
 void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
-           const std::array<bool, 6>& lockedSections, bool preservePitch) {
+           const std::array<bool, 6>& lockedSections) {
     for (const auto& [paramId, value] : preset.values) {
         if (lockedSections[static_cast<size_t>(sectionFor(paramId))]) continue;
-        if (preservePitch && (paramId == kToneOctave || paramId == kToneFreq || paramId == kToneNote || paramId == kToneFine)) continue;
         if (auto* param = state.getParameter(paramId))
             param->setValueNotifyingHost(param->convertTo0to1(value));
     }
