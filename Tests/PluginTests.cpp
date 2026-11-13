@@ -58,7 +58,7 @@ TEST_CASE("OpenHatterProcessor renders audio upon MIDI note-on", "[plugin]") {
 
 TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]") {
     OpenHatterProcessor proc1;
-    proc1.setCurrentProgram(12); // Euphoria 138 Open Hat
+    proc1.setCurrentProgram(12); // Lucent Rise
 
     juce::MemoryBlock block;
     proc1.getStateInformation(block);
@@ -72,58 +72,37 @@ TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]"
     REQUIRE(std::abs(p1 - p2) < 0.001f);
 }
 
-TEST_CASE("OpenHatterEditor instantiates with correct dimensions and captures live screenshots", "[plugin][gui]") {
+TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin][gui]") {
     OpenHatterProcessor processor;
     processor.prepareToPlay(48000.0, 512);
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     REQUIRE(editor != nullptr);
     REQUIRE(editor->getWidth() == 1100);
-    REQUIRE(editor->getHeight() == 740);
+    REQUIRE(editor->getHeight() == 972);
+    auto* hatterEditor = dynamic_cast<OpenHatterEditor*>(editor.get());
+    REQUIRE(hatterEditor != nullptr);
 
-    // 1. Capture Simple Mode screenshot
-    juce::Image snapshot = editor->createComponentSnapshot(editor->getLocalBounds());
-    REQUIRE(snapshot.isValid());
-    REQUIRE(snapshot.getWidth() == 1100);
-    REQUIRE(snapshot.getHeight() == 740);
-
-    juce::File repoScreenshot = juce::File::getCurrentWorkingDirectory().getChildFile("assets/openHatter-screenshot.png");
-    if (repoScreenshot.getParentDirectory().exists()) {
-        repoScreenshot.deleteFile();
-        juce::FileOutputStream stream(repoScreenshot);
-        if (stream.openedOk()) {
+    const auto screenshots = juce::File::getCurrentWorkingDirectory().getChildFile("assets");
+    const std::array<const char*, 3> pageNames { "hat", "motion", "fx" };
+    for (int mode = 0; mode < 2; ++mode) {
+        hatterEditor->setAdvancedView(mode == 1);
+        for (int page = 0; page < 3; ++page) {
+            hatterEditor->setPage(page);
+            const auto snapshot = editor->createComponentSnapshot(editor->getLocalBounds());
+            REQUIRE(snapshot.isValid());
+            REQUIRE(snapshot.getWidth() == 1100);
+            REQUIRE(snapshot.getHeight() == 972);
+            const auto file = mode == 0
+                ? screenshots.getChildFile("openHatter-" + juce::String(pageNames[static_cast<size_t>(page)]) + ".png")
+                : screenshots.getChildFile("openHatter-" + juce::String(pageNames[static_cast<size_t>(page)]) + "-advanced.png");
+            file.deleteFile();
+            juce::FileOutputStream stream(file);
+            REQUIRE(stream.openedOk());
             juce::PNGImageFormat png;
-            png.writeImageToStream(snapshot, stream);
+            REQUIRE(png.writeImageToStream(snapshot, stream));
         }
     }
-
-    // 2. Capture Advanced Mode screenshot
-    if (auto* hatterEditor = dynamic_cast<OpenHatterEditor*>(editor.get())) {
-        processor.setCurrentProgram(12); // 13 Euphoria 138 Open Hat
-        hatterEditor->setAdvancedView(true);
-        juce::Image advSnapshot = editor->createComponentSnapshot(editor->getLocalBounds());
-        REQUIRE(advSnapshot.isValid());
-        juce::File advFile = juce::File::getCurrentWorkingDirectory().getChildFile("assets/openHatter-advanced-screenshot.png");
-        if (advFile.getParentDirectory().exists()) {
-            advFile.deleteFile();
-            juce::FileOutputStream stream(advFile);
-            if (stream.openedOk()) {
-                juce::PNGImageFormat png;
-                png.writeImageToStream(advSnapshot, stream);
-            }
-        }
-    }
-
-    juce::File tempFile = juce::File::createTempFile(".png");
-    {
-        juce::FileOutputStream stream(tempFile);
-        REQUIRE(stream.openedOk());
-        juce::PNGImageFormat png;
-        REQUIRE(png.writeImageToStream(snapshot, stream));
-    }
-    REQUIRE(tempFile.existsAsFile());
-    REQUIRE(tempFile.getSize() > 0);
-    tempFile.deleteFile();
 }
 
 TEST_CASE("Lock Pitch preserves note, octave, and fine pitch across preset changes", "[plugin][pitch_lock]") {

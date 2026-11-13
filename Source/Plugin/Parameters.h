@@ -24,6 +24,10 @@ inline constexpr const char* kToneDecay = "tone_decay";
 inline constexpr const char* kTonePitchEnv = "tone_pitch_env";
 inline constexpr const char* kTonePitchDecay = "tone_pitch_decay";
 inline constexpr const char* kToneLevel = "tone_level";
+inline constexpr const char* kAmpAttack = "amp_attack";
+inline constexpr const char* kAmpDecay = "amp_decay";
+inline constexpr const char* kAmpSustain = "amp_sustain";
+inline constexpr const char* kAmpRelease = "amp_release";
 
 // Air Sizzle & Shimmer Noise
 inline constexpr const char* kNoiseType = "noise_type";

@@ -87,6 +87,31 @@ void Toggle::setTooltip(const juce::String& text) {
     button_.setTooltip(text);
 }
 
+SectionLockButton::SectionLockButton(const juce::String& sectionName, juce::Colour accent,
+                                     std::function<bool()> isLocked, std::function<void(bool)> setLocked)
+    : accent_(accent), isLocked_(std::move(isLocked)), setLocked_(std::move(setLocked)) {
+    button_.setTooltip("Keep " + sectionName + " unchanged when you select another preset. Controls remain editable.");
+    button_.onClick = [this] {
+        setLocked_(!isLocked_());
+        refresh();
+    };
+    addAndMakeVisible(button_);
+    refresh();
+}
+
+void SectionLockButton::resized() {
+    button_.setBounds(getLocalBounds());
+}
+
+void SectionLockButton::refresh() {
+    const bool locked = isLocked_();
+    button_.setButtonText(locked ? "LOCKED" : "LOCK");
+    button_.setColour(juce::TextButton::buttonColourId, locked ? accent_ : theme::kKnobBody);
+    button_.setColour(juce::TextButton::textColourOffId, locked ? theme::kBackground : accent_);
+    button_.setTooltip(locked ? "This section stays unchanged when you select another preset. Controls remain editable."
+                              : "Lock this section to keep its settings when you select another preset.");
+}
+
 void layoutRow(juce::Rectangle<int> area, std::initializer_list<juce::Component*> components) {
     if (components.size() == 0) return;
     const int count = static_cast<int>(components.size());

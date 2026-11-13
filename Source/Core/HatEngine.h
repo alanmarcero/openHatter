@@ -124,7 +124,7 @@ private:
     BrickwallLimiter limiter_;
 
     HatWavCache wavCache_;
-    int wavPlayHead_ = -1;
+    double wavPlayHead_ = -1.0;
     float wavVelocity_ = 1.0f;
 
     // Reverse swell buffer

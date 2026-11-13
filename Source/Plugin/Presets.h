@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <utility>
 #include <vector>
@@ -12,6 +13,7 @@ struct FactoryPreset {
 };
 
 const std::vector<FactoryPreset>& factoryPresets();
-void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state, bool preservePitch = false);
+void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
+           const std::array<bool, 6>& lockedSections, bool preservePitch = false);
 
 } // namespace openhatter::presets

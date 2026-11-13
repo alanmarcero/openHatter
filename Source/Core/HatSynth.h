@@ -59,6 +59,11 @@ struct HatSynthSettings {
     float tonePitchDecayMs = 14.0f;// 3..80 ms pitch envelope decay
     float toneLevel = 0.80f;      // 0..1 level of tuned metallic matrix
 
+    float ampAttackMs = 0.35f;
+    float ampDecayMs = 72.0f;
+    float ampSustain = 0.70f;
+    float ampReleaseMs = 180.0f;
+
     // Air Sizzle & Shimmer Noise
     NoiseType noiseType = NoiseType::CrispWhite;
     float noiseAttackMs = 1.5f;   // 0..40 ms (allows off-beat pocket swell)
@@ -196,6 +201,7 @@ private:
 
     int totalSamplesPlayed_ = 0;
     int totalDurationSamples_ = 0;
+    int dryDurationSamples_ = 0;
 
     // Stick micro-bounce articulation
     int preChickCount_ = 1;

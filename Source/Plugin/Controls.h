@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <functional>
 
 namespace openhatter::ui {
 
@@ -45,6 +46,20 @@ public:
 private:
     juce::TextButton button_;
     Apvts::ButtonAttachment attachment_;
+};
+
+class SectionLockButton : public juce::Component {
+public:
+    SectionLockButton(const juce::String& sectionName, juce::Colour accent,
+                      std::function<bool()> isLocked, std::function<void(bool)> setLocked);
+    void resized() override;
+    void refresh();
+
+private:
+    juce::TextButton button_ { "LOCK" };
+    juce::Colour accent_;
+    std::function<bool()> isLocked_;
+    std::function<void(bool)> setLocked_;
 };
 
 void layoutRow(juce::Rectangle<int> area, std::initializer_list<juce::Component*> components);

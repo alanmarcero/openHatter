@@ -176,7 +176,7 @@ void HatEngine::reset() noexcept {
     distR_.reset();
     compressor_.reset();
     limiter_.reset();
-    wavPlayHead_ = -1;
+    wavPlayHead_ = -1.0;
     reversePlayHead_ = -1;
     reverseDuration_ = 0;
     isReversing_ = false;
@@ -272,7 +272,7 @@ void HatEngine::triggerHat(
     }
 
     if (wavCache_.isLocked()) {
-        wavPlayHead_ = 0;
+        wavPlayHead_ = 0.0;
         wavVelocity_ = velocity;
     } else {
         synth_.trigger(settings.synth, velocity, semitoneOffset);
@@ -298,7 +298,7 @@ void HatEngine::process(
             ccBrightness_ = static_cast<float>(cc.value) / 127.0f;
         } else if (cc.controller == 120 || cc.controller == 123) {
             synth_.reset();
-            wavPlayHead_ = -1;
+            wavPlayHead_ = -1.0;
             reversePlayHead_ = -1;
         } else if (cc.controller == 121) {
             ccVolume_ = 1.0f;
@@ -338,13 +338,21 @@ void HatEngine::process(
         float sR = 0.0f;
 
         if (wavCache_.isLocked()) {
-            if (wavPlayHead_ >= 0 && wavPlayHead_ < static_cast<int>(wavCache_.left().size())) {
-                sL = wavCache_.left()[wavPlayHead_] * wavVelocity_;
-                sR = wavCache_.right()[wavPlayHead_] * wavVelocity_;
-                wavPlayHead_++;
-                currentHatProgress_ = static_cast<float>(wavPlayHead_) / static_cast<float>(wavCache_.left().size());
+            const auto& cachedLeft = wavCache_.left();
+            const auto& cachedRight = wavCache_.right();
+            if (wavPlayHead_ >= 0.0 && wavPlayHead_ < static_cast<double>(cachedLeft.size())) {
+                const auto firstFrame = static_cast<size_t>(wavPlayHead_);
+                const auto secondFrame = std::min(firstFrame + 1, cachedLeft.size() - 1);
+                const float fraction = static_cast<float>(wavPlayHead_ - static_cast<double>(firstFrame));
+                const float sourceRightA = firstFrame < cachedRight.size() ? cachedRight[firstFrame] : cachedLeft[firstFrame];
+                const float sourceRightB = secondFrame < cachedRight.size() ? cachedRight[secondFrame] : cachedLeft[secondFrame];
+                sL = std::lerp(cachedLeft[firstFrame], cachedLeft[secondFrame], fraction) * wavVelocity_;
+                sR = std::lerp(sourceRightA, sourceRightB, fraction) * wavVelocity_;
+                const double cacheRate = wavCache_.sampleRate() > 0.0 ? wavCache_.sampleRate() : sampleRate_;
+                wavPlayHead_ += cacheRate / sampleRate_;
+                currentHatProgress_ = static_cast<float>(wavPlayHead_ / static_cast<double>(cachedLeft.size()));
             } else {
-                wavPlayHead_ = -1;
+                wavPlayHead_ = -1.0;
                 currentHatProgress_ = 1.0f;
             }
         } else {
