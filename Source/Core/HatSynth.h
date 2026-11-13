@@ -37,7 +37,7 @@ enum class ChickType {
 };
 
 struct HatSynthSettings {
-    // Pitch & Chromatic Cymbal Tuning
+    // Legacy tuning values are kept for offline render and state compatibility.
     int note = 6;                 // 0..11 (F#), default F# (classic trance root)
     int octave = 6;               // 1..8, default 6 (hi-hat fundamental register)
     float fineCents = 0.0f;       // -50..+50 cents
@@ -55,8 +55,8 @@ struct HatSynthSettings {
     float toneFreqHz = 2800.0f;   // 300..8000 Hz metallic body center frequency
     float toneQ = 3.0f;           // 0.5..12.0 resonance / bell focus
     float toneDecayMs = 190.0f;   // 15..800 ms metallic body decay
-    float tonePitchEnv = 3.5f;    // -24..+24 semitones stick impact pitch modulation
-    float tonePitchDecayMs = 14.0f;// 3..80 ms pitch envelope decay
+    float tonePitchEnv = 3.5f;    // -24..+24 semitone sweep across upper modal partials
+    float tonePitchDecayMs = 14.0f;// 3..80 ms upper-mode sweep decay
     float toneLevel = 0.80f;      // 0..1 level of tuned metallic matrix
 
     float ampAttackMs = 0.35f;
@@ -98,6 +98,11 @@ struct HatSynthSettings {
     const int midiNote = 12 * (oct + 1) + note;
     const float totalNotes = static_cast<float>(midiNote - 69) + (fineCents / 100.0f);
     return 440.0f * std::pow(2.0f, totalNotes / 12.0f);
+}
+
+[[nodiscard]] inline float midiNoteToHz(int noteNumber) noexcept {
+    const int midiNote = std::clamp(noteNumber, 0, 127);
+    return 440.0f * std::pow(2.0f, static_cast<float>(midiNote - 69) / 12.0f);
 }
 
 // Biquad filter state for audio filtering
@@ -178,26 +183,34 @@ public:
     void prepare(double sampleRate);
     void reset() noexcept;
     void trigger(const HatSynthSettings& settings, float velocity = 1.0f, int semitoneOffset = 0) noexcept;
+    void triggerMidi(const HatSynthSettings& settings, float velocity, int midiNoteNumber) noexcept;
     [[nodiscard]] StereoFrame processSample(const HatSynthSettings& settings) noexcept;
     [[nodiscard]] bool isPlaying() const noexcept { return isPlaying_; }
     [[nodiscard]] float getEnvelopeProgress() const noexcept;
 
-    // Direct render block for offline preview, tests, or WAV lock-in
+    // Offline render helpers; the settings-based overload retains legacy root pitch.
     void renderBlock(
         std::vector<float>& leftOut,
         std::vector<float>& rightOut,
         const HatSynthSettings& settings,
         float velocity = 1.0f,
         int semitoneOffset = 0) noexcept;
+    void renderMidiBlock(
+        std::vector<float>& leftOut,
+        std::vector<float>& rightOut,
+        const HatSynthSettings& settings,
+        float velocity,
+        int midiNoteNumber) noexcept;
 
 private:
+    void triggerAtFrequency(const HatSynthSettings& settings, float velocity, float baseFrequencyHz) noexcept;
     [[nodiscard]] float generateNoiseSample(NoiseType type) noexcept;
     [[nodiscard]] float generateChickSample(ChickType type, float freqHz, int ageSamples, float level) noexcept;
 
     double sampleRate_ = 48000.0;
     bool isPlaying_ = false;
     float velocity_ = 1.0f;
-    int semitoneOffset_ = 0;
+    float baseFrequencyHz_ = 1850.0f;
 
     int totalSamplesPlayed_ = 0;
     int totalDurationSamples_ = 0;
@@ -210,15 +223,9 @@ private:
     std::array<float, 5> burstPans_{};
     int mainHitSample_ = 0;
 
-    // PolyBLEP anti-aliased bronze metallic oscillators
-    std::array<float, 6> metalPhases_{};
-    std::array<float, 6> metalDt_{};
-
-    // Filter states for metallic body
-    BiquadState metalBPF_L_{};
-    BiquadState metalBPF_R_{};
-    BiquadState metalHPF_L_{};
-    BiquadState metalHPF_R_{};
+    // Independently damped modal frequencies excited by each MIDI note-on
+    std::array<float, 6> modalFrequencies_{};
+    std::array<float, 6> modalPhases_{};
 
     // Filter states for air sizzle noise (4-pole 24dB/oct cascaded filters)
     BiquadState noiseHPF1_L_{};
@@ -237,12 +244,6 @@ private:
     float b0_nh2_ = 0.0f, b1_nh2_ = 0.0f, b2_nh2_ = 0.0f, a1_nh2_ = 0.0f, a2_nh2_ = 0.0f;
     float b0_nl1_ = 0.0f, b1_nl1_ = 0.0f, b2_nl1_ = 0.0f, a1_nl1_ = 0.0f, a2_nl1_ = 0.0f;
     float b0_nl2_ = 0.0f, b1_nl2_ = 0.0f, b2_nl2_ = 0.0f, a1_nl2_ = 0.0f, a2_nl2_ = 0.0f;
-
-    // Filter cache for metal body
-    float lastMetalFreq_ = -1.0f;
-    float lastMetalQ_ = -1.0f;
-    float b0_mb_ = 0.0f, b1_mb_ = 0.0f, b2_mb_ = 0.0f, a1_mb_ = 0.0f, a2_mb_ = 0.0f;
-    float b0_mh_ = 0.0f, b1_mh_ = 0.0f, b2_mh_ = 0.0f, a1_mh_ = 0.0f, a2_mh_ = 0.0f;
 
     // PRNG and noise state
     uint32_t prngState_ = 0x854378A1;

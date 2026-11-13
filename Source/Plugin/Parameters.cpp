@@ -43,10 +43,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kToneDecay, 1 }, "Metal Decay", juce::NormalisableRange<float>(15.0f, 800.0f, 1.0f, 0.35f), 190.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kTonePitchEnv, 1 }, "Stick Pitch Chick", juce::NormalisableRange<float>(-24.0f, 24.0f, 0.5f), 3.5f,
+        juce::ParameterID{ kTonePitchEnv, 1 }, "Modal Sweep", juce::NormalisableRange<float>(-24.0f, 24.0f, 0.5f), 3.5f,
         juce::AudioParameterFloatAttributes().withLabel("st")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kTonePitchDecay, 1 }, "Pitch Chick Decay", juce::NormalisableRange<float>(3.0f, 80.0f, 0.5f), 14.0f,
+        juce::ParameterID{ kTonePitchDecay, 1 }, "Sweep Time", juce::NormalisableRange<float>(3.0f, 80.0f, 0.5f), 14.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kToneLevel, 1 }, "Metal Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.80f));
@@ -249,9 +249,6 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
 
     s.effects.stereoWidth = *apvts.getRawParameterValue(kStereoWidth);
     s.effects.outputGainDb = *apvts.getRawParameterValue(kOutputGain);
-
-    s.noteTracking = *apvts.getRawParameterValue(kMidiMode) > 0.5f;
-    s.lockIn = *apvts.getRawParameterValue(kLockIn) > 0.5f;
 
     return s;
 }
