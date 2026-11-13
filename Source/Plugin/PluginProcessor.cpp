@@ -121,12 +121,10 @@ void OpenHatterProcessor::setCurrentProgram(int index) {
     const auto& presets = openhatter::presets::factoryPresets();
     if (index >= 0 && index < static_cast<int>(presets.size())) {
         currentProgram_ = index;
-        const bool preservePitch = parameters.getRawParameterValue(openhatter::params::kLockPitch) != nullptr
-            && *parameters.getRawParameterValue(openhatter::params::kLockPitch) > 0.5f;
         std::array<bool, static_cast<size_t>(PresetSection::count)> locks{};
         for (size_t i = 0; i < locks.size(); ++i)
             locks[i] = sectionLocks_[i].load(std::memory_order_relaxed);
-        openhatter::presets::apply(presets[static_cast<size_t>(index)], parameters, locks, preservePitch);
+        openhatter::presets::apply(presets[static_cast<size_t>(index)], parameters, locks);
         if (auto* param = parameters.getParameter(openhatter::params::kPreset)) {
             param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(index)));
         }

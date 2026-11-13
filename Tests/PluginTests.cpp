@@ -108,7 +108,7 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
     }
 }
 
-TEST_CASE("Lock Pitch preserves note, octave, and fine pitch across preset changes", "[plugin][pitch_lock]") {
+TEST_CASE("Legacy pitch lock does not override v3 preset modal controls", "[plugin][pitch_lock]") {
     OpenHatterProcessor processor;
     processor.prepareToPlay(48000.0, 512);
 
@@ -124,6 +124,13 @@ TEST_CASE("Lock Pitch preserves note, octave, and fine pitch across preset chang
     REQUIRE(noteParam != nullptr);
     REQUIRE(fineParam != nullptr);
 
+    const auto presetValue = [](int program, const juce::String& parameterId) {
+        for (const auto& [id, value] : openhatter::presets::factoryPresets()[static_cast<size_t>(program)].values)
+            if (id == parameterId)
+                return value;
+        return -1.0f;
+    };
+
     octaveParam->setValueNotifyingHost(octaveParam->convertTo0to1(8.0f));
     freqParam->setValueNotifyingHost(freqParam->convertTo0to1(3600.0f));
     noteParam->setValueNotifyingHost(noteParam->convertTo0to1(4.0f));
@@ -132,20 +139,20 @@ TEST_CASE("Lock Pitch preserves note, octave, and fine pitch across preset chang
     lockParam->setValueNotifyingHost(1.0f);
 
     processor.setCurrentProgram(1);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 8.0f) < 0.05f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFreq)->load() - 3600.0f) < 5.0f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - 4.0f) < 0.05f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFine)->load() - 15.0f) < 0.5f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - presetValue(1, openhatter::params::kToneOctave)) < 0.05f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFreq)->load() - presetValue(1, openhatter::params::kToneFreq)) < 5.0f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - presetValue(1, openhatter::params::kToneNote)) < 0.05f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFine)->load() - presetValue(1, openhatter::params::kToneFine)) < 0.5f);
 
-    processor.setCurrentProgram(10); // Aurora Step has octave 7 default
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 8.0f) < 0.05f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFreq)->load() - 3600.0f) < 5.0f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - 4.0f) < 0.05f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFine)->load() - 15.0f) < 0.5f);
+    processor.setCurrentProgram(10); // Uplifting | Climb Marker has octave 7 default
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - presetValue(10, openhatter::params::kToneOctave)) < 0.05f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFreq)->load() - presetValue(10, openhatter::params::kToneFreq)) < 5.0f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - presetValue(10, openhatter::params::kToneNote)) < 0.05f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFine)->load() - presetValue(10, openhatter::params::kToneFine)) < 0.5f);
 
     lockParam->setValueNotifyingHost(0.0f);
     processor.setCurrentProgram(10);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 7.0f) < 0.05f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - presetValue(10, openhatter::params::kToneOctave)) < 0.05f);
 }
 
 TEST_CASE("Cymbal Octave supports high octaves up to 8", "[plugin][octave]") {

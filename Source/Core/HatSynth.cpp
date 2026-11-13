@@ -219,6 +219,7 @@ void HatSynth::reset() noexcept {
     totalDurationSamples_ = 0;
     dryDurationSamples_ = 0;
     modalFrequencies_.fill(0.0f);
+    modalMaxDownwardSemitones_.fill(0.0f);
     modalPhases_.fill(0.0f);
 
     noiseHPF1_L_.reset();
@@ -262,7 +263,11 @@ void HatSynth::triggerAtFrequency(const HatSynthSettings& settings, float veloci
     const float nyquist = static_cast<float>(sampleRate_) * 0.5f;
     for (size_t i = 0; i < modalFrequencies_.size(); ++i) {
         const float frequency = baseFrequencyHz_ * ratios[i];
-        modalFrequencies_[i] = frequency < nyquist ? frequency : 0.0f;
+        if (frequency < nyquist) {
+            modalFrequencies_[i] = frequency;
+            modalMaxDownwardSemitones_[i] = std::max(0.0f,
+                12.0f * std::log2(ratios[i]) - 0.01f);
+        }
     }
 
     preChickCount_ = std::clamp(settings.preChickCount, 1, 5);
@@ -426,8 +431,13 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
         for (size_t i = 0; i < modalFrequencies_.size(); ++i) {
             const float baseModeHz = modalFrequencies_[i];
             if (baseModeHz <= 0.0f) continue;
-            const float modeShift = i == 0 ? 1.0f : std::exp2(pitchShift * static_cast<float>(i) / 48.0f);
-            const float frequency = baseModeHz * modeShift;
+            const float semitoneShift = pitchShift * static_cast<float>(i) / 5.0f;
+            const float boundedSemitoneShift = i == 0
+                ? 0.0f
+                : std::max(semitoneShift, -modalMaxDownwardSemitones_[i]);
+            const float frequency = i == 0
+                ? baseModeHz
+                : baseModeHz * std::exp2(boundedSemitoneShift / 12.0f);
             if (frequency >= nyquist) continue;
             const float phaseStep = frequency / static_cast<float>(sampleRate_);
             modalPhases_[i] += phaseStep;

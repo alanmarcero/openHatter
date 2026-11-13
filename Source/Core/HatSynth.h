@@ -225,6 +225,7 @@ private:
 
     // Independently damped modal frequencies excited by each MIDI note-on
     std::array<float, 6> modalFrequencies_{};
+    std::array<float, 6> modalMaxDownwardSemitones_{};
     std::array<float, 6> modalPhases_{};
 
     // Filter states for air sizzle noise (4-pole 24dB/oct cascaded filters)
