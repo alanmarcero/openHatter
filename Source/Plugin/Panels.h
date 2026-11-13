@@ -3,6 +3,7 @@
 #include "Controls.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <array>
 
 class OpenHatterProcessor;
 
@@ -38,6 +39,7 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
     void setAdvancedMode(bool advanced);
+    void setPage(int page);
     [[nodiscard]] bool isAdvancedMode() const noexcept { return advancedMode_; }
 
 private:
@@ -46,6 +48,8 @@ private:
     // Stick Bounces / Pre-Chick
     Knob preBursts_;
     Knob preSpread_;
+    Knob preDecay_;
+    Knob preJitter_;
     Knob flamSpread_;
     Knob preLevel_;
 
@@ -55,14 +59,23 @@ private:
     Knob toneOctave_;
     Knob toneFine_;
     Toggle lockPitchBtn_;
+    Knob toneFreq_;
     Knob toneQ_;
     Knob toneDecay_;
     Knob tonePitchEnv_;
+    Knob tonePitchDecay_;
     Knob toneLevel_;
+    Knob ampAttack_;
+    Knob ampDecay_;
+    Knob ampSustain_;
+    Knob ampRelease_;
 
     // Air Sizzle & Shimmer Noise
     Choice noiseType_;
+    Knob noiseAttack_;
+    Knob noiseHold_;
     Knob noiseDecay_;
+    Knob noiseCurve_;
     Knob noiseHPF_;
     Knob noiseLPF_;
     Knob noiseWidth_;
@@ -73,9 +86,11 @@ private:
     Knob clickLevel_;
     Knob clickFreq_;
 
-    juce::Rectangle<int> attackSectionBounds_;
-    juce::Rectangle<int> tailSectionBounds_;
-    juce::Rectangle<int> noiseSectionBounds_;
+    SectionLockButton articulationLock_;
+    SectionLockButton cymbalLock_;
+    SectionLockButton airLock_;
+    std::array<juce::Rectangle<int>, 3> sectionBounds_{};
+    int page_ = 0;
 };
 
 class EffectsPanel : public juce::Component {
@@ -98,16 +113,20 @@ private:
     // Compressor
     Knob compThresh_;
     Knob compRatio_;
+    Knob compAttack_;
+    Knob compRelease_;
     Knob compMakeup_;
     Knob compMix_;
 
     // Limiter
     Knob limiterCeiling_;
+    Knob limiterRelease_;
     Toggle limiterEnabled_;
 
     // Shimmer Reverb & Choke Gate
     Knob reverbSize_;
     Knob reverbDecay_;
+    Knob reverbDamp_;
     Knob reverbGate_;
     Knob reverbMix_;
 
@@ -118,6 +137,11 @@ private:
     Toggle lockInBtn_;
     Knob masterWidth_;
     Knob outputGain_;
+
+    SectionLockButton exciterLock_;
+    SectionLockButton dynamicsLock_;
+    SectionLockButton spaceLock_;
+    std::array<juce::Rectangle<int>, 3> sectionBounds_{};
 };
 
 } // namespace openhatter::ui

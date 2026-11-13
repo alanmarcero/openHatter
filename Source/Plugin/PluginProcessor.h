@@ -1,11 +1,14 @@
 #pragma once
 
 #include "HatEngine.h"
+#include <array>
 #include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
 
 class OpenHatterProcessor : public juce::AudioProcessor {
 public:
+    enum class PresetSection : size_t { articulation, cymbalAndTuning, air, exciter, dynamics, spaceAndOutput, count };
+
     OpenHatterProcessor();
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
@@ -33,6 +36,8 @@ public:
 
     void triggerAudition() noexcept { auditionPending_.store(true); }
     [[nodiscard]] bool isHatLockedIn() const noexcept { return displayLockedIn.load(); }
+    [[nodiscard]] bool isSectionLocked(PresetSection section) const noexcept;
+    void setSectionLocked(PresetSection section, bool locked) noexcept;
 
     juce::AudioProcessorValueTreeState parameters;
 
@@ -48,5 +53,6 @@ public:
 private:
     openhatter::core::HatEngine engine_;
     std::atomic<bool> auditionPending_{ false };
+    std::array<std::atomic<bool>, static_cast<size_t>(PresetSection::count)> sectionLocks_{};
     int currentProgram_ = 0;
 };

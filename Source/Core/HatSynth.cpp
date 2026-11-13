@@ -186,8 +186,15 @@ StereoFrame GatedStereoReverb::process(
     const float diffInL = inputDiffusersL_[1].process(inputDiffusersL_[0].process(hpL));
     const float diffInR = inputDiffusersR_[1].process(inputDiffusersR_[0].process(hpR));
 
-    // Dynamic feedback calculated from decayMs and size
-    const float feedback = std::clamp(std::pow(0.001f, 32.0f / std::max(15.0f, decayMs)), 0.15f, 0.94f) * (0.65f + 0.35f * size);
+    // The room control changes the FDN loop lengths; feedback then follows the
+    // selected decay time for each loop instead of using one fixed delay estimate.
+    std::array<size_t, 4> activeLengths{};
+    const float roomScale = 0.72f + 0.45f * std::clamp(size, 0.1f, 1.0f);
+    for (size_t i = 0; i < activeLengths.size(); ++i) {
+        activeLengths[i] = std::clamp(static_cast<size_t>(static_cast<float>(delayLengths_[i]) * roomScale),
+                                      size_t{ 16 }, delayLines_[i].size());
+        writeIndices_[i] %= activeLengths[i];
+    }
     const float dampFactor = std::clamp(damp, 0.05f, 0.85f);
 
     // Read current delay outputs
@@ -208,8 +215,10 @@ StereoFrame GatedStereoReverb::process(
     for (size_t i = 0; i < 4; ++i) {
         dampStates_[i] = dampStates_[i] * dampFactor + mixed[i] * (1.0f - dampFactor);
         const float inSig = (i % 2 == 0) ? diffInL : diffInR;
+        const float loopMs = static_cast<float>(activeLengths[i]) * 1000.0f / static_cast<float>(sampleRate);
+        const float feedback = std::clamp(std::pow(0.001f, loopMs / std::max(50.0f, decayMs)), 0.12f, 0.96f);
         delayLines_[i][writeIndices_[i]] = inSig * 0.7f + dampStates_[i] * feedback;
-        writeIndices_[i] = (writeIndices_[i] + 1) % delayLengths_[i];
+        writeIndices_[i] = (writeIndices_[i] + 1) % activeLengths[i];
     }
 
     const float wetL = (delayOut[0] + delayOut[2]) * 0.7f * gateEnvelope_;
@@ -234,6 +243,7 @@ void HatSynth::reset() noexcept {
     isPlaying_ = false;
     totalSamplesPlayed_ = 0;
     totalDurationSamples_ = 0;
+    dryDurationSamples_ = 0;
 
     metalPhases_.fill(0.0f);
     metalDt_.fill(0.0f);
@@ -271,6 +281,8 @@ void HatSynth::trigger(const HatSynthSettings& settings, float velocity, int sem
     isPlaying_ = true;
     velocity_ = std::clamp(velocity, 0.0f, 1.0f);
     semitoneOffset_ = semitoneOffset;
+    for (auto& phase : metalPhases_)
+        phase = 0.5f * (nextRandomFloat(prngState_) + 1.0f);
 
     preChickCount_ = std::clamp(settings.preChickCount, 1, 5);
     const float spreadSamples = (settings.preChickSpreadMs * 0.001f) * static_cast<float>(sampleRate_);
@@ -294,9 +306,12 @@ void HatSynth::trigger(const HatSynthSettings& settings, float velocity, int sem
         ? static_cast<int>(static_cast<float>(preChickCount_ - 1) * spreadSamples)
         : 0;
 
-    const float totalTimeMs = settings.preChickSpreadMs * static_cast<float>(preChickCount_)
-        + std::max({ settings.noiseDecayMs, settings.toneDecayMs, settings.reverbDecayMs, settings.reverbGateMs });
-    totalDurationSamples_ = static_cast<int>((totalTimeMs * 0.001f + 0.08f) * static_cast<float>(sampleRate_));
+    const float preRollMs = settings.preChickSpreadMs * static_cast<float>(preChickCount_);
+    const float dryTailMs = std::max(settings.noiseAttackMs + settings.noiseHoldMs + settings.noiseDecayMs,
+                                     settings.toneDecayMs);
+    const float effectTailMs = std::max({ settings.reverbDecayMs, settings.reverbGateMs, dryTailMs });
+    dryDurationSamples_ = std::max(1, static_cast<int>((preRollMs + dryTailMs + 0.08f) * 0.001f * static_cast<float>(sampleRate_)));
+    totalDurationSamples_ = std::max(dryDurationSamples_, static_cast<int>((preRollMs + effectTailMs + 0.08f) * 0.001f * static_cast<float>(sampleRate_)));
 }
 
 float HatSynth::generateNoiseSample(NoiseType type) noexcept {
@@ -416,7 +431,6 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
     // 2. Evaluate Main Open Hi-Hat Envelopes
     const int mainAge = currentSample - mainHitSample_;
     float noiseEnv = 0.0f;
-    float metalEnv = 0.0f;
     float chickSample = 0.0f;
 
     if (mainAge >= 0) {
@@ -448,9 +462,6 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
             }
         }
 
-        // Metallic cymbal body decay
-        metalEnv = std::exp(-t / std::max(1.0f, metalDecaySamples));
-
         // Main stick chick transient
         chickSample = generateChickSample(settings.chickType, settings.chickFreqHz, mainAge, settings.chickLevel);
     }
@@ -462,6 +473,7 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
     const float rawNoiseR = generateNoiseSample(settings.noiseType);
 
     if (mainAge >= 0 && settings.toneLevel > 0.001f) {
+        const float metalDecaySamples = settings.toneDecayMs * 0.001f * static_cast<float>(sampleRate_);
         const float pitchDecaySamples = (settings.tonePitchDecayMs * 0.001f) * static_cast<float>(sampleRate_);
         const float pitchEnvFrac = std::exp(-static_cast<float>(mainAge) / std::max(1.0f, pitchDecaySamples));
         const float pitchModSemitones = static_cast<float>(semitoneOffset_) + settings.tonePitchEnv * pitchEnvFrac;
@@ -483,64 +495,61 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
             }
         }
 
+        // A struck, inharmonic mode bank replaces the old phase-locked oscillator
+        // cluster. Each partial starts at an independent phase and damps at a
+        // different rate, so the body opens with a broadband metallic transient
+        // and settles into the selected tuned colour.
+        constexpr std::array<float, 6> kPartialWeights { 0.44f, 0.28f, 0.19f, 0.14f, 0.10f, 0.07f };
+        constexpr std::array<float, 6> kPartialDamping { 0.88f, 0.68f, 0.52f, 0.39f, 0.30f, 0.23f };
+        constexpr std::array<float, 6> kPulseDuties { 0.38f, 0.44f, 0.50f, 0.54f, 0.42f, 0.48f };
+        std::array<float, 6> partials{};
+        const float modalAge = static_cast<float>(mainAge);
+        const float safeDecay = std::max(1.0f, metalDecaySamples);
+        for (size_t i = 0; i < partials.size(); ++i) {
+            const float envelope = std::exp(-modalAge / (safeDecay * kPartialDamping[i]));
+            const float phase = 2.0f * pi() * metalPhases_[i];
+            const float sine = std::sin(phase);
+            const float upper = std::sin(phase * 2.0f + 0.17f * static_cast<float>(i));
+            switch (settings.metalMode) {
+                case MetalMode::Classic909:
+                    partials[i] = (0.72f * bandlimitedPulse(metalPhases_[i], metalDt_[i], 0.5f)
+                                   + 0.28f * sine) * envelope;
+                    break;
+                case MetalMode::AnjunaSilk:
+                    partials[i] = std::tanh((sine + 0.28f * upper) * 1.24f) * envelope;
+                    break;
+                case MetalMode::UpliftingFMBell: {
+                    const size_t modulator = (i + 3) % partials.size();
+                    const float modulation = (1.25f + 1.5f * pitchEnvFrac) * std::sin(2.0f * pi() * metalPhases_[modulator]);
+                    partials[i] = std::sin(phase + modulation) * envelope;
+                    break;
+                }
+                case MetalMode::Analog808Crisp:
+                    partials[i] = (0.82f * bandlimitedPulse(metalPhases_[i], metalDt_[i], kPulseDuties[i])
+                                   + 0.18f * sine) * envelope;
+                    break;
+            }
+        }
+
         float oscL = 0.0f;
         float oscR = 0.0f;
+        for (size_t i = 0; i < partials.size(); ++i) {
+            const float weight = kPartialWeights[i];
+            oscL += partials[i] * weight;
+            const float stereoPhase = 0.013f * static_cast<float>(i + 1);
+            const float rightTone = settings.metalMode == MetalMode::AnjunaSilk
+                ? std::sin(2.0f * pi() * (metalPhases_[i] + stereoPhase))
+                : partials[i];
+            oscR += rightTone * weight;
+        }
 
-        switch (settings.metalMode) {
-            case MetalMode::Classic909: {
-                // PolyBLEP bandlimited pulse waves with pairwise ring modulation
-                // Produces the authentic, rich inharmonic bronze cluster of the TR-909 without digital aliasing
-                std::array<float, 6> pulses{};
-                for (size_t i = 0; i < 6; ++i) {
-                    pulses[i] = bandlimitedPulse(metalPhases_[i], metalDt_[i], 0.5f);
-                }
-
-                // Pairwise cross-ring modulation: (0 x 3), (1 x 4), (2 x 5)
-                const float rm1 = pulses[0] * pulses[3];
-                const float rm2 = pulses[1] * pulses[4];
-                const float rm3 = pulses[2] * pulses[5];
-
-                oscL = (rm1 * 0.35f + rm2 * 0.30f + rm3 * 0.25f + pulses[0] * 0.15f);
-                oscR = (rm2 * 0.35f + rm1 * 0.30f + rm3 * 0.25f + pulses[1] * 0.15f);
-
-                // Subtle noise excitation of bronze surface
-                oscL = oscL * 0.85f + rawNoiseL * 0.15f;
-                oscR = oscR * 0.85f + rawNoiseR * 0.15f;
-                break;
-            }
-            case MetalMode::AnjunaSilk: {
-                // Modal resonator cluster with phase dispersion and soft saturation for modern progressive trance
-                for (size_t i = 0; i < 6; ++i) {
-                    const float s1 = std::sin(2.0f * pi() * metalPhases_[i]);
-                    const float s2 = std::sin(4.0f * pi() * metalPhases_[i] + 0.4f);
-                    const float silk = std::tanh((s1 + 0.45f * s2) * 1.5f);
-                    const float w = 0.22f - 0.015f * static_cast<float>(i);
-                    oscL += silk * w;
-                    oscR += std::sin(2.0f * pi() * (metalPhases_[i] + 0.06f * static_cast<float>(i))) * w;
-                }
-                break;
-            }
-            case MetalMode::UpliftingFMBell: {
-                // 3-operator cross-FM bell matrix with dynamic modulation index decay
-                // Pierces through massive 138 BPM uplifting trance supersaws with singing bronze clarity
-                const float modIndex = 1.6f + 2.0f * pitchEnvFrac;
-                const float fm1 = std::sin(2.0f * pi() * metalPhases_[0] + modIndex * std::sin(2.0f * pi() * metalPhases_[3]));
-                const float fm2 = std::sin(2.0f * pi() * metalPhases_[1] + (modIndex * 1.2f) * std::sin(2.0f * pi() * metalPhases_[4]));
-                const float fm3 = std::sin(2.0f * pi() * metalPhases_[2] + (modIndex * 0.9f) * std::sin(2.0f * pi() * metalPhases_[5]));
-                oscL = (fm1 * 0.40f + fm2 * 0.35f + fm3 * 0.25f);
-                oscR = (fm1 * 0.35f + fm2 * 0.40f - fm3 * 0.25f);
-                break;
-            }
-            case MetalMode::Analog808Crisp: {
-                // Classic 808 asymmetric pulse matrix with analog punch
-                constexpr std::array<float, 6> kDuties = { 0.38f, 0.44f, 0.50f, 0.54f, 0.42f, 0.48f };
-                for (size_t i = 0; i < 6; ++i) {
-                    const float pulse = bandlimitedPulse(metalPhases_[i], metalDt_[i], kDuties[i]);
-                    oscL += pulse * ((i % 2 == 0) ? 0.22f : 0.14f);
-                    oscR += pulse * ((i % 2 == 1) ? 0.22f : 0.14f);
-                }
-                break;
-            }
+        if (settings.metalMode == MetalMode::Classic909) {
+            oscL += rawNoiseL * 0.035f;
+            oscR += rawNoiseR * 0.035f;
+        } else if (settings.metalMode == MetalMode::UpliftingFMBell) {
+            const float bellBody = std::sin(2.0f * pi() * metalPhases_[0] + 2.2f * std::sin(2.0f * pi() * metalPhases_[4]));
+            oscL = 0.72f * oscL + 0.28f * bellBody;
+            oscR = 0.72f * oscR - 0.28f * bellBody;
         }
 
         // Resonant cymbal body bandpass filter centered around toneFreqHz
@@ -551,11 +560,11 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
             computeHighpassCoeffs(std::max(800.0f, fundamentalHz * 0.8f), 0.7071f, sampleRate_, b0_mh_, b1_mh_, b2_mh_, a1_mh_, a2_mh_);
         }
 
-        const float bpL = processBiquad(oscL * metalEnv, metalBPF_L_, b0_mb_, b1_mb_, b2_mb_, a1_mb_, a2_mb_);
-        const float bpR = processBiquad(oscR * metalEnv, metalBPF_R_, b0_mb_, b1_mb_, b2_mb_, a1_mb_, a2_mb_);
+        const float bpL = processBiquad(oscL, metalBPF_L_, b0_mb_, b1_mb_, b2_mb_, a1_mb_, a2_mb_);
+        const float bpR = processBiquad(oscR, metalBPF_R_, b0_mb_, b1_mb_, b2_mb_, a1_mb_, a2_mb_);
 
-        const float hpL = processBiquad(oscL * metalEnv, metalHPF_L_, b0_mh_, b1_mh_, b2_mh_, a1_mh_, a2_mh_);
-        const float hpR = processBiquad(oscR * metalEnv, metalHPF_R_, b0_mh_, b1_mh_, b2_mh_, a1_mh_, a2_mh_);
+        const float hpL = processBiquad(oscL, metalHPF_L_, b0_mh_, b1_mh_, b2_mh_, a1_mh_, a2_mh_);
+        const float hpR = processBiquad(oscR, metalHPF_R_, b0_mh_, b1_mh_, b2_mh_, a1_mh_, a2_mh_);
 
         metalL = (bpL * 1.25f + hpL * 0.45f) * settings.toneLevel * velocity_;
         metalR = (bpR * 1.25f + hpR * 0.45f) * settings.toneLevel * velocity_;
@@ -605,9 +614,31 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
         airR = mid - side;
     }
 
-    // Combine dry elements
-    const float dryL = airL + metalL + (chickSample + preChickTickL) * velocity_;
-    const float dryR = airR + metalR + (chickSample + preChickTickR) * velocity_;
+    // Apply the global one-shot envelope to the generated hit before the space bus.
+    const float dryAge = static_cast<float>(currentSample);
+    const float dryDuration = static_cast<float>(dryDurationSamples_);
+    const float attackSamples = std::clamp(settings.ampAttackMs, 0.05f, 20.0f) * 0.001f * static_cast<float>(sampleRate_);
+    const float releaseSamples = std::clamp(settings.ampReleaseMs, 5.0f, 800.0f) * 0.001f * static_cast<float>(sampleRate_);
+    const float safeAttack = std::min(attackSamples, dryDuration * 0.30f);
+    const float safeRelease = std::min(releaseSamples, dryDuration * 0.35f);
+    const float decaySamples = std::clamp(settings.ampDecayMs, 1.0f, 600.0f) * 0.001f * static_cast<float>(sampleRate_);
+    const float safeDecay = std::min(decaySamples, std::max(0.0f, dryDuration - safeAttack - safeRelease));
+    const float sustain = std::clamp(settings.ampSustain, 0.0f, 1.0f);
+    const float releaseStart = std::max(safeAttack + safeDecay, dryDuration - safeRelease);
+    float ampEnvelope = 0.0f;
+    if (dryAge < safeAttack) {
+        ampEnvelope = dryAge / std::max(1.0f, safeAttack);
+    } else if (dryAge < safeAttack + safeDecay) {
+        const float decayPhase = (dryAge - safeAttack) / std::max(1.0f, safeDecay);
+        ampEnvelope = 1.0f + (sustain - 1.0f) * decayPhase;
+    } else if (dryAge < releaseStart) {
+        ampEnvelope = sustain;
+    } else if (dryAge < dryDuration) {
+        ampEnvelope = sustain * (dryDuration - dryAge) / std::max(1.0f, dryDuration - releaseStart);
+    }
+
+    const float dryL = (airL + metalL + (chickSample + preChickTickL) * velocity_) * ampEnvelope;
+    const float dryR = (airR + metalR + (chickSample + preChickTickR) * velocity_) * ampEnvelope;
 
     // 6. Gated Shimmer Reverb Tail
     StereoFrame reverbOut = { 0.0f, 0.0f };

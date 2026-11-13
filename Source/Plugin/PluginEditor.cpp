@@ -1,8 +1,20 @@
 #include "PluginEditor.h"
-#include "BinaryData.h"
 #include "Parameters.h"
 #include "Presets.h"
 #include "Theme.h"
+
+namespace {
+using namespace openhatter::theme;
+namespace theme = openhatter::theme;
+
+void styleHeaderButton(juce::TextButton& button, juce::Colour accent) {
+    button.setClickingTogglesState(true);
+    button.setColour(juce::TextButton::buttonColourId, kKnobBody);
+    button.setColour(juce::TextButton::buttonOnColourId, accent.withAlpha(0.24f));
+    button.setColour(juce::TextButton::textColourOffId, kTextDim.brighter(0.2f));
+    button.setColour(juce::TextButton::textColourOnId, accent);
+}
+} // namespace
 
 OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     : AudioProcessorEditor(&processorToEdit),
@@ -13,52 +25,55 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
       tooltipWindow_(this, 500) {
     juce::LookAndFeel::setDefaultLookAndFeel(&lookAndFeel_);
 
-    faceplate_ = juce::ImageCache::getFromMemory(
-        BinaryData::openhatterfaceplate_png, BinaryData::openhatterfaceplate_pngSize);
-
     const auto& presets = openhatter::presets::factoryPresets();
-    for (size_t i = 0; i < presets.size(); ++i) {
+    for (size_t i = 0; i < presets.size(); ++i)
         presetBox_.addItem(presets[i].name, static_cast<int>(i + 1));
-    }
-    presetBox_.onChange = [this]() {
+    presetBox_.setTooltip("Choose one of the 48 new trance-focused open-hat presets.");
+    presetBox_.onChange = [this] {
         const int selected = presetBox_.getSelectedId() - 1;
-        if (selected >= 0 && selected < processor_.getNumPrograms()) {
+        if (selected >= 0 && selected < processor_.getNumPrograms())
             processor_.setCurrentProgram(selected);
-        }
     };
-    syncPresetBox();
     addAndMakeVisible(presetBox_);
 
-    prevPresetBtn_.onClick = [this]() {
-        const int current = processor_.getCurrentProgram();
-        const int prev = (current - 1 + processor_.getNumPrograms()) % processor_.getNumPrograms();
-        processor_.setCurrentProgram(prev);
+    prevPresetBtn_.setTooltip("Previous factory preset");
+    prevPresetBtn_.onClick = [this] {
+        const int count = processor_.getNumPrograms();
+        processor_.setCurrentProgram((processor_.getCurrentProgram() - 1 + count) % count);
         syncPresetBox();
     };
     addAndMakeVisible(prevPresetBtn_);
-
-    nextPresetBtn_.onClick = [this]() {
-        const int current = processor_.getCurrentProgram();
-        const int next = (current + 1) % processor_.getNumPrograms();
-        processor_.setCurrentProgram(next);
+    nextPresetBtn_.setTooltip("Next factory preset");
+    nextPresetBtn_.onClick = [this] {
+        const int count = processor_.getNumPrograms();
+        processor_.setCurrentProgram((processor_.getCurrentProgram() + 1) % count);
         syncPresetBox();
     };
     addAndMakeVisible(nextPresetBtn_);
 
-    viewToggleBtn_.setButtonText(synthPanel_.isAdvancedMode() ? "ADVANCED" : "SIMPLE");
-    viewToggleBtn_.setColour(juce::TextButton::buttonColourId, openhatter::theme::kKnobBody);
-    viewToggleBtn_.setColour(juce::TextButton::textColourOffId, openhatter::theme::kAccentCyan);
-    viewToggleBtn_.setTooltip("Toggle between clean Simple mode and deep Advanced tweak controls.");
-    viewToggleBtn_.onClick = [this]() {
-        setAdvancedView(!synthPanel_.isAdvancedMode());
-    };
-    addAndMakeVisible(viewToggleBtn_);
+    styleHeaderButton(simpleAdvancedBtn_, theme::kAccentAmber);
+    simpleAdvancedBtn_.setTooltip("Switch between core controls and the full parameter controls.");
+    simpleAdvancedBtn_.onClick = [this] { setAdvancedView(!advanced_); };
+    addAndMakeVisible(simpleAdvancedBtn_);
+
+    for (size_t i = 0; i < pageButtons_.size(); ++i) {
+        auto& button = pageButtons_[i];
+        const auto accent = i == 0 ? theme::kAccentCyan : (i == 1 ? theme::kAccentViolet : theme::kAccentFlame);
+        styleHeaderButton(button, accent);
+        button.setTooltip(i == 0 ? "Cymbal body, pitch, ADSR and chick transient"
+                                 : (i == 1 ? "Pre-chick articulation and air-tail motion"
+                                           : "Exciter, dynamics, space and output"));
+        button.onClick = [this, i] { setPage(static_cast<int>(i)); };
+        addAndMakeVisible(button);
+    }
 
     addAndMakeVisible(stagePanel_);
     addAndMakeVisible(synthPanel_);
     addAndMakeVisible(effectsPanel_);
-
-    setSize(1100, 740);
+    syncPresetBox();
+    setPage(0);
+    setAdvancedView(false);
+    setSize(1100, 972);
     setResizable(false, false);
     startTimerHz(20);
 }
@@ -69,12 +84,25 @@ OpenHatterEditor::~OpenHatterEditor() {
 }
 
 void OpenHatterEditor::setAdvancedView(bool advanced) {
-    syncPresetBox();
+    advanced_ = advanced;
+    simpleAdvancedBtn_.setButtonText(advanced ? "FULL DETAIL" : "SIMPLE");
+    simpleAdvancedBtn_.setToggleState(advanced, juce::dontSendNotification);
     synthPanel_.setAdvancedMode(advanced);
     effectsPanel_.setAdvancedMode(advanced);
-    viewToggleBtn_.setButtonText(advanced ? "ADVANCED" : "SIMPLE");
-    viewToggleBtn_.setColour(juce::TextButton::textColourOffId,
-        advanced ? openhatter::theme::kAccentAmber : openhatter::theme::kAccentCyan);
+    resized();
+    repaint();
+}
+
+void OpenHatterEditor::setPage(int page) {
+    page_ = std::clamp(page, 0, 2);
+    synthPanel_.setPage(page_ == 1 ? 1 : 0);
+    const bool hatPage = page_ == 0;
+    const bool motionPage = page_ == 1;
+    stagePanel_.setVisible(hatPage);
+    synthPanel_.setVisible(hatPage || motionPage);
+    effectsPanel_.setVisible(page_ == 2);
+    for (size_t i = 0; i < pageButtons_.size(); ++i)
+        pageButtons_[i].setToggleState(static_cast<int>(i) == page_, juce::dontSendNotification);
     resized();
     repaint();
 }
@@ -84,61 +112,65 @@ void OpenHatterEditor::syncPresetBox() {
 }
 
 void OpenHatterEditor::timerCallback() {
-    if (presetBox_.getSelectedId() != processor_.getCurrentProgram() + 1) {
+    if (presetBox_.getSelectedId() != processor_.getCurrentProgram() + 1)
         syncPresetBox();
-    }
 }
 
 void OpenHatterEditor::paint(juce::Graphics& g) {
-    g.fillAll(openhatter::theme::kBackground);
+    g.fillAll(theme::kBackground);
+    const auto header = getLocalBounds().removeFromTop(46);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff172332), 0.0f, 0.0f,
+                                           juce::Colour(0xff0a1018), 0.0f, static_cast<float>(header.getHeight()), false));
+    g.fillRect(header);
+    g.setColour(theme::kPanelEdge);
+    g.drawHorizontalLine(header.getBottom() - 1, 0.0f, static_cast<float>(getWidth()));
+    g.setColour(theme::kAccentCyan);
+    g.fillRect(0, header.getBottom() - 2, 190, 2);
 
-    if (faceplate_.isValid()) {
-        const juce::Graphics::ScopedSaveState state(g);
-        g.setOpacity(0.45f);
-        g.drawImageWithin(faceplate_, 0, 0, getWidth(), getHeight(),
-                          juce::RectanglePlacement::stretchToFit);
-    }
-
-    const auto headerArea = getLocalBounds().removeFromTop(44);
-    g.setGradientFill(juce::ColourGradient(
-        juce::Colour(0xff111822), 0.0f, 0.0f,
-        juce::Colour(0xff090e15), 0.0f, static_cast<float>(headerArea.getHeight()), false));
-    g.fillRect(headerArea);
-    g.setColour(openhatter::theme::kPanelEdge);
-    g.drawHorizontalLine(headerArea.getBottom() - 1, 0.0f, static_cast<float>(getWidth()));
-    g.setColour(openhatter::theme::kAccentAmber.withAlpha(0.65f));
-    g.drawHorizontalLine(headerArea.getBottom() - 1, 12.0f, 260.0f);
-
-    g.setColour(openhatter::theme::kAccentCyan);
-    g.setFont(juce::FontOptions(20.0f, juce::Font::bold));
-    g.drawText("openHatter", 16, headerArea.getY() + 10, 140, 24, juce::Justification::left, true);
-
-    g.setColour(openhatter::theme::kAccentAmber);
-    g.setFont(juce::FontOptions(13.0f, juce::Font::italic));
-    g.drawText("Hat on. Off-beat.", 150, headerArea.getY() + 13, 140, 20, juce::Justification::left, true);
-
-    g.setColour(openhatter::theme::kTextDim.brighter(0.25f));
+    g.setColour(theme::kText);
+    g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
+    g.drawText("openHatter", 16, 6, 158, 25, juce::Justification::left, true);
+    g.setColour(theme::kAccentAmber);
     g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText("v" JucePlugin_VersionString " | TUNABLE OPEN HI-HAT SYNTH", getWidth() - 260, headerArea.getY() + 13, 244, 20, juce::Justification::right, true);
+    g.drawText("TRANCE OPEN-HAT INSTRUMENT", 18, 29, 260, 13, juce::Justification::left, true);
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.drawText("V" JucePlugin_VersionString "  /  48 NEW CLUB PRESETS", getWidth() - 250, 16, 232, 16,
+               juce::Justification::right, true);
+
+    auto controls = getLocalBounds().withTop(48).withHeight(38);
+    g.setColour(theme::kPanel.brighter(0.02f));
+    g.fillRoundedRectangle(controls.reduced(8, 1).toFloat(), 6.0f);
 }
 
 void OpenHatterEditor::resized() {
-    auto area = getLocalBounds().reduced(10, 8);
+    constexpr int margin = 12;
+    const int rowY = 51;
+    const int rowH = 34;
+    int x = margin;
+    for (auto& pageButton : pageButtons_) {
+        pageButton.setBounds(x, rowY, pageButton.getButtonText() == "MOTION" ? 90 : 72, rowH);
+        x = pageButton.getRight() + 5;
+    }
 
-    auto header = area.removeFromTop(38);
-    const int presetW = 240;
-    auto presetArea = header.withX(header.getCentreX() - presetW / 2).withWidth(presetW);
-    prevPresetBtn_.setBounds(presetArea.getX() - 28, presetArea.getY() + 4, 24, 26);
-    presetBox_.setBounds(presetArea.withHeight(26).translated(0, 4));
-    nextPresetBtn_.setBounds(presetArea.getRight() + 4, presetArea.getY() + 4, 24, 26);
-    viewToggleBtn_.setBounds(nextPresetBtn_.getRight() + 12, presetArea.getY() + 4, 86, 26);
+    const int presetWidth = 336;
+    auto presetArea = juce::Rectangle<int>((getWidth() - presetWidth) / 2, rowY, presetWidth, rowH);
+    prevPresetBtn_.setBounds(presetArea.removeFromLeft(32).reduced(2, 3));
+    presetArea.removeFromLeft(5);
+    presetBox_.setBounds(presetArea.removeFromLeft(260).reduced(0, 3));
+    presetArea.removeFromLeft(5);
+    nextPresetBtn_.setBounds(presetArea.reduced(2, 3));
+    simpleAdvancedBtn_.setBounds(getWidth() - margin - 112, rowY, 112, rowH);
 
-    const int stageWidth = 330;
-    stagePanel_.setBounds(area.removeFromLeft(stageWidth).reduced(2, 2));
-
-    auto rightArea = area.reduced(2, 2);
-    const float synthRatio = synthPanel_.isAdvancedMode() ? 0.58f : 0.52f;
-    const int synthHeight = static_cast<int>(static_cast<float>(rightArea.getHeight()) * synthRatio);
-    synthPanel_.setBounds(rightArea.removeFromTop(synthHeight).reduced(0, 2));
-    effectsPanel_.setBounds(rightArea.reduced(0, 2));
+    const int contentTop = 96;
+    const auto content = getLocalBounds().withTop(contentTop).reduced(margin, 0).withTrimmedBottom(margin);
+    if (page_ == 0) {
+        auto body = content;
+        stagePanel_.setBounds(body.removeFromLeft(278).reduced(0, 2));
+        synthPanel_.setBounds(body.reduced(0, 2));
+    } else if (page_ == 1) {
+        synthPanel_.setBounds(content.reduced(0, 2));
+    } else {
+        effectsPanel_.setBounds(content.reduced(0, 2));
+    }
 }

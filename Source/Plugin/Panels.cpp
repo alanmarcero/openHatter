@@ -271,140 +271,156 @@ void HatterStagePanel::paint(juce::Graphics& g) {
 HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
     : preBursts_(processor.parameters, openhatter::params::kPreBursts, "Bounces", theme::kAccentCyan),
       preSpread_(processor.parameters, openhatter::params::kPreSpread, "Spread", theme::kAccentCyan),
+      preDecay_(processor.parameters, openhatter::params::kPreDecay, "Bounce Decay", theme::kAccentCyan),
+      preJitter_(processor.parameters, openhatter::params::kPreJitter, "Humanize", theme::kAccentCyan),
       flamSpread_(processor.parameters, openhatter::params::kFlamSpread, "Bounce Pan", theme::kAccentCyan),
-      preLevel_(processor.parameters, openhatter::params::kPreLevel, "Bounce Lvl", theme::kAccentCyan),
-
+      preLevel_(processor.parameters, openhatter::params::kPreLevel, "Bounce Level", theme::kAccentCyan),
       toneMode_(processor.parameters, openhatter::params::kToneMode, "Cymbal Mode", theme::kAccentAmber),
       toneNote_(processor.parameters, openhatter::params::kToneNote, "Root Note", theme::kAccentAmber),
       toneOctave_(processor.parameters, openhatter::params::kToneOctave, "Octave", theme::kAccentAmber),
-      toneFine_(processor.parameters, openhatter::params::kToneFine, "Fine", theme::kAccentAmber),
+      toneFine_(processor.parameters, openhatter::params::kToneFine, "Fine Tune", theme::kAccentAmber),
       lockPitchBtn_(processor.parameters, openhatter::params::kLockPitch, "LOCK PITCH", theme::kAccentAmber),
+      toneFreq_(processor.parameters, openhatter::params::kToneFreq, "Bell Freq", theme::kAccentAmber),
       toneQ_(processor.parameters, openhatter::params::kToneQ, "Bell Q", theme::kAccentAmber),
       toneDecay_(processor.parameters, openhatter::params::kToneDecay, "Metal Decay", theme::kAccentAmber),
       tonePitchEnv_(processor.parameters, openhatter::params::kTonePitchEnv, "Pitch Chick", theme::kAccentAmber),
-      toneLevel_(processor.parameters, openhatter::params::kToneLevel, "Metal Lvl", theme::kAccentAmber),
-
+      tonePitchDecay_(processor.parameters, openhatter::params::kTonePitchDecay, "Pitch Decay", theme::kAccentAmber),
+      toneLevel_(processor.parameters, openhatter::params::kToneLevel, "Metal Level", theme::kAccentAmber),
+      ampAttack_(processor.parameters, openhatter::params::kAmpAttack, "Attack", theme::kAccentAmber),
+      ampDecay_(processor.parameters, openhatter::params::kAmpDecay, "Decay", theme::kAccentAmber),
+      ampSustain_(processor.parameters, openhatter::params::kAmpSustain, "Sustain", theme::kAccentAmber),
+      ampRelease_(processor.parameters, openhatter::params::kAmpRelease, "Release", theme::kAccentAmber),
       noiseType_(processor.parameters, openhatter::params::kNoiseType, "Air Texture", theme::kAccentViolet),
-      noiseDecay_(processor.parameters, openhatter::params::kNoiseDecay, "Open Decay", theme::kAccentViolet),
+      noiseAttack_(processor.parameters, openhatter::params::kNoiseAttack, "Air Attack", theme::kAccentViolet),
+      noiseHold_(processor.parameters, openhatter::params::kNoiseHold, "Air Hold", theme::kAccentViolet),
+      noiseDecay_(processor.parameters, openhatter::params::kNoiseDecay, "Air Decay", theme::kAccentViolet),
+      noiseCurve_(processor.parameters, openhatter::params::kNoiseCurve, "Tail Curve", theme::kAccentViolet),
       noiseHPF_(processor.parameters, openhatter::params::kNoiseHPF, "Air HPF", theme::kAccentViolet),
       noiseLPF_(processor.parameters, openhatter::params::kNoiseLPF, "Air LPF", theme::kAccentViolet),
-      noiseWidth_(processor.parameters, openhatter::params::kNoiseStereoWidth, "Shimmer Width", theme::kAccentViolet),
+      noiseWidth_(processor.parameters, openhatter::params::kNoiseStereoWidth, "Air Width", theme::kAccentViolet),
       noiseLevel_(processor.parameters, openhatter::params::kNoiseLevel, "Air Level", theme::kAccentViolet),
-
       clickType_(processor.parameters, openhatter::params::kClickType, "Chick Type", theme::kAccentNeonGreen),
-      clickLevel_(processor.parameters, openhatter::params::kClickLevel, "Chick Lvl", theme::kAccentNeonGreen),
-      clickFreq_(processor.parameters, openhatter::params::kClickFreq, "Chick Freq", theme::kAccentNeonGreen) {
-    addAndMakeVisible(preBursts_);
-    addAndMakeVisible(preSpread_);
-    addAndMakeVisible(flamSpread_);
-    addAndMakeVisible(preLevel_);
-
-    addAndMakeVisible(clickType_);
-    addAndMakeVisible(clickLevel_);
-    addAndMakeVisible(clickFreq_);
-
-    addAndMakeVisible(toneMode_);
-    addAndMakeVisible(toneNote_);
-    addAndMakeVisible(toneOctave_);
-    addAndMakeVisible(toneFine_);
-    addAndMakeVisible(lockPitchBtn_);
-    addAndMakeVisible(toneQ_);
-    addAndMakeVisible(toneDecay_);
-    addAndMakeVisible(tonePitchEnv_);
-    addAndMakeVisible(toneLevel_);
-
-    addAndMakeVisible(noiseType_);
-    addAndMakeVisible(noiseDecay_);
-    addAndMakeVisible(noiseHPF_);
-    addAndMakeVisible(noiseLPF_);
-    addAndMakeVisible(noiseWidth_);
-    addAndMakeVisible(noiseLevel_);
-
+      clickLevel_(processor.parameters, openhatter::params::kClickLevel, "Chick Level", theme::kAccentNeonGreen),
+      clickFreq_(processor.parameters, openhatter::params::kClickFreq, "Chick Freq", theme::kAccentNeonGreen),
+      articulationLock_("Articulation", theme::kAccentCyan,
+          [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::articulation); },
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::articulation, on); }),
+      cymbalLock_("Cymbal & Tuning", theme::kAccentAmber,
+          [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::cymbalAndTuning); },
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::cymbalAndTuning, on); }),
+      airLock_("Air", theme::kAccentViolet,
+          [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::air); },
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, on); }) {
+    for (juce::Component* component : std::array<juce::Component*, 40>{
+             &preBursts_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_,
+             &toneMode_, &toneNote_, &toneOctave_, &toneFine_, &lockPitchBtn_, &toneFreq_, &toneQ_,
+             &toneDecay_, &tonePitchEnv_, &tonePitchDecay_, &toneLevel_, &ampAttack_, &ampDecay_,
+             &ampSustain_, &ampRelease_, &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_,
+             &noiseCurve_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &noiseLevel_, &clickType_,
+             &clickLevel_, &clickFreq_, &articulationLock_, &cymbalLock_, &airLock_, nullptr, nullptr, nullptr, nullptr})
+        if (component != nullptr) addAndMakeVisible(component);
     setAdvancedMode(false);
+}
+
+void HatSynthPanel::setPage(int page) {
+    page_ = std::clamp(page, 0, 1);
+    setAdvancedMode(advancedMode_);
 }
 
 void HatSynthPanel::setAdvancedMode(bool advanced) {
     advancedMode_ = advanced;
-    flamSpread_.setVisible(advanced);
-    preLevel_.setVisible(advanced);
-    toneFine_.setVisible(advanced);
-    toneQ_.setVisible(advanced);
-    tonePitchEnv_.setVisible(advanced);
-    toneLevel_.setVisible(advanced);
-    noiseHPF_.setVisible(advanced);
-    noiseLPF_.setVisible(advanced);
-    noiseLevel_.setVisible(advanced);
-    clickFreq_.setVisible(advanced);
+    const bool hat = page_ == 0;
+    const auto show = [hat](juce::Component& component) {
+        component.setVisible(hat);
+    };
+    show(toneMode_); show(toneNote_); show(toneOctave_); show(lockPitchBtn_); show(toneDecay_);
+    show(toneLevel_); show(ampAttack_); show(ampDecay_); show(ampSustain_); show(ampRelease_);
+    show(clickType_); show(clickLevel_);
+    for (juce::Component* component : std::array<juce::Component*, 6>{
+             &toneFine_, &toneFreq_, &toneQ_, &tonePitchEnv_, &tonePitchDecay_, &clickFreq_})
+        component->setVisible(hat && advancedMode_);
+    const bool motion = !hat;
+    for (juce::Component* component : std::array<juce::Component*, 6>{
+             &preBursts_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_})
+        component->setVisible(motion && (advancedMode_ || component == &preBursts_ || component == &preSpread_ || component == &preLevel_));
+    for (juce::Component* component : std::array<juce::Component*, 9>{
+             &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &noiseLevel_})
+        component->setVisible(motion && (advancedMode_ || component == &noiseType_ || component == &noiseDecay_
+                                         || component == &noiseWidth_ || component == &noiseLevel_));
+    articulationLock_.setVisible(true);
+    cymbalLock_.setVisible(hat);
+    airLock_.setVisible(motion);
     resized();
     repaint();
 }
 
 void HatSynthPanel::paint(juce::Graphics& g) {
-    const juce::String title = advancedMode_
-        ? "Open Hat Architecture & Tunable Cymbal (Advanced View)"
-        : "Open Hat Architecture & Tunable Cymbal (Simple Mode)";
-    drawPanel(g, getLocalBounds(), title, theme::kAccentCyan);
-
-    if (!tailSectionBounds_.isEmpty()) {
-        const auto tailRect = tailSectionBounds_.toFloat().reduced(1.0f);
-        drawGlow(g, tailRect, theme::kAccentAmber.withAlpha(0.12f));
-        g.setColour(theme::kBackground.brighter(0.04f));
-        g.fillRoundedRectangle(tailRect, 6.0f);
-        g.setColour(theme::kAccentAmber.withAlpha(0.85f));
-        g.drawRoundedRectangle(tailRect, 6.0f, 1.2f);
-
-        const auto badge = juce::Rectangle<float>(tailRect.getX() + 8.0f, tailRect.getY() + 3.0f, 280.0f, 14.0f);
+    drawPanel(g, getLocalBounds(), page_ == 0 ? (advancedMode_ ? "HAT · CYMBAL BODY & ADSR" : "HAT · PRIMARY SOUND")
+                                                : (advancedMode_ ? "MOTION · ARTICULATION & AIR" : "MOTION · OFF-BEAT SHAPE"),
+              page_ == 0 ? theme::kAccentCyan : theme::kAccentViolet);
+    for (size_t i = 0; i < sectionBounds_.size(); ++i) {
+        const auto bounds = sectionBounds_[i].toFloat().reduced(1.0f);
+        if (bounds.isEmpty()) continue;
+        const auto accent = i == 0 ? theme::kAccentAmber : (i == 1 ? theme::kAccentViolet : theme::kAccentNeonGreen);
+        g.setColour(theme::kPanel.brighter(0.035f));
+        g.fillRoundedRectangle(bounds, 8.0f);
+        g.setColour(accent.withAlpha(0.72f));
+        g.drawRoundedRectangle(bounds, 8.0f, 1.0f);
+        juce::String title;
+        if (page_ == 0) title = i == 0 ? "TUNED METAL & KEY" : (i == 1 ? "ONE-SHOT ADSR" : "CHICK TRANSIENT");
+        else title = i == 0 ? "STICK BOUNCES" : "AIR TAIL & WIDTH";
+        g.setColour(accent);
         g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-        g.setColour(theme::kAccentAmber);
-        g.drawText("TUNABLE CYMBAL MATRIX & KEY TUNING", badge, juce::Justification::centredLeft);
-    }
-
-    if (!attackSectionBounds_.isEmpty()) {
-        const auto attackRect = attackSectionBounds_.toFloat().reduced(1.0f);
-        g.setColour(theme::kBackground.brighter(0.02f));
-        g.fillRoundedRectangle(attackRect, 5.0f);
-        g.setColour(theme::kPanelEdge.withAlpha(0.7f));
-        g.drawRoundedRectangle(attackRect, 5.0f, 1.0f);
-
-        const auto badge = juce::Rectangle<float>(attackRect.getX() + 8.0f, attackRect.getY() + 3.0f, 220.0f, 14.0f);
-        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-        g.setColour(theme::kAccentCyan.withAlpha(0.85f));
-        g.drawText("STICK CHICK, BOUNCES & AIR SHIMMER", badge, juce::Justification::centredLeft);
+        g.drawText(title, sectionBounds_[i].reduced(12, 0).withHeight(20).translated(0, 5), juce::Justification::centredLeft);
     }
 }
 
 void HatSynthPanel::resized() {
-    auto area = getLocalBounds().reduced(8, 26);
-
-    if (!advancedMode_) {
-        const int rowHeight = area.getHeight() / 2;
-        attackSectionBounds_ = area.removeFromTop(rowHeight).reduced(0, 2);
-        auto row1Controls = attackSectionBounds_.withTrimmedTop(16);
-        layoutRow(row1Controls, { &preBursts_, &preSpread_, &clickType_, &clickLevel_, &noiseType_, &noiseWidth_ });
-
-        tailSectionBounds_ = area.reduced(0, 2);
-        auto row2Controls = tailSectionBounds_.withTrimmedTop(16);
-        layoutRow(row2Controls, { &toneNote_, &toneOctave_, &toneMode_, &lockPitchBtn_, &toneDecay_, &noiseDecay_ });
+    auto area = getLocalBounds().reduced(12, 30);
+    sectionBounds_.fill({});
+    if (page_ == 0) {
+        sectionBounds_[0] = area.removeFromTop(310).reduced(0, 3);
+        area.removeFromTop(8);
+        sectionBounds_[1] = area.removeFromTop(205).reduced(0, 3);
+        area.removeFromTop(8);
+        sectionBounds_[2] = area.reduced(0, 3);
+        cymbalLock_.setBounds(sectionBounds_[0].removeFromRight(88).withY(sectionBounds_[0].getY() + 5).withHeight(22));
+        articulationLock_.setBounds(sectionBounds_[2].removeFromRight(88).withY(sectionBounds_[2].getY() + 5).withHeight(22));
+        auto metal = sectionBounds_[0].reduced(8, 28);
+        auto pitchRow = metal.removeFromTop(108);
+        if (advancedMode_)
+            layoutRow(pitchRow, { &toneMode_, &toneNote_, &toneOctave_, &toneFine_, &lockPitchBtn_, &toneFreq_ });
+        else
+            layoutRow(pitchRow, { &toneMode_, &toneNote_, &toneOctave_, &lockPitchBtn_ });
+        if (advancedMode_)
+            layoutRow(metal.reduced(0, 2), { &toneQ_, &toneDecay_, &tonePitchEnv_, &tonePitchDecay_, &toneLevel_ });
+        else
+            layoutRow(metal.reduced(0, 2), { &toneDecay_, &toneLevel_ });
+        layoutRow(sectionBounds_[1].reduced(8, 34), { &ampAttack_, &ampDecay_, &ampSustain_, &ampRelease_ });
+        if (advancedMode_)
+            layoutRow(sectionBounds_[2].reduced(8, 34), { &clickType_, &clickLevel_, &clickFreq_ });
+        else
+            layoutRow(sectionBounds_[2].reduced(8, 34), { &clickType_, &clickLevel_ });
         return;
     }
 
-    const int rowHeight = area.getHeight() / 3;
-
-    // Row 1: Stick Bounces & Chick
-    attackSectionBounds_ = area.removeFromTop(rowHeight).reduced(0, 2);
-    auto row1 = attackSectionBounds_.withTrimmedTop(16);
-    auto flamArea = row1.removeFromLeft(static_cast<int>(static_cast<float>(row1.getWidth()) * 0.58f));
-    layoutRow(flamArea, { &preBursts_, &preSpread_, &flamSpread_, &preLevel_ });
-    layoutRow(row1, { &clickType_, &clickLevel_, &clickFreq_ });
-
-    // Row 2: Tunable Cymbal Matrix
-    tailSectionBounds_ = area.removeFromTop(rowHeight).reduced(0, 2);
-    auto row2 = tailSectionBounds_.withTrimmedTop(16);
-    layoutRow(row2, { &toneNote_, &toneOctave_, &toneFine_, &toneMode_, &lockPitchBtn_, &toneQ_, &toneDecay_, &tonePitchEnv_, &toneLevel_ });
-
-    // Row 3: Air Sizzle & Shimmer
-    noiseSectionBounds_ = area.reduced(0, 2);
-    layoutRow(noiseSectionBounds_, { &noiseType_, &noiseDecay_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &noiseLevel_ });
+    sectionBounds_[0] = area.removeFromTop(270).reduced(0, 3);
+    area.removeFromTop(8);
+    sectionBounds_[1] = area.reduced(0, 3);
+    articulationLock_.setBounds(sectionBounds_[0].removeFromRight(88).withY(sectionBounds_[0].getY() + 5).withHeight(22));
+    airLock_.setBounds(sectionBounds_[1].removeFromRight(88).withY(sectionBounds_[1].getY() + 5).withHeight(22));
+    if (advancedMode_)
+        layoutRow(sectionBounds_[0].reduced(8, 42), { &preBursts_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_ });
+    else
+        layoutRow(sectionBounds_[0].reduced(8, 42), { &preBursts_, &preSpread_, &preLevel_ });
+    auto airArea = sectionBounds_[1].reduced(8, 32);
+    if (advancedMode_) {
+        layoutRow(airArea.removeFromTop(126), { &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_ });
+        layoutRow(airArea, { &noiseHPF_, &noiseLPF_, &noiseWidth_, &noiseLevel_ });
+    } else {
+        layoutRow(airArea.removeFromTop(126), { &noiseType_, &noiseDecay_ });
+        layoutRow(airArea, { &noiseWidth_, &noiseLevel_ });
+    }
 }
 
 // ============================================================================
@@ -416,51 +432,41 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
       distDrive_(processor.parameters, openhatter::params::kDistDrive, "Drive", theme::kAccentFlame),
       distTone_(processor.parameters, openhatter::params::kDistTone, "Sheen Tilt", theme::kAccentFlame),
       distMix_(processor.parameters, openhatter::params::kDistMix, "Exciter Mix", theme::kAccentFlame),
-
       compThresh_(processor.parameters, openhatter::params::kCompThresh, "Threshold", theme::kAccentAmber),
       compRatio_(processor.parameters, openhatter::params::kCompRatio, "Ratio", theme::kAccentAmber),
+      compAttack_(processor.parameters, openhatter::params::kCompAttack, "Comp Attack", theme::kAccentAmber),
+      compRelease_(processor.parameters, openhatter::params::kCompRelease, "Comp Release", theme::kAccentAmber),
       compMakeup_(processor.parameters, openhatter::params::kCompMakeup, "Makeup", theme::kAccentAmber),
       compMix_(processor.parameters, openhatter::params::kCompMix, "Comp Mix", theme::kAccentAmber),
-
       limiterCeiling_(processor.parameters, openhatter::params::kLimiterCeiling, "Ceiling", theme::kAccentNeonGreen),
+      limiterRelease_(processor.parameters, openhatter::params::kLimiterRelease, "Limit Release", theme::kAccentNeonGreen),
       limiterEnabled_(processor.parameters, openhatter::params::kLimiterEnabled, "LIMITER", theme::kAccentNeonGreen),
-
       reverbSize_(processor.parameters, openhatter::params::kReverbSize, "Room Size", theme::kAccentViolet),
       reverbDecay_(processor.parameters, openhatter::params::kReverbDecay, "Rev Decay", theme::kAccentViolet),
+      reverbDamp_(processor.parameters, openhatter::params::kReverbDamp, "Damping", theme::kAccentViolet),
       reverbGate_(processor.parameters, openhatter::params::kReverbGate, "Choke Gate", theme::kAccentViolet),
       reverbMix_(processor.parameters, openhatter::params::kReverbMix, "Rev Mix", theme::kAccentViolet),
-
       reverseMode_(processor.parameters, openhatter::params::kReverseMode, "Rev Sync", theme::kAccentCyan),
       reverseMix_(processor.parameters, openhatter::params::kReverseMix, "Rev Swell", theme::kAccentCyan),
       midiMode_(processor.parameters, openhatter::params::kMidiMode, "MIDI Mode", theme::kTextDim),
       lockInBtn_(processor.parameters, openhatter::params::kLockIn, "LOCK WAV", theme::kAccentAmber),
       masterWidth_(processor.parameters, openhatter::params::kStereoWidth, "Master Width", theme::kAccentCyan),
-      outputGain_(processor.parameters, openhatter::params::kOutputGain, "Output", theme::kAccentAmber) {
-    addAndMakeVisible(distType_);
-    addAndMakeVisible(distDrive_);
-    addAndMakeVisible(distTone_);
-    addAndMakeVisible(distMix_);
-
-    addAndMakeVisible(compThresh_);
-    addAndMakeVisible(compRatio_);
-    addAndMakeVisible(compMakeup_);
-    addAndMakeVisible(compMix_);
-
-    addAndMakeVisible(limiterCeiling_);
-    addAndMakeVisible(limiterEnabled_);
-
-    addAndMakeVisible(reverbSize_);
-    addAndMakeVisible(reverbDecay_);
-    addAndMakeVisible(reverbGate_);
-    addAndMakeVisible(reverbMix_);
-
-    addAndMakeVisible(reverseMode_);
-    addAndMakeVisible(reverseMix_);
-    addAndMakeVisible(midiMode_);
-    addAndMakeVisible(lockInBtn_);
-    addAndMakeVisible(masterWidth_);
-    addAndMakeVisible(outputGain_);
-
+      outputGain_(processor.parameters, openhatter::params::kOutputGain, "Output", theme::kAccentAmber),
+      exciterLock_("Exciter", theme::kAccentFlame,
+          [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::exciter); },
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::exciter, on); }),
+      dynamicsLock_("Dynamics", theme::kAccentAmber,
+          [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::dynamics); },
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::dynamics, on); }),
+      spaceLock_("Space & Output", theme::kAccentCyan,
+          [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput); },
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput, on); }) {
+    for (juce::Component* component : std::array<juce::Component*, 26>{
+             &distType_, &distDrive_, &distTone_, &distMix_, &compThresh_, &compRatio_, &compAttack_, &compRelease_,
+             &compMakeup_, &compMix_, &limiterCeiling_, &limiterRelease_, &limiterEnabled_, &reverbSize_, &reverbDecay_,
+             &reverbDamp_, &reverbGate_, &reverbMix_, &reverseMode_, &reverseMix_, &midiMode_, &lockInBtn_,
+             &masterWidth_, &outputGain_, &exciterLock_, &dynamicsLock_}) addAndMakeVisible(component);
+    addAndMakeVisible(spaceLock_);
     setAdvancedMode(false);
 }
 
@@ -469,8 +475,12 @@ void EffectsPanel::setAdvancedMode(bool advanced) {
     distTone_.setVisible(advanced);
     compThresh_.setVisible(advanced);
     compRatio_.setVisible(advanced);
+    compAttack_.setVisible(advanced);
+    compRelease_.setVisible(advanced);
     compMakeup_.setVisible(advanced);
+    limiterRelease_.setVisible(advanced);
     reverbDecay_.setVisible(advanced);
+    reverbDamp_.setVisible(advanced);
     reverseMode_.setVisible(advanced);
     reverseMix_.setVisible(advanced);
     midiMode_.setVisible(advanced);
@@ -479,33 +489,56 @@ void EffectsPanel::setAdvancedMode(bool advanced) {
 }
 
 void EffectsPanel::paint(juce::Graphics& g) {
-    const juce::String title = advancedMode_
-        ? "Shimmer Exciter, Dynamics & Space (Advanced View)"
-        : "Shimmer Exciter, Dynamics & Space (Simple Mode)";
-    drawPanel(g, getLocalBounds(), title, theme::kAccentFlame);
+    drawPanel(g, getLocalBounds(), advancedMode_ ? "FX · EXCITER, DYNAMICS & SPACE · FULL CONTROLS"
+                                                   : "FX · MASTERING & MOTION",
+              theme::kAccentFlame);
+    for (size_t i = 0; i < sectionBounds_.size(); ++i) {
+        const auto bounds = sectionBounds_[i].toFloat().reduced(1.0f);
+        if (bounds.isEmpty()) continue;
+        const auto accent = i == 0 ? theme::kAccentFlame : (i == 1 ? theme::kAccentAmber : theme::kAccentCyan);
+        g.setColour(theme::kPanel.brighter(0.035f));
+        g.fillRoundedRectangle(bounds, 8.0f);
+        g.setColour(accent.withAlpha(0.72f));
+        g.drawRoundedRectangle(bounds, 8.0f, 1.0f);
+        const auto title = i == 0 ? "SHIMMER EXCITER" : (i == 1 ? "COMPRESSOR & LIMITER" : "SPACE, REVERSE & OUTPUT");
+        g.setColour(accent);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText(title, sectionBounds_[i].reduced(12, 0).withHeight(20).translated(0, 5), juce::Justification::centredLeft);
+    }
 }
 
 void EffectsPanel::resized() {
-    auto area = getLocalBounds().reduced(8, 26);
-
-    if (!advancedMode_) {
-        const int rowHeight = area.getHeight() / 2;
-        auto row1 = area.removeFromTop(rowHeight);
-        layoutRow(row1, { &distType_, &distDrive_, &distMix_, &compMix_, &limiterCeiling_, &limiterEnabled_ });
-        layoutRow(area, { &reverbSize_, &reverbMix_, &reverbGate_, &masterWidth_, &outputGain_, &lockInBtn_ });
-        return;
+    auto area = getLocalBounds().reduced(14, 32);
+    const int firstHeight = std::max(170, area.getHeight() / 4);
+    const int middleHeight = std::max(250, area.getHeight() / 3);
+    sectionBounds_[0] = area.removeFromTop(firstHeight).reduced(0, 3);
+    area.removeFromTop(8);
+    sectionBounds_[1] = area.removeFromTop(middleHeight).reduced(0, 3);
+    area.removeFromTop(8);
+    sectionBounds_[2] = area.reduced(0, 3);
+    exciterLock_.setBounds(sectionBounds_[0].removeFromRight(88).withY(sectionBounds_[0].getY() + 5).withHeight(22));
+    dynamicsLock_.setBounds(sectionBounds_[1].removeFromRight(88).withY(sectionBounds_[1].getY() + 5).withHeight(22));
+    spaceLock_.setBounds(sectionBounds_[2].removeFromRight(88).withY(sectionBounds_[2].getY() + 5).withHeight(22));
+    if (advancedMode_)
+        layoutRow(sectionBounds_[0].reduced(8, 34), { &distType_, &distDrive_, &distTone_, &distMix_ });
+    else
+        layoutRow(sectionBounds_[0].reduced(8, 34), { &distType_, &distDrive_, &distMix_ });
+    auto dynamics = sectionBounds_[1].reduced(8, 32);
+    if (advancedMode_) {
+        layoutRow(dynamics.removeFromTop(116), { &compThresh_, &compRatio_, &compAttack_, &compRelease_, &compMakeup_, &compMix_ });
+        layoutRow(dynamics, { &limiterCeiling_, &limiterRelease_, &limiterEnabled_ });
+    } else {
+        layoutRow(dynamics.removeFromTop(116), { &compMix_, &limiterCeiling_ });
+        layoutRow(dynamics, { &limiterEnabled_ });
     }
-
-    const int rowHeight = area.getHeight() / 2;
-
-    auto row1 = area.removeFromTop(rowHeight);
-    auto distArea = row1.removeFromLeft(static_cast<int>(static_cast<float>(row1.getWidth()) * 0.40f));
-    layoutRow(distArea, { &distType_, &distDrive_, &distTone_, &distMix_ });
-    layoutRow(row1, { &compThresh_, &compRatio_, &compMakeup_, &compMix_, &limiterCeiling_, &limiterEnabled_ });
-
-    auto revArea = area.removeFromLeft(static_cast<int>(static_cast<float>(area.getWidth()) * 0.40f));
-    layoutRow(revArea, { &reverbSize_, &reverbDecay_, &reverbGate_, &reverbMix_ });
-    layoutRow(area, { &reverseMode_, &reverseMix_, &midiMode_, &masterWidth_, &outputGain_, &lockInBtn_ });
+    auto space = sectionBounds_[2].reduced(8, 30);
+    if (advancedMode_) {
+        layoutRow(space.removeFromTop(116), { &reverbSize_, &reverbDecay_, &reverbDamp_, &reverbGate_, &reverbMix_, &reverseMode_, &reverseMix_ });
+        layoutRow(space, { &midiMode_, &lockInBtn_, &masterWidth_, &outputGain_ });
+    } else {
+        layoutRow(space.removeFromTop(116), { &reverbSize_, &reverbGate_, &reverbMix_ });
+        layoutRow(space, { &lockInBtn_, &masterWidth_, &outputGain_ });
+    }
 }
 
 } // namespace openhatter::ui
