@@ -9,6 +9,8 @@ using namespace openhatter::params;
 
 namespace {
 
+constexpr float kFactoryMetalLevelScale = 0.25f;
+
 struct Articulation {
     float bounceCount, spreadMs, decayMs, humanize, pan, bounceLevel;
     float chickType, chickLevel, chickFrequency;
@@ -127,7 +129,7 @@ constexpr std::array<PresetDefinition, 48> kDefinitions {{
         { kToneDecay, definition.cymbal.metalDecay },
         { kTonePitchEnv, definition.cymbal.pitchChick },
         { kTonePitchDecay, definition.cymbal.pitchDecay },
-        { kToneLevel, definition.cymbal.metalLevel },
+        { kToneLevel, definition.cymbal.metalLevel * kFactoryMetalLevelScale },
         { kAmpAttack, definition.cymbal.attack },
         { kAmpDecay, definition.cymbal.decay },
         { kAmpSustain, definition.cymbal.sustain },
