@@ -34,6 +34,23 @@ TEST_CASE("OpenHatterProcessor provides exactly 48 EDM and trance factory preset
     }
 }
 
+TEST_CASE("OpenHatter factory presets attenuate the tuned metal layer", "[plugin][presets]") {
+    OpenHatterProcessor processor;
+    auto* toneLevel = processor.parameters.getParameter(openhatter::params::kToneLevel);
+    REQUIRE(toneLevel != nullptr);
+    REQUIRE(std::abs(toneLevel->getNormalisableRange().start) < 0.001f);
+    REQUIRE(std::abs(toneLevel->getNormalisableRange().end - 1.0f) < 0.001f);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneLevel)->load() - 0.20f) < 0.001f);
+
+    for (int i = 0; i < processor.getNumPrograms(); ++i) {
+        processor.setCurrentProgram(i);
+        INFO(processor.getProgramName(i).toStdString());
+        const float level = processor.parameters.getRawParameterValue(openhatter::params::kToneLevel)->load();
+        REQUIRE(level > 0.0f);
+        REQUIRE(level <= 0.24f);
+    }
+}
+
 TEST_CASE("OpenHatterProcessor renders audio upon MIDI note-on", "[plugin]") {
     OpenHatterProcessor processor;
     processor.prepareToPlay(48000.0, 512);

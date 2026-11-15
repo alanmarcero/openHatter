@@ -6,7 +6,7 @@ openHatter is a MIDI-tracked open hi-hat synthesizer. Play any MIDI note and the
 
 ![openHatter v3 editor](assets/openHatter-v3.png)
 
-Version 3 replaces the metallic voice and editor, and introduces 48 new presets across Progressive, Uplifting, Classic, Tech, Psy, and Club styles. The sound combines an inharmonic modal cymbal bank, shaped noise, stick bounces, transient controls, ADSR, exciter, dynamics, gated space, and reverse swells.
+Version 3.1 trims the tuned metallic level by 12 dB across all 48 factory presets and the fresh-instance default. It retains the MIDI-tracked engine and presets introduced in version 3, spanning Progressive, Uplifting, Classic, Tech, Psy, and Club styles. The sound combines an inharmonic modal cymbal bank, shaped noise, stick bounces, transient controls, ADSR, exciter, dynamics, gated space, and reverse swells.
 
 Available as VST3, AU, LV2, and Standalone on macOS, Windows, and Linux.
 

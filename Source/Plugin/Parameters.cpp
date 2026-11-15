@@ -49,7 +49,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kTonePitchDecay, 1 }, "Sweep Time", juce::NormalisableRange<float>(3.0f, 80.0f, 0.5f), 14.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kToneLevel, 1 }, "Metal Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.80f));
+        juce::ParameterID{ kToneLevel, 1 }, "Metal Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.20f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kAmpAttack, 1 }, "Amp Attack", juce::NormalisableRange<float>(0.05f, 20.0f, 0.05f), 0.35f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
