@@ -128,6 +128,9 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       toneDecay_(processor.parameters, params::kToneDecay, "DECAY", theme::kAccentBrass),
       tonePitchEnv_(processor.parameters, params::kTonePitchEnv, "SWEEP", theme::kAccentBrass),
       tonePitchDecay_(processor.parameters, params::kTonePitchDecay, "SWEEP TIME", theme::kAccentBrass),
+      metalSpread_(processor.parameters, params::kMetalSpread, "SPREAD", theme::kAccentBrass),
+      metalDampingSlope_(processor.parameters, params::kMetalDampingSlope, "DAMP SLOPE", theme::kAccentBrass),
+      metalStereoSpread_(processor.parameters, params::kMetalStereoSpread, "STEREO", theme::kAccentBrass),
       toneLevel_(processor.parameters, params::kToneLevel, "LEVEL", theme::kAccentBrass),
       noiseType_(processor.parameters, params::kNoiseType, "TEXTURE", theme::kAccentAqua),
       noiseAttack_(processor.parameters, params::kNoiseAttack, "ATTACK", theme::kAccentAqua),
@@ -162,8 +165,12 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::air); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, on); }) {
     fullAdsr_.setTooltip("Hold MIDI notes until a matching note-off. Release extends to 20 seconds.");
-    for (juce::Component* component : std::array<juce::Component*, 32>{
-             &toneMode_, &toneFreq_, &toneQ_, &toneDecay_, &tonePitchEnv_, &tonePitchDecay_, &toneLevel_,
+    metalSpread_.setTooltip("Move upper metal partials outward or inward by up to two octaves.");
+    metalDampingSlope_.setTooltip("Adjust upper-mode decay relative to the lowest resonator.");
+    metalStereoSpread_.setTooltip("Scale stereo dispersion across the upper metal partials.");
+    for (juce::Component* component : std::array<juce::Component*, 35>{
+             &toneMode_, &toneFreq_, &toneQ_, &toneDecay_, &tonePitchEnv_, &tonePitchDecay_,
+             &metalSpread_, &metalDampingSlope_, &metalStereoSpread_, &toneLevel_,
              &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &noiseLevel_,
              &preBursts_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_,
              &fullAdsr_, &ampAttack_, &ampDecay_, &ampSustain_, &ampRelease_, &clickType_, &clickLevel_, &clickFreq_, &articulationLock_, &cymbalLock_})
@@ -195,7 +202,8 @@ void HatSynthPanel::resized() {
     layoutRows(metal, {
         { &toneMode_, &toneFreq_, nullptr },
         { &toneQ_, &toneDecay_, &toneLevel_ },
-        { &tonePitchEnv_, &tonePitchDecay_, nullptr }
+        { &tonePitchEnv_, &tonePitchDecay_, nullptr },
+        { &metalSpread_, &metalDampingSlope_, &metalStereoSpread_ }
     });
 
     auto air = sectionBounds_[1].reduced(6, 27);

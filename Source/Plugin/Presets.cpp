@@ -129,6 +129,9 @@ constexpr std::array<PresetDefinition, 48> kDefinitions {{
         { kToneDecay, definition.cymbal.metalDecay },
         { kTonePitchEnv, definition.cymbal.pitchChick },
         { kTonePitchDecay, definition.cymbal.pitchDecay },
+        { kMetalSpread, 0.0f },
+        { kMetalDampingSlope, 0.0f },
+        { kMetalStereoSpread, 1.0f },
         { kToneLevel, definition.cymbal.metalLevel * kFactoryMetalLevelScale },
         { kAmpAttack, definition.cymbal.attack },
         { kAmpDecay, definition.cymbal.decay },
@@ -177,7 +180,8 @@ constexpr std::array<PresetDefinition, 48> kDefinitions {{
     if (id == kPreBursts || id == kPreSpread || id == kPreDecay || id == kPreJitter
         || id == kFlamSpread || id == kPreLevel || id == kClickType || id == kClickLevel || id == kClickFreq) return 0;
     if (id == kToneMode || id == kToneNote || id == kToneOctave || id == kToneFine || id == kToneFreq
-        || id == kToneQ || id == kToneDecay || id == kTonePitchEnv || id == kTonePitchDecay || id == kToneLevel
+        || id == kToneQ || id == kToneDecay || id == kTonePitchEnv || id == kTonePitchDecay
+        || id == kMetalSpread || id == kMetalDampingSlope || id == kMetalStereoSpread || id == kToneLevel
         || id == kAmpAttack || id == kAmpDecay || id == kAmpSustain || id == kAmpRelease || id == kLockPitch) return 1;
     if (id == kNoiseType || id == kNoiseAttack || id == kNoiseHold || id == kNoiseDecay || id == kNoiseCurve
         || id == kNoiseHPF || id == kNoiseLPF || id == kNoiseStereoWidth || id == kNoiseLevel) return 2;

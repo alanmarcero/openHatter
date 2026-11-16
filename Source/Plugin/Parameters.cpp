@@ -55,6 +55,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kTonePitchDecay, 1 }, "Sweep Time", juce::NormalisableRange<float>(3.0f, 80.0f, 0.5f), 14.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kMetalSpread, 1 }, "Partial Spread", juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 0.0f,
+        juce::AudioParameterFloatAttributes().withLabel("st")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kMetalDampingSlope, 1 }, "Damping Slope", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kMetalStereoSpread, 1 }, "Metal Stereo Spread", juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f), 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kToneLevel, 1 }, "Metal Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.20f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kVelocityMetal, 1 }, "Metal Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
@@ -242,6 +249,9 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     s.synth.toneDecayMs = *apvts.getRawParameterValue(kToneDecay);
     s.synth.tonePitchEnv = *apvts.getRawParameterValue(kTonePitchEnv);
     s.synth.tonePitchDecayMs = *apvts.getRawParameterValue(kTonePitchDecay);
+    s.synth.metalSpread = *apvts.getRawParameterValue(kMetalSpread);
+    s.synth.metalDampingSlope = *apvts.getRawParameterValue(kMetalDampingSlope);
+    s.synth.metalStereoSpread = *apvts.getRawParameterValue(kMetalStereoSpread);
     s.synth.toneLevel = *apvts.getRawParameterValue(kToneLevel);
     s.synth.velocityMetal = *apvts.getRawParameterValue(kVelocityMetal);
     for (int resonator = 1; resonator <= 6; ++resonator) {

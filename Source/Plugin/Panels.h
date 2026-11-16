@@ -40,6 +40,9 @@ private:
     Knob toneDecay_;
     Knob tonePitchEnv_;
     Knob tonePitchDecay_;
+    Knob metalSpread_;
+    Knob metalDampingSlope_;
+    Knob metalStereoSpread_;
     Knob toneLevel_;
 
     // Noise tail

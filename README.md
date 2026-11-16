@@ -1,10 +1,10 @@
-# openHatter v3.2
+# openHatter v3.3
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-openHatter is a MIDI-tracked open hi-hat synthesizer. Play any MIDI note and the synth follows its pitch and octave directly. The editor shows the received note, MIDI number, velocity, and calculated frequency. There are no pitch or octave selectors.
+openHatter is a MIDI-tracked open hi-hat synthesizer. Play any MIDI note and the synth follows its pitch and octave directly. The editor shows the received note, MIDI number, velocity, and calculated frequency. There are no pitch or octave selectors. Version 3.3 adds automatable metal partial spread, upper-mode damping slope, and stereo spread controls.
 
-![openHatter v3.2 editor](assets/openHatter-v3.png)
+![openHatter v3.3 editor](assets/openHatter-v3.png)
 
 Version 3.2 adds an optional MIDI-tracked Full ADSR envelope with release up to 20 seconds. The engine matches note-offs by MIDI note and channel, keeps note timing sample-accurate, and leaves the default one-shot behavior unchanged. Version 3.1 trims the tuned metallic level by 12 dB across all 48 factory presets and the fresh-instance default. Presets span Progressive, Uplifting, Classic, Tech, Psy, and Club styles. The sound combines an inharmonic modal cymbal bank, shaped noise, stick bounces, transient controls, exciter, dynamics, gated space, and reverse swells.
 
@@ -32,7 +32,7 @@ Four optional stereo outputs expose the metal, air, chick, and reverb stems. The
 
 | Section | Controls |
 |---|---|
-| Metal Resonator | Cymbal mode, bell focus, resonance, decay, upper-mode sweep and time, level |
+| Metal Resonator | Cymbal mode, bell focus, resonance, decay, upper-mode sweep and time, partial spread, damping slope, stereo spread, level |
 | Air Tail | Texture, attack, hold, decay, curve, high-pass, low-pass, stereo width, level |
 | Bounce / Groove | Bounce count, spread, decay, humanize, pan, level |
 | Envelope / Chick | Optional Full ADSR; attack, decay, sustain, release up to 20 seconds; chick type, level, frequency |

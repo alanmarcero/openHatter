@@ -58,6 +58,9 @@ struct HatSynthSettings {
     float toneDecayMs = 190.0f;   // 15..800 ms metallic body decay
     float tonePitchEnv = 3.5f;    // -24..+24 semitone sweep across upper modal partials
     float tonePitchDecayMs = 14.0f;// 3..80 ms upper-mode sweep decay
+    float metalSpread = 0.0f;     // -24..+24 semitone spread across upper modal partials
+    float metalDampingSlope = 0.0f; // -1..+1 adjusts upper-mode decay relative to the fundamental
+    float metalStereoSpread = 1.0f; // 0..2 scales stereo phase dispersion of upper modes
     float toneLevel = 0.80f;      // 0..1 level of tuned metallic matrix
     float velocityMetal = 1.0f;
     std::array<bool, 6> resonatorEnabled { true, true, true, true, true, true };
