@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <numbers>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -218,6 +219,13 @@ public:
         const HatSynthSettings& settings,
         float velocity,
         int midiNoteNumber) noexcept;
+    int renderMidiBlock(
+        std::span<float> leftOut,
+        std::span<float> rightOut,
+        const HatSynthSettings& settings,
+        float velocity,
+        int midiNoteNumber) noexcept;
+    void copyRandomStateFrom(const HatSynth& source) noexcept { prngState_ = source.prngState_; }
 
 private:
     void triggerAtFrequency(const HatSynthSettings& settings, float velocity, float baseFrequencyHz) noexcept;

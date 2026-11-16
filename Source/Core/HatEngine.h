@@ -120,6 +120,7 @@ public:
     [[nodiscard]] uint32_t triggerSerial() const noexcept { return triggerSerial_; }
     [[nodiscard]] bool isReversing() const noexcept { return isReversing_; }
     [[nodiscard]] uint64_t reverseCallbackWorkUnits() const noexcept { return reverseCallbackWorkUnits_; }
+    [[nodiscard]] uint32_t reversePreviewRenderCount() const noexcept { return reversePreviewRenderCount_; }
 
 private:
     void triggerHat(
@@ -129,7 +130,8 @@ private:
         double beatsPerBar,
         float velocity,
         int midiNoteNumber,
-        bool reverseCue) noexcept;
+        bool reverseCue,
+        bool cacheIncomingHit) noexcept;
 
     double sampleRate_ = 48000.0;
     double fallbackPpq_ = 0.0;
@@ -142,20 +144,17 @@ private:
 
     HatWavCache wavCache_;
 
-    // Reversed audio is read from preallocated dry-synth history. The ring is
-    // twice the maximum reverse duration so its reader cannot collide with the
-    // writer during a reverse pass.
-    std::vector<float> reverseHistoryL_;
-    std::vector<float> reverseHistoryR_;
-    int reverseHistoryWriteIndex_ = 0;
-    int reverseHistorySamplesAvailable_ = 0;
-    int reverseSourceStart_ = 0;
+    HatSynth reversePreviewSynth_;
+    std::vector<float> reversePreviewL_;
+    std::vector<float> reversePreviewR_;
+    int reversePreviewSamples_ = 0;
     int reverseSourceSamplesAvailable_ = 0;
     int reversePlayHead_ = -1;
     int reverseDuration_ = 0;
     float reverseMix_ = 0.5f;
     bool isReversing_ = false;
     uint64_t reverseCallbackWorkUnits_ = 0;
+    uint32_t reversePreviewRenderCount_ = 0;
 
     bool rollActive_ = false;
     int rollNoteNumber_ = 66;

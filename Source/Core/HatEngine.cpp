@@ -163,11 +163,11 @@ void HatEngine::prepare(double sampleRate) {
     distR_.reset();
     compressor_.prepare(sampleRate);
     limiter_.prepare(sampleRate);
+    reversePreviewSynth_.prepare(sampleRate);
 
     const int maxReverseSamples = static_cast<int>(sampleRate * 2.0);
-    const int reverseHistoryCapacity = maxReverseSamples * 2;
-    reverseHistoryL_.assign(reverseHistoryCapacity, 0.0f);
-    reverseHistoryR_.assign(reverseHistoryCapacity, 0.0f);
+    reversePreviewL_.assign(maxReverseSamples, 0.0f);
+    reversePreviewR_.assign(maxReverseSamples, 0.0f);
     reset();
 }
 
@@ -177,15 +177,15 @@ void HatEngine::reset() noexcept {
     distR_.reset();
     compressor_.reset();
     limiter_.reset();
-    reverseHistoryWriteIndex_ = 0;
-    reverseHistorySamplesAvailable_ = 0;
-    reverseSourceStart_ = 0;
+    reversePreviewSynth_.reset();
+    reversePreviewSamples_ = 0;
     reverseSourceSamplesAvailable_ = 0;
     reversePlayHead_ = -1;
     reverseDuration_ = 0;
     reverseMix_ = 0.5f;
     isReversing_ = false;
     reverseCallbackWorkUnits_ = 0;
+    reversePreviewRenderCount_ = 0;
     rollActive_ = false;
     rollStep_ = 0;
     nextRollPpq_ = 0.0;
@@ -253,18 +253,26 @@ void HatEngine::triggerHat(
     double beatsPerBar,
     float velocity,
     int midiNoteNumber,
-    bool reverseCue) noexcept {
+    bool reverseCue,
+    bool cacheIncomingHit) noexcept {
     triggerSerial_++;
     currentHatProgress_ = 0.0f;
 
     const bool engageReverse = shouldTriggerReverse(settings.effects.reverseMode, reverseCue, samplePpq, beatsPerBar);
+    if (settings.effects.reverseMode != ReverseSyncMode::Off && cacheIncomingHit) {
+        reversePreviewSynth_.copyRandomStateFrom(synth_);
+        reversePreviewSamples_ = reversePreviewSynth_.renderMidiBlock(
+            std::span<float>(reversePreviewL_), std::span<float>(reversePreviewR_),
+            settings.synth, velocity, midiNoteNumber);
+        ++reversePreviewRenderCount_;
+        reverseCallbackWorkUnits_ += static_cast<uint64_t>(reversePreviewSamples_);
+    }
     if (engageReverse && settings.effects.reverseMode != ReverseSyncMode::Off) {
         const int syncSamples = computeSyncedReverseSamples(
             settings.effects.reverseMode, samplePpq, bpm, beatsPerBar, sampleRate_);
-        const int maxReverseSamples = static_cast<int>(reverseHistoryL_.size()) / 2;
+        const int maxReverseSamples = static_cast<int>(reversePreviewL_.size());
         reverseDuration_ = std::min(syncSamples, maxReverseSamples);
-        reverseSourceStart_ = reverseHistoryWriteIndex_;
-        reverseSourceSamplesAvailable_ = std::min(reverseHistorySamplesAvailable_, maxReverseSamples);
+        reverseSourceSamplesAvailable_ = std::min(reversePreviewSamples_, reverseDuration_);
         reverseMix_ = settings.effects.reverseMix;
         isReversing_ = reverseDuration_ > 0 && reverseSourceSamplesAvailable_ > 0;
         reversePlayHead_ = isReversing_ ? 0 : -1;
@@ -345,7 +353,8 @@ void HatEngine::process(
                 isReversing_ = false;
                 continue;
             }
-            triggerHat(settings, ppq, transport.bpm, beatsPerBar, trig.velocity, trig.noteNumber, trig.audition);
+            triggerHat(settings, ppq, transport.bpm, beatsPerBar,
+                       trig.velocity, trig.noteNumber, trig.audition, true);
             if (settings.rollEnabled) {
                 rollActive_ = true;
                 rollNoteNumber_ = trig.noteNumber;
@@ -364,7 +373,7 @@ void HatEngine::process(
                     ? 1.0f + std::clamp(settings.rollAccent, 0.0f, 1.0f)
                     : 1.0f;
                 triggerHat(settings, ppq, transport.bpm, beatsPerBar,
-                           std::clamp(rollVelocity_ * accent, 0.0f, 1.0f), rollNoteNumber_, false);
+                           std::clamp(rollVelocity_ * accent, 0.0f, 1.0f), rollNoteNumber_, false, false);
                 rollStep_ = (rollStep_ + 1) % 4;
                 const double interval = rollStepPpq * (rollStep_ % 2 == 1 ? 1.0 + swing : 1.0 - swing);
                 nextRollPpq_ += interval;
@@ -410,26 +419,12 @@ void HatEngine::process(
             if (layerOutputs->reverbRight != nullptr) layerOutputs->reverbRight[sample] = 0.0f;
         }
 
-        // Save only the forward synth signal. Reverse playback never feeds back
-        // into this history, and each callback sample performs fixed work.
-        reverseHistoryL_[reverseHistoryWriteIndex_] = sL;
-        reverseHistoryR_[reverseHistoryWriteIndex_] = sR;
-        ++reverseHistoryWriteIndex_;
-        if (reverseHistoryWriteIndex_ == static_cast<int>(reverseHistoryL_.size()))
-            reverseHistoryWriteIndex_ = 0;
-        reverseHistorySamplesAvailable_ = std::min(
-            reverseHistorySamplesAvailable_ + 1, static_cast<int>(reverseHistoryL_.size()));
-
         if (reversePlayHead_ >= 0 && reversePlayHead_ < reverseDuration_) {
-            if (reverseSourceSamplesAvailable_ > 0) {
-                const int age = static_cast<int>(
-                    (static_cast<int64_t>(reversePlayHead_) * reverseSourceSamplesAvailable_) / reverseDuration_) + 1;
-                int sourceIndex = reverseSourceStart_ - age;
-                if (sourceIndex < 0)
-                    sourceIndex += static_cast<int>(reverseHistoryL_.size());
+            if (reversePlayHead_ < reverseSourceSamplesAvailable_) {
+                const int sourceIndex = reverseSourceSamplesAvailable_ - 1 - reversePlayHead_;
                 const float ramp = static_cast<float>(reversePlayHead_) / static_cast<float>(reverseDuration_);
-                sL += reverseHistoryL_[sourceIndex] * ramp * reverseMix_;
-                sR += reverseHistoryR_[sourceIndex] * ramp * reverseMix_;
+                sL += reversePreviewL_[sourceIndex] * ramp * reverseMix_;
+                sR += reversePreviewR_[sourceIndex] * ramp * reverseMix_;
             }
             ++reverseCallbackWorkUnits_;
             reversePlayHead_++;
