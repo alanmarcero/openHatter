@@ -65,8 +65,16 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         }
     }
 
-    std::vector<openhatter::core::MidiTrigger> triggers;
-    std::vector<openhatter::core::MidiCcEvent> ccEvents;
+    std::size_t triggerCount = 0;
+    std::size_t ccEventCount = 0;
+    const auto appendTrigger = [this, &triggerCount](const openhatter::core::MidiTrigger& trigger) noexcept {
+        if (triggerCount < midiTriggers_.size())
+            midiTriggers_[triggerCount++] = trigger;
+    };
+    const auto appendCcEvent = [this, &ccEventCount](const openhatter::core::MidiCcEvent& event) noexcept {
+        if (ccEventCount < midiCcEvents_.size())
+            midiCcEvents_[ccEventCount++] = event;
+    };
     int auditionNote = displayMidiNoteNumber.load(std::memory_order_relaxed);
 
     for (const auto meta : midi) {
@@ -78,7 +86,7 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
             displayMidiFrequency.store(openhatter::core::midiNoteToHz(auditionNote), std::memory_order_relaxed);
             displayMidiNoteReceived.store(true, std::memory_order_relaxed);
             displayVelocity.store(vel, std::memory_order_relaxed);
-            triggers.push_back({
+            appendTrigger({
                 .sampleOffset = meta.samplePosition,
                 .noteNumber = msg.getNoteNumber(),
                 .velocity = vel,
@@ -86,21 +94,21 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
                 .midiChannel = msg.getChannel()
             });
         } else if (msg.isNoteOff() && msg.getNoteNumber() == settings.midiChokeNote) {
-            triggers.push_back({
+            appendTrigger({
                 .sampleOffset = meta.samplePosition,
                 .noteNumber = msg.getNoteNumber(),
                 .velocity = 0.0f,
                 .choke = true
             });
         } else if (msg.isNoteOff()) {
-            triggers.push_back({
+            appendTrigger({
                 .sampleOffset = meta.samplePosition,
                 .noteNumber = msg.getNoteNumber(),
                 .midiChannel = msg.getChannel(),
                 .noteOff = true
             });
         } else if (msg.isController()) {
-            ccEvents.push_back({
+            appendCcEvent({
                 .sampleOffset = meta.samplePosition,
                 .controller = msg.getControllerNumber(),
                 .value = msg.getControllerValue()
@@ -109,7 +117,7 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     }
 
     if (auditionPending_.exchange(false)) {
-        triggers.push_back({
+        appendTrigger({
             .sampleOffset = 0,
             .noteNumber = auditionNote,
             .velocity = 1.0f,
@@ -141,7 +149,11 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         layerOutputs.reverbRight = reverbOutput.getWritePointer(1);
     }
 
-    engine_.process(settings, transport, triggers, channelPointers, 2, numSamples, ccEvents, &layerOutputs);
+    engine_.process(settings, transport,
+                    std::span<const openhatter::core::MidiTrigger>(midiTriggers_.data(), triggerCount),
+                    channelPointers, 2, numSamples,
+                    std::span<const openhatter::core::MidiCcEvent>(midiCcEvents_.data(), ccEventCount),
+                    &layerOutputs);
 
     displayPeak.store(engine_.currentPeak());
     displayBeatPhase.store(engine_.currentBeatPhase());
