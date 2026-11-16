@@ -204,6 +204,24 @@ constexpr std::array<float, 6> kModalDamping{1.00f, 0.72f, 0.56f, 0.42f, 0.31f, 
     return std::min(static_cast<size_t>(mode), kModalRatios.size() - 1);
 }
 
+[[nodiscard]] float metalTailMs(const HatSynthSettings& settings) noexcept {
+    const float decayMs = std::max(1.0f, settings.toneDecayMs);
+    const float dampingSlope = std::clamp(settings.metalDampingSlope, -1.0f, 1.0f);
+    const float focus = std::clamp(settings.toneQ / 12.0f, 0.0f, 1.0f);
+    const bool hasSoloedResonator = std::any_of(settings.resonatorSolo.begin(), settings.resonatorSolo.end(),
+                                                [](bool solo) { return solo; });
+    float longestModeScale = 1.0f;
+    for (size_t i = 0; i < kModalDamping.size(); ++i) {
+        if (!settings.resonatorEnabled[i] || (hasSoloedResonator && !settings.resonatorSolo[i]))
+            continue;
+        const float partialPosition = static_cast<float>(i) / 5.0f;
+        const float dampingScale = std::exp2(dampingSlope * partialPosition * 2.0f);
+        longestModeScale = std::max(longestModeScale,
+            kModalDamping[i] * dampingScale * (0.72f + 0.55f * focus));
+    }
+    return decayMs * longestModeScale;
+}
+
 } // namespace
 
 void HatSynth::prepare(double sampleRate) {
@@ -305,7 +323,7 @@ void HatSynth::noteOff(int midiNoteNumber, int midiChannel, const HatSynthSettin
         ? 0
         : std::max(1, static_cast<int>(releaseMs * 0.001f * static_cast<float>(sampleRate_)));
     const float dryTailMs = std::max(settings.noiseAttackMs + settings.noiseHoldMs + settings.noiseDecayMs,
-                                     settings.toneDecayMs);
+                                     metalTailMs(settings));
     const float effectTailMs = std::max({ settings.reverbDecayMs, settings.reverbGateMs, dryTailMs });
     const int tailSamples = static_cast<int>((effectTailMs + 0.08f) * 0.001f * static_cast<float>(sampleRate_));
     totalDurationSamples_ = std::max(totalSamplesPlayed_ + 1,
@@ -353,7 +371,7 @@ void HatSynth::triggerAtFrequency(const HatSynthSettings& settings, float veloci
 
     const float preRollMs = static_cast<float>(mainHitSample_) * 1000.0f / static_cast<float>(sampleRate_);
     const float dryTailMs = std::max(settings.noiseAttackMs + settings.noiseHoldMs + settings.noiseDecayMs,
-                                     settings.toneDecayMs);
+                                     metalTailMs(settings));
     const float effectTailMs = std::max({settings.reverbDecayMs, settings.reverbGateMs, dryTailMs});
     dryDurationSamples_ = std::max(1, static_cast<int>((preRollMs + dryTailMs + 0.08f) * 0.001f * static_cast<float>(sampleRate_)));
     totalDurationSamples_ = std::max(dryDurationSamples_,
@@ -511,6 +529,9 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
             * std::exp(-mainAge / pitchDecaySamples);
         const float brightness = std::clamp((settings.toneFreqHz - 300.0f) / 7700.0f, 0.0f, 1.0f);
         const float focus = std::clamp(settings.toneQ / 12.0f, 0.0f, 1.0f);
+        const float metalSpread = std::clamp(settings.metalSpread, -24.0f, 24.0f);
+        const float dampingSlope = std::clamp(settings.metalDampingSlope, -1.0f, 1.0f);
+        const float stereoScale = std::clamp(settings.metalStereoSpread, 0.0f, 2.0f);
         const float nyquist = static_cast<float>(sampleRate_) * 0.5f;
         float sumL = 0.0f;
         float sumR = 0.0f;
@@ -521,7 +542,8 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
             const float tuneSemitones = std::clamp(settings.resonatorTuneSemitones[i], -24.0f, 24.0f);
             const float baseModeHz = modalFrequencies_[i] * std::exp2(tuneSemitones / 12.0f);
             if (baseModeHz <= 0.0f) continue;
-            const float semitoneShift = pitchShift * static_cast<float>(i) / 5.0f;
+            const float partialPosition = static_cast<float>(i) / 5.0f;
+            const float semitoneShift = (pitchShift + metalSpread) * partialPosition;
             const float boundedSemitoneShift = i == 0
                 ? 0.0f
                 : std::max(semitoneShift, -modalMaxDownwardSemitones_[i]);
@@ -533,14 +555,15 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
             modalPhases_[i] += phaseStep;
             if (modalPhases_[i] >= 1.0f) modalPhases_[i] -= 1.0f;
 
-            const float modeDecay = decaySamples * kModalDamping[i] * (0.72f + 0.55f * focus);
+            const float dampingScale = std::exp2(dampingSlope * partialPosition * 2.0f);
+            const float modeDecay = decaySamples * kModalDamping[i] * dampingScale * (0.72f + 0.55f * focus);
             const float envelope = fullAdsrActive_ ? 1.0f : std::exp(-mainAge / std::max(1.0f, modeDecay));
             const float highModeWeight = 0.62f + brightness * 0.76f * static_cast<float>(i) / 5.0f;
             const float focusedWeight = 1.0f - focus * 0.55f * static_cast<float>(i) / 5.0f;
             const float weight = kModalWeights[i] * highModeWeight * focusedWeight;
             const float phase = 2.0f * pi() * modalPhases_[i];
             const float left = std::sin(phase);
-            const float right = std::sin(phase + (i == 0 ? 0.0f : 0.035f * static_cast<float>(i)));
+            const float right = std::sin(phase + (i == 0 ? 0.0f : 0.035f * static_cast<float>(i) * stereoScale));
             float character = 1.0f;
             switch (settings.metalMode) {
                 case MetalMode::Classic909:

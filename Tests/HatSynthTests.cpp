@@ -1,6 +1,8 @@
 #include "HatSynth.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <tuple>
+#include <utility>
 
 using namespace openhatter::core;
 
@@ -297,4 +299,83 @@ TEST_CASE("HatSynth gives reverb an independent velocity response", "[core][synt
     const float fullReverbCurve = renderReverbPeak(1.0f, 2.0f);
     REQUIRE(softReverbCurve / fullReverbCurve > 0.2f);
     REQUIRE(softReverbCurve / fullReverbCurve < 0.3f);
+}
+
+TEST_CASE("HatSynth metal spread reshapes the partial bank", "[core][synth][metal]") {
+    const auto render = [](float spread) {
+        HatSynth synth;
+        synth.prepare(48000.0);
+        HatSynthSettings settings;
+        settings.toneLevel = 1.0f;
+        settings.noiseLevel = 0.0f;
+        settings.chickLevel = 0.0f;
+        settings.preChickLevel = 0.0f;
+        settings.reverbMix = 0.0f;
+        settings.metalSpread = spread;
+        std::vector<float> left, right;
+        synth.renderBlock(left, right, settings, 1.0f, 0);
+        return left;
+    };
+
+    const auto tight = render(0.0f);
+    const auto spread = render(12.0f);
+    float difference = 0.0f;
+    for (size_t i = 0; i < std::min(tight.size(), spread.size()); ++i)
+        difference += std::abs(tight[i] - spread[i]);
+    REQUIRE(difference > 1.0f);
+}
+
+TEST_CASE("HatSynth damping slope controls upper-mode tail length", "[core][synth][metal]") {
+    const auto lateEnergy = [](float dampingSlope) {
+        HatSynth synth;
+        synth.prepare(48000.0);
+        HatSynthSettings settings;
+        settings.toneLevel = 1.0f;
+        settings.toneQ = 12.0f;
+        settings.toneDecayMs = 450.0f;
+        settings.noiseLevel = 0.0f;
+        settings.chickLevel = 0.0f;
+        settings.preChickLevel = 0.0f;
+        settings.reverbMix = 0.0f;
+        settings.resonatorEnabled[0] = false;
+        settings.metalDampingSlope = dampingSlope;
+        synth.trigger(settings, 1.0f, 0);
+        float energy = 0.0f;
+        for (int sample = 0; sample < 25000; ++sample) {
+            const auto frame = synth.processSampleLayers(settings).metal;
+            if (sample >= 4000 && sample < 12000)
+                energy += frame.left * frame.left + frame.right * frame.right;
+        }
+        return std::tuple{energy, synth.getEnvelopeProgress(), synth.isPlaying()};
+    };
+
+    const auto extended = lateEnergy(1.0f);
+    const auto damped = lateEnergy(-1.0f);
+    REQUIRE(std::get<0>(extended) > std::get<0>(damped) * 2.0f);
+    CHECK(std::get<2>(extended));
+    CHECK_FALSE(std::get<2>(damped));
+}
+
+TEST_CASE("HatSynth metal stereo spread scales upper-mode width", "[core][synth][metal]") {
+    const auto sideEnergy = [](float stereoSpread) {
+        HatSynth synth;
+        synth.prepare(48000.0);
+        HatSynthSettings settings;
+        settings.toneLevel = 1.0f;
+        settings.noiseLevel = 0.0f;
+        settings.chickLevel = 0.0f;
+        settings.preChickLevel = 0.0f;
+        settings.reverbMix = 0.0f;
+        settings.metalStereoSpread = stereoSpread;
+        synth.trigger(settings, 1.0f, 0);
+        float energy = 0.0f;
+        for (int sample = 0; sample < 2048; ++sample) {
+            const auto frame = synth.processSampleLayers(settings).metal;
+            const float side = frame.left - frame.right;
+            energy += side * side;
+        }
+        return energy;
+    };
+
+    REQUIRE(sideEnergy(0.0f) < sideEnergy(2.0f));
 }

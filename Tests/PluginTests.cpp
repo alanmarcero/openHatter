@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <new>
+#include <utility>
 
 namespace {
 std::atomic<uint64_t> pluginCallbackAllocations { 0 };
@@ -52,6 +53,63 @@ TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") 
     REQUIRE(processor.parameters.getParameter(openhatter::params::kCompThresh) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kLimiterCeiling) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kReverbMix) != nullptr);
+}
+
+TEST_CASE("OpenHatter metal spread, damping, and width controls are automatable", "[plugin][parameters]") {
+    OpenHatterProcessor processor;
+    for (const auto* id : { openhatter::params::kMetalSpread, openhatter::params::kMetalDampingSlope,
+                            openhatter::params::kMetalStereoSpread }) {
+        auto* parameter = processor.parameters.getParameter(id);
+        REQUIRE(parameter != nullptr);
+        CHECK(parameter->isAutomatable());
+    }
+}
+
+TEST_CASE("OpenHatter metal controls map to render settings", "[plugin][parameters]") {
+    OpenHatterProcessor processor;
+    const std::array<std::pair<const char*, float>, 3> values {{
+        { openhatter::params::kMetalSpread, 7.5f },
+        { openhatter::params::kMetalDampingSlope, -0.4f },
+        { openhatter::params::kMetalStereoSpread, 1.7f }
+    }};
+    for (const auto& [id, value] : values) {
+        auto* parameter = processor.parameters.getParameter(id);
+        REQUIRE(parameter != nullptr);
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    }
+
+    const auto settings = openhatter::params::readSettings(processor.parameters);
+    CHECK(std::abs(settings.synth.metalSpread - 7.5f) < 0.11f);
+    CHECK(std::abs(settings.synth.metalDampingSlope + 0.4f) < 0.011f);
+    CHECK(std::abs(settings.synth.metalStereoSpread - 1.7f) < 0.011f);
+
+    juce::MemoryBlock state;
+    processor.getStateInformation(state);
+    OpenHatterProcessor restored;
+    restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+    for (const auto& [id, value] : values)
+        CHECK(std::abs(restored.parameters.getRawParameterValue(id)->load() - value) < 0.11f);
+}
+
+TEST_CASE("OpenHatter presets reset metal controls unless the metal section is locked", "[plugin][presets][preset_lock]") {
+    OpenHatterProcessor processor;
+    const auto setValue = [&processor](const char* id, float value) {
+        auto* parameter = processor.parameters.getParameter(id);
+        REQUIRE(parameter != nullptr);
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    };
+    setValue(openhatter::params::kMetalSpread, 14.0f);
+    setValue(openhatter::params::kMetalDampingSlope, 0.7f);
+    setValue(openhatter::params::kMetalStereoSpread, 1.8f);
+    processor.setCurrentProgram(1);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kMetalSpread)->load()) < 0.01f);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kMetalDampingSlope)->load()) < 0.01f);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kMetalStereoSpread)->load() - 1.0f) < 0.01f);
+
+    processor.setSectionLocked(OpenHatterProcessor::PresetSection::cymbalAndTuning, true);
+    setValue(openhatter::params::kMetalSpread, 7.0f);
+    processor.setCurrentProgram(2);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kMetalSpread)->load() - 7.0f) < 0.1f);
 }
 
 TEST_CASE("OpenHatter exposes the approved velocity, resonator, choke, and roll controls", "[plugin][performance]") {
