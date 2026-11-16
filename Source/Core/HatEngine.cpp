@@ -364,9 +364,14 @@ void HatEngine::process(
                     rollActive_ = false;
                 continue;
             }
-            triggerHat(settings, ppq, transport.bpm, beatsPerBar,
+            auto triggerSettings = settings;
+            if (trig.audition) {
+                triggerSettings.synth.fullAdsrEnabled = false;
+                triggerSettings.rollEnabled = false;
+            }
+            triggerHat(triggerSettings, ppq, transport.bpm, beatsPerBar,
                        trig.velocity, trig.noteNumber, trig.midiChannel, trig.audition, true);
-            if (settings.rollEnabled) {
+            if (!trig.audition && settings.rollEnabled) {
                 rollActive_ = true;
                 rollNoteNumber_ = trig.noteNumber;
                 rollMidiChannel_ = trig.midiChannel;

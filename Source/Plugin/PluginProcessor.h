@@ -3,6 +3,7 @@
 #include "HatEngine.h"
 #include <array>
 #include <atomic>
+#include <cstddef>
 #include <juce_audio_processors/juce_audio_processors.h>
 
 class OpenHatterProcessor : public juce::AudioProcessor {
@@ -54,7 +55,10 @@ public:
     std::atomic<bool> displayLockedIn{ false };
 
 private:
+    static constexpr std::size_t kMidiEventCapacityPerBlock = 2048;
     openhatter::core::HatEngine engine_;
+    std::array<openhatter::core::MidiTrigger, kMidiEventCapacityPerBlock> midiTriggers_{};
+    std::array<openhatter::core::MidiCcEvent, kMidiEventCapacityPerBlock> midiCcEvents_{};
     std::atomic<bool> auditionPending_{ false };
     std::array<std::atomic<bool>, static_cast<size_t>(PresetSection::count)> sectionLocks_{};
     int currentProgram_ = 0;

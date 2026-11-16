@@ -4,8 +4,37 @@
 #include "Presets.h"
 #include <catch2/catch_test_macros.hpp>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
+#include <new>
+
+namespace {
+std::atomic<uint64_t> pluginCallbackAllocations { 0 };
+thread_local bool countPluginCallbackAllocations = false;
+}
+
+void* operator new(std::size_t size) {
+    if (countPluginCallbackAllocations)
+        pluginCallbackAllocations.fetch_add(1, std::memory_order_relaxed);
+    if (void* memory = std::malloc(size == 0 ? 1 : size))
+        return memory;
+    throw std::bad_alloc();
+}
+
+void* operator new[](std::size_t size) {
+    if (countPluginCallbackAllocations)
+        pluginCallbackAllocations.fetch_add(1, std::memory_order_relaxed);
+    if (void* memory = std::malloc(size == 0 ? 1 : size))
+        return memory;
+    throw std::bad_alloc();
+}
+
+void operator delete(void* memory) noexcept { std::free(memory); }
+void operator delete[](void* memory) noexcept { std::free(memory); }
+void operator delete(void* memory, std::size_t) noexcept { std::free(memory); }
+void operator delete[](void* memory, std::size_t) noexcept { std::free(memory); }
 
 TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") {
     OpenHatterProcessor processor;
@@ -205,6 +234,78 @@ TEST_CASE("MIDI note-off leaves the default one-shot output unchanged", "[plugin
                        secondWithout.getReadPointer(0)));
     REQUIRE(std::equal(secondWith.getReadPointer(1), secondWith.getReadPointer(1) + 512,
                        secondWithout.getReadPointer(1)));
+}
+
+TEST_CASE("Full ADSR audition remains a bounded one-shot preview", "[plugin][midi]") {
+    OpenHatterProcessor processor;
+    const auto setValue = [&processor](const char* id, float value) {
+        auto* parameter = processor.parameters.getParameter(id);
+        REQUIRE(parameter != nullptr);
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    };
+    setValue(openhatter::params::kAmpEnabled, 1.0f);
+    setValue(openhatter::params::kAmpAttack, 1.0f);
+    setValue(openhatter::params::kAmpDecay, 1.0f);
+    setValue(openhatter::params::kAmpSustain, 1.0f);
+    setValue(openhatter::params::kAmpRelease, 20000.0f);
+    setValue(openhatter::params::kToneLevel, 1.0f);
+    setValue(openhatter::params::kNoiseLevel, 0.0f);
+    setValue(openhatter::params::kClickLevel, 0.0f);
+    setValue(openhatter::params::kPreLevel, 0.0f);
+    setValue(openhatter::params::kReverbMix, 0.0f);
+    setValue(openhatter::params::kDistMix, 0.0f);
+    setValue(openhatter::params::kCompMix, 0.0f);
+    setValue(openhatter::params::kLimiterEnabled, 0.0f);
+    setValue(openhatter::params::kRollEnabled, 1.0f);
+    processor.prepareToPlay(48000.0, 96000);
+    processor.triggerAudition();
+
+    juce::AudioBuffer<float> buffer(2, 96000);
+    juce::MidiBuffer noMidi;
+    processor.processBlock(buffer, noMidi);
+
+    float initialPeak = 0.0f;
+    float latePeak = 0.0f;
+    for (int sample = 0; sample < 128; ++sample)
+        initialPeak = std::max(initialPeak, std::abs(buffer.getSample(0, sample)));
+    for (int sample = 48000; sample < buffer.getNumSamples(); ++sample)
+        latePeak = std::max(latePeak, std::abs(buffer.getSample(0, sample)));
+
+    REQUIRE(initialPeak > 0.001f);
+    REQUIRE(latePeak < 1.0e-8f);
+}
+
+TEST_CASE("MIDI note-off queueing adds no audio callback allocations", "[plugin][midi][realtime]") {
+    OpenHatterProcessor processor;
+    auto* adsr = processor.parameters.getParameter(openhatter::params::kAmpEnabled);
+    REQUIRE(adsr != nullptr);
+    adsr->setValueNotifyingHost(adsr->convertTo0to1(1.0f));
+    processor.prepareToPlay(48000.0, 128);
+
+    juce::AudioBuffer<float> startBuffer(2, 128);
+    juce::MidiBuffer noteOn;
+    noteOn.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(110)), 0);
+    processor.processBlock(startBuffer, noteOn);
+
+    juce::AudioBuffer<float> noteOffBuffer(2, 128);
+    juce::AudioBuffer<float> noMidiBuffer(2, 128);
+    juce::MidiBuffer noMidi;
+    juce::MidiBuffer noteOff;
+    noteOff.addEvent(juce::MidiMessage::noteOff(1, 46), 0);
+
+    pluginCallbackAllocations.store(0, std::memory_order_relaxed);
+    countPluginCallbackAllocations = true;
+    processor.processBlock(noMidiBuffer, noMidi);
+    countPluginCallbackAllocations = false;
+    const auto noMidiAllocations = pluginCallbackAllocations.load(std::memory_order_relaxed);
+
+    pluginCallbackAllocations.store(0, std::memory_order_relaxed);
+    countPluginCallbackAllocations = true;
+    processor.processBlock(noteOffBuffer, noteOff);
+    countPluginCallbackAllocations = false;
+    const auto noteOffAllocations = pluginCallbackAllocations.load(std::memory_order_relaxed);
+
+    REQUIRE(noteOffAllocations == noMidiAllocations);
 }
 
 TEST_CASE("OpenHatter exposes independent stereo outputs for the sound layers", "[plugin][outputs]") {
