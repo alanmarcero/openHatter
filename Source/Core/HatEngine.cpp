@@ -165,8 +165,9 @@ void HatEngine::prepare(double sampleRate) {
     limiter_.prepare(sampleRate);
 
     const int maxReverseSamples = static_cast<int>(sampleRate * 2.0);
-    reverseBufferL_.assign(maxReverseSamples, 0.0f);
-    reverseBufferR_.assign(maxReverseSamples, 0.0f);
+    const int reverseHistoryCapacity = maxReverseSamples * 2;
+    reverseHistoryL_.assign(reverseHistoryCapacity, 0.0f);
+    reverseHistoryR_.assign(reverseHistoryCapacity, 0.0f);
     reset();
 }
 
@@ -176,9 +177,15 @@ void HatEngine::reset() noexcept {
     distR_.reset();
     compressor_.reset();
     limiter_.reset();
+    reverseHistoryWriteIndex_ = 0;
+    reverseHistorySamplesAvailable_ = 0;
+    reverseSourceStart_ = 0;
+    reverseSourceSamplesAvailable_ = 0;
     reversePlayHead_ = -1;
     reverseDuration_ = 0;
+    reverseMix_ = 0.5f;
     isReversing_ = false;
+    reverseCallbackWorkUnits_ = 0;
     rollActive_ = false;
     rollStep_ = 0;
     nextRollPpq_ = 0.0;
@@ -252,26 +259,17 @@ void HatEngine::triggerHat(
 
     const bool engageReverse = shouldTriggerReverse(settings.effects.reverseMode, reverseCue, samplePpq, beatsPerBar);
     if (engageReverse && settings.effects.reverseMode != ReverseSyncMode::Off) {
-        reverseDuration_ = computeSyncedReverseSamples(settings.effects.reverseMode, samplePpq, bpm, beatsPerBar, sampleRate_);
-        reverseDuration_ = std::min(reverseDuration_, static_cast<int>(reverseBufferL_.size()));
-
-        std::vector<float> forwardL, forwardR;
-        synth_.renderMidiBlock(forwardL, forwardR, settings.synth, velocity, midiNoteNumber);
-
-        const int copyCount = std::min(reverseDuration_, static_cast<int>(forwardL.size()));
-        for (int i = 0; i < reverseDuration_; ++i) {
-            if (i < copyCount) {
-                const int srcIdx = copyCount - 1 - i;
-                const float ramp = static_cast<float>(i) / static_cast<float>(reverseDuration_);
-                reverseBufferL_[i] = forwardL[srcIdx] * ramp * settings.effects.reverseMix;
-                reverseBufferR_[i] = forwardR[srcIdx] * ramp * settings.effects.reverseMix;
-            } else {
-                reverseBufferL_[i] = 0.0f;
-                reverseBufferR_[i] = 0.0f;
-            }
-        }
-        reversePlayHead_ = 0;
-        isReversing_ = true;
+        const int syncSamples = computeSyncedReverseSamples(
+            settings.effects.reverseMode, samplePpq, bpm, beatsPerBar, sampleRate_);
+        const int maxReverseSamples = static_cast<int>(reverseHistoryL_.size()) / 2;
+        reverseDuration_ = std::min(syncSamples, maxReverseSamples);
+        reverseSourceStart_ = reverseHistoryWriteIndex_;
+        reverseSourceSamplesAvailable_ = std::min(reverseHistorySamplesAvailable_, maxReverseSamples);
+        reverseMix_ = settings.effects.reverseMix;
+        isReversing_ = reverseDuration_ > 0 && reverseSourceSamplesAvailable_ > 0;
+        reversePlayHead_ = isReversing_ ? 0 : -1;
+        if (isReversing_)
+            ++reverseCallbackWorkUnits_;
     }
 
     synth_.triggerMidi(settings.synth, velocity, midiNoteNumber);
@@ -412,9 +410,28 @@ void HatEngine::process(
             if (layerOutputs->reverbRight != nullptr) layerOutputs->reverbRight[sample] = 0.0f;
         }
 
+        // Save only the forward synth signal. Reverse playback never feeds back
+        // into this history, and each callback sample performs fixed work.
+        reverseHistoryL_[reverseHistoryWriteIndex_] = sL;
+        reverseHistoryR_[reverseHistoryWriteIndex_] = sR;
+        ++reverseHistoryWriteIndex_;
+        if (reverseHistoryWriteIndex_ == static_cast<int>(reverseHistoryL_.size()))
+            reverseHistoryWriteIndex_ = 0;
+        reverseHistorySamplesAvailable_ = std::min(
+            reverseHistorySamplesAvailable_ + 1, static_cast<int>(reverseHistoryL_.size()));
+
         if (reversePlayHead_ >= 0 && reversePlayHead_ < reverseDuration_) {
-            sL += reverseBufferL_[reversePlayHead_];
-            sR += reverseBufferR_[reversePlayHead_];
+            if (reverseSourceSamplesAvailable_ > 0) {
+                const int age = static_cast<int>(
+                    (static_cast<int64_t>(reversePlayHead_) * reverseSourceSamplesAvailable_) / reverseDuration_) + 1;
+                int sourceIndex = reverseSourceStart_ - age;
+                if (sourceIndex < 0)
+                    sourceIndex += static_cast<int>(reverseHistoryL_.size());
+                const float ramp = static_cast<float>(reversePlayHead_) / static_cast<float>(reverseDuration_);
+                sL += reverseHistoryL_[sourceIndex] * ramp * reverseMix_;
+                sR += reverseHistoryR_[sourceIndex] * ramp * reverseMix_;
+            }
+            ++reverseCallbackWorkUnits_;
             reversePlayHead_++;
         } else {
             reversePlayHead_ = -1;

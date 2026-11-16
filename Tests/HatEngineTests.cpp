@@ -1,6 +1,35 @@
 #include "HatEngine.h"
 #include <catch2/catch_test_macros.hpp>
+#include <atomic>
 #include <cmath>
+#include <cstdlib>
+#include <new>
+
+namespace {
+std::atomic<uint64_t> callbackAllocations { 0 };
+thread_local bool countCallbackAllocations = false;
+}
+
+void* operator new(std::size_t size) {
+    if (countCallbackAllocations)
+        callbackAllocations.fetch_add(1, std::memory_order_relaxed);
+    if (void* memory = std::malloc(size == 0 ? 1 : size))
+        return memory;
+    throw std::bad_alloc();
+}
+
+void* operator new[](std::size_t size) {
+    if (countCallbackAllocations)
+        callbackAllocations.fetch_add(1, std::memory_order_relaxed);
+    if (void* memory = std::malloc(size == 0 ? 1 : size))
+        return memory;
+    throw std::bad_alloc();
+}
+
+void operator delete(void* memory) noexcept { std::free(memory); }
+void operator delete[](void* memory) noexcept { std::free(memory); }
+void operator delete(void* memory, std::size_t) noexcept { std::free(memory); }
+void operator delete[](void* memory, std::size_t) noexcept { std::free(memory); }
 
 using namespace openhatter::core;
 
@@ -92,6 +121,49 @@ TEST_CASE("HatEngine follows host PPQ for enabled 1/16-note rolls", "[core][engi
     engine.process(settings, transport, triggers, channels, 2, static_cast<int>(left.size()));
 
     REQUIRE(engine.triggerSerial() == 8);
+}
+
+TEST_CASE("HatEngine keeps 1/32 rolls with synced reverse allocation-free and bounded", "[core][engine][performance][realtime]") {
+    HatEngine engine;
+    engine.prepare(48000.0);
+    EngineSettings settings;
+    settings.rollEnabled = true;
+    settings.rollDivision = 2;
+    settings.effects.reverseMode = ReverseSyncMode::HalfBeat;
+    settings.effects.reverseMix = 1.0f;
+    Transport transport;
+    transport.bpm = 120.0;
+    transport.ppqPosition = 0.0;
+
+    constexpr int sampleCount = 96000;
+    const std::array<MidiTrigger, 1> triggers {{
+        { .sampleOffset = 0, .noteNumber = 46, .velocity = 0.8f }
+    }};
+    std::vector<float> left(sampleCount, 0.0f);
+    std::vector<float> right(sampleCount, 0.0f);
+    float* channels[2] = { left.data(), right.data() };
+
+    HatEngine dryReference;
+    dryReference.prepare(48000.0);
+    auto drySettings = settings;
+    drySettings.effects.reverseMode = ReverseSyncMode::Off;
+    std::vector<float> dryLeft(sampleCount, 0.0f);
+    std::vector<float> dryRight(sampleCount, 0.0f);
+    float* dryChannels[2] = { dryLeft.data(), dryRight.data() };
+    dryReference.process(drySettings, transport, triggers, dryChannels, 2, sampleCount);
+
+    callbackAllocations.store(0, std::memory_order_relaxed);
+    countCallbackAllocations = true;
+    engine.process(settings, transport, triggers, channels, 2, sampleCount);
+    countCallbackAllocations = false;
+
+    REQUIRE(engine.triggerSerial() == 32);
+    REQUIRE(callbackAllocations.load(std::memory_order_relaxed) == 0);
+    REQUIRE(engine.reverseCallbackWorkUnits() > 0);
+    REQUIRE(engine.reverseCallbackWorkUnits() <= sampleCount + engine.triggerSerial());
+
+    constexpr int reverseCheckSample = 5999;
+    REQUIRE(std::abs(left[reverseCheckSample] - dryLeft[reverseCheckSample]) > 0.000001f);
 }
 
 TEST_CASE("HatEngine resumes a paused roll at the next host grid step", "[core][engine][performance]") {

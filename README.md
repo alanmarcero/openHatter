@@ -24,7 +24,7 @@ The note monitor reports the most recent incoming note. **Audition** plays that 
 
 The **Performance** page has independent velocity curves for metal, air, chick, and reverb, plus six resonator tuning, mute, and solo controls. Enable **Roll** to repeat the most recent MIDI hit on host-synced eighth, sixteenth, or thirty-second notes. Swing delays alternating steps and accent raises every fourth hit. Rolls pause while the host transport is stopped and stop when the configured choke note or CC is received.
 
-![openHatter performance controls](assets/openHatter-performance.png)
+![openHatter performance page with independent velocity curves, resonator controls, MIDI choke, and host-synced rolls](assets/openHatter-performance.png)
 
 Four optional stereo outputs expose the metal, air, chick, and reverb stems. They are disabled by default to preserve the usual stereo output layout. Stems include the master output gain and CC 7 level, but bypass the shared exciter, compressor, limiter, and width processing.
 
