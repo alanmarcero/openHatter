@@ -13,8 +13,8 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
     void setAdvancedView(bool) {}
-    void setPage(int) {}
-    [[nodiscard]] int getPage() const noexcept { return 0; }
+    void setPage(int page);
+    [[nodiscard]] int getPage() const noexcept { return page_; }
     [[nodiscard]] bool isAdvancedView() const noexcept { return false; }
 
 private:
@@ -27,10 +27,13 @@ private:
     juce::TextButton prevPresetBtn_{ "<" };
     juce::TextButton nextPresetBtn_{ ">" };
     juce::TextButton auditionBtn_{ "AUDITION" };
+    juce::TextButton pageToggleBtn_{ "PERFORMANCE" };
     openhatter::ui::MidiMonitorPanel midiPanel_;
     openhatter::ui::HatSynthPanel synthPanel_;
+    openhatter::ui::PerformancePanel performancePanel_;
     openhatter::ui::EffectsPanel effectsPanel_;
     juce::TooltipWindow tooltipWindow_;
+    int page_ = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OpenHatterEditor)
 };

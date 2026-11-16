@@ -71,3 +71,85 @@ TEST_CASE("HatEngine responds to MIDI CC 74 brightness sweep", "[core][engine]")
     engine.process(settings, transport, triggers, channelsDark, 2, 1024, ccEvents);
     REQUIRE(engine.currentPeak() > 0.0f);
 }
+
+TEST_CASE("HatEngine follows host PPQ for enabled 1/16-note rolls", "[core][engine][performance]") {
+    HatEngine engine;
+    engine.prepare(48000.0);
+    EngineSettings settings;
+    settings.rollEnabled = true;
+    settings.rollDivision = 1;
+    Transport transport;
+    transport.bpm = 120.0;
+    transport.ppqPosition = 0.0;
+
+    const std::array<MidiTrigger, 1> triggers {{
+        { .sampleOffset = 0, .noteNumber = 46, .velocity = 0.8f }
+    }};
+    std::vector<float> left(48000, 0.0f);
+    std::vector<float> right(48000, 0.0f);
+    float* channels[2] = { left.data(), right.data() };
+
+    engine.process(settings, transport, triggers, channels, 2, static_cast<int>(left.size()));
+
+    REQUIRE(engine.triggerSerial() == 8);
+}
+
+TEST_CASE("HatEngine resumes a paused roll at the next host grid step", "[core][engine][performance]") {
+    HatEngine engine;
+    engine.prepare(48000.0);
+    EngineSettings settings;
+    settings.rollEnabled = true;
+    Transport transport;
+    transport.bpm = 120.0;
+    transport.ppqPosition = 0.0;
+    const std::array<MidiTrigger, 1> firstHit {{
+        { .sampleOffset = 0, .noteNumber = 46, .velocity = 0.8f }
+    }};
+    std::vector<float> left(512, 0.0f);
+    std::vector<float> right(512, 0.0f);
+    float* channels[2] = { left.data(), right.data() };
+    engine.process(settings, transport, firstHit, channels, 2, 512);
+    REQUIRE(engine.triggerSerial() == 1);
+
+    transport.ppqPosition = 0.3;
+    transport.isPlaying = false;
+    left.assign(128, 0.0f);
+    right.assign(128, 0.0f);
+    engine.process(settings, transport, {}, channels, 2, 128);
+
+    transport.isPlaying = true;
+    left.assign(128, 0.0f);
+    right.assign(128, 0.0f);
+    engine.process(settings, transport, {}, channels, 2, 128);
+    REQUIRE(engine.triggerSerial() == 1);
+}
+
+TEST_CASE("HatEngine routes each generated layer to its dedicated output buffers", "[core][engine][outputs]") {
+    HatEngine engine;
+    engine.prepare(48000.0);
+    EngineSettings settings;
+    Transport transport;
+    const std::array<MidiTrigger, 1> triggers {{
+        { .sampleOffset = 0, .noteNumber = 46, .velocity = 0.9f }
+    }};
+    std::vector<float> left(2048, 0.0f);
+    std::vector<float> right(2048, 0.0f);
+    std::array<std::vector<float>, 8> stems;
+    for (auto& stem : stems) stem.assign(left.size(), 0.0f);
+    float* channels[2] = { left.data(), right.data() };
+    LayerOutputBuffers outputBuffers {
+        .metalLeft = stems[0].data(), .metalRight = stems[1].data(),
+        .airLeft = stems[2].data(), .airRight = stems[3].data(),
+        .chickLeft = stems[4].data(), .chickRight = stems[5].data(),
+        .reverbLeft = stems[6].data(), .reverbRight = stems[7].data()
+    };
+
+    engine.process(settings, transport, triggers, channels, 2, static_cast<int>(left.size()), {}, &outputBuffers);
+
+    for (const auto& stem : stems) {
+        const float stemPeak = *std::max_element(stem.begin(), stem.end(), [](float a, float b) {
+            return std::abs(a) < std::abs(b);
+        });
+        REQUIRE(std::abs(stemPeak) > 0.001f);
+    }
+}

@@ -4,6 +4,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <array>
+#include <memory>
 
 class OpenHatterProcessor;
 
@@ -71,6 +72,34 @@ private:
     SectionLockButton cymbalLock_;
     SectionLockButton airLock_;
     std::array<juce::Rectangle<int>, 4> sectionBounds_{};
+};
+
+class PerformancePanel : public juce::Component {
+public:
+    explicit PerformancePanel(OpenHatterProcessor& processor);
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+
+private:
+    struct ResonatorControls {
+        std::unique_ptr<Knob> tune;
+        std::unique_ptr<Toggle> enabled;
+        std::unique_ptr<Toggle> solo;
+    };
+
+    Knob velocityMetal_;
+    Knob velocityAir_;
+    Knob velocityChick_;
+    Knob velocityReverb_;
+    Knob chokeNote_;
+    Knob chokeCc_;
+    Toggle rollEnabled_;
+    Choice rollDivision_;
+    Knob rollSwing_;
+    Knob rollAccent_;
+    std::array<ResonatorControls, 6> resonators_;
+    juce::Rectangle<int> sequencerBounds_;
+    juce::Rectangle<int> resonatorBounds_;
 };
 
 class EffectsPanel : public juce::Component {

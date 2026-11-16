@@ -219,6 +219,81 @@ void HatSynthPanel::resized() {
     });
 }
 
+PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
+    : velocityMetal_(processor.parameters, params::kVelocityMetal, "METAL VEL", theme::kAccentBrass),
+      velocityAir_(processor.parameters, params::kVelocityAir, "AIR VEL", theme::kAccentAqua),
+      velocityChick_(processor.parameters, params::kVelocityChick, "CHICK VEL", theme::kAccentCoral),
+      velocityReverb_(processor.parameters, params::kVelocityReverb, "REVERB VEL", theme::kAccentAqua),
+      chokeNote_(processor.parameters, params::kMidiChokeNote, "CHOKE NOTE", theme::kAccentCoral),
+      chokeCc_(processor.parameters, params::kMidiChokeCc, "CHOKE CC", theme::kAccentCoral),
+      rollEnabled_(processor.parameters, params::kRollEnabled, "ROLL", theme::kAccentBrass),
+      rollDivision_(processor.parameters, params::kRollDivision, "DIVISION", theme::kAccentBrass),
+      rollSwing_(processor.parameters, params::kRollSwing, "SWING", theme::kAccentBrass),
+      rollAccent_(processor.parameters, params::kRollAccent, "ACCENT", theme::kAccentBrass) {
+    for (juce::Component* component : std::array<juce::Component*, 10>{
+             &velocityMetal_, &velocityAir_, &velocityChick_, &velocityReverb_, &chokeNote_, &chokeCc_,
+             &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_})
+        addAndMakeVisible(component);
+
+    velocityMetal_.setTooltip("Velocity curve for the tuned metal resonators.");
+    velocityAir_.setTooltip("Velocity curve for the filtered noise layer.");
+    velocityChick_.setTooltip("Velocity curve for the chick and stick transient layer.");
+    velocityReverb_.setTooltip("Velocity curve for the reverb return.");
+    chokeNote_.setTooltip("A note-off for this MIDI note chokes the current hat and stops the roll.");
+    chokeCc_.setTooltip("A value of 64 or higher on this CC chokes the current hat and stops the roll.");
+    rollEnabled_.setTooltip("Start a host-tempo hat roll after the next MIDI note-on.");
+    rollDivision_.setTooltip("Host-synced roll step size.");
+    rollSwing_.setTooltip("Delays alternating roll steps while keeping the average rate on the host grid.");
+    rollAccent_.setTooltip("Velocity boost for every fourth roll hit.");
+
+    for (int resonator = 1; resonator <= 6; ++resonator) {
+        auto& controls = resonators_[static_cast<size_t>(resonator - 1)];
+        const auto prefix = "resonator_" + juce::String(resonator);
+        controls.tune = std::make_unique<Knob>(processor.parameters, prefix + "_tune",
+                                               "R" + juce::String(resonator) + " TUNE", theme::kAccentBrass);
+        controls.enabled = std::make_unique<Toggle>(processor.parameters, prefix + "_enabled", "ON", theme::kAccentAqua);
+        controls.solo = std::make_unique<Toggle>(processor.parameters, prefix + "_solo", "SOLO", theme::kAccentCoral);
+        controls.tune->setTooltip("Tune this metallic resonator by up to two octaves.");
+        controls.enabled->setTooltip("Mute or enable this resonator component.");
+        controls.solo->setTooltip("Solo this resonator. Multiple solo buttons can be active together.");
+        addAndMakeVisible(controls.tune.get());
+        addAndMakeVisible(controls.enabled.get());
+        addAndMakeVisible(controls.solo.get());
+    }
+}
+
+void PerformancePanel::paint(juce::Graphics& g) {
+    drawPanel(g, getLocalBounds(), "PERFORMANCE / LAYERS", theme::kAccentBrass);
+    drawSection(g, sequencerBounds_, "VELOCITY / MIDI / HOST ROLL", theme::kAccentAqua);
+    drawSection(g, resonatorBounds_, "SIX-PART METAL RESONATOR BANK", theme::kAccentBrass);
+}
+
+void PerformancePanel::resized() {
+    auto area = getLocalBounds().reduced(10, 29);
+    sequencerBounds_ = area.removeFromTop(180);
+    area.removeFromTop(8);
+    resonatorBounds_ = area;
+
+    layoutRows(sequencerBounds_.reduced(6, 26), {
+        { &velocityMetal_, &velocityAir_, &velocityChick_, &velocityReverb_, &chokeNote_, &chokeCc_ },
+        { &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_, nullptr, nullptr }
+    });
+
+    auto grid = resonatorBounds_.reduced(7, 27);
+    const int columnWidth = grid.getWidth() / static_cast<int>(resonators_.size());
+    for (size_t i = 0; i < resonators_.size(); ++i) {
+        auto cell = juce::Rectangle<int>(grid.getX() + static_cast<int>(i) * columnWidth,
+                                        grid.getY(), columnWidth, grid.getHeight()).reduced(3, 0);
+        const int toggleHeight = 30;
+        auto toggles = cell.removeFromBottom(toggleHeight);
+        resonators_[i].tune->setBounds(cell);
+        const int toggleWidth = (toggles.getWidth() - 4) / 2;
+        resonators_[i].enabled->setBounds(toggles.removeFromLeft(toggleWidth));
+        toggles.removeFromLeft(4);
+        resonators_[i].solo->setBounds(toggles);
+    }
+}
+
 EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
     : distType_(processor.parameters, params::kDistType, "MODE", theme::kAccentCoral),
       distDrive_(processor.parameters, params::kDistDrive, "DRIVE", theme::kAccentCoral),

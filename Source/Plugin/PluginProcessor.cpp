@@ -4,7 +4,12 @@
 #include "Presets.h"
 
 OpenHatterProcessor::OpenHatterProcessor()
-    : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
+    : AudioProcessor(BusesProperties()
+          .withOutput("Output", juce::AudioChannelSet::stereo(), true)
+          .withOutput("Metal", juce::AudioChannelSet::stereo(), false)
+          .withOutput("Air", juce::AudioChannelSet::stereo(), false)
+          .withOutput("Chick", juce::AudioChannelSet::stereo(), false)
+          .withOutput("Reverb", juce::AudioChannelSet::stereo(), false)),
       parameters(*this, nullptr, "PARAMETERS", openhatter::params::createParameterLayout()) {
     for (auto& lock : sectionLocks_) lock.store(false, std::memory_order_relaxed);
 }
@@ -17,22 +22,30 @@ bool OpenHatterProcessor::isBusesLayoutSupported(const BusesLayout& layouts) con
     if (layouts.getMainInputChannelSet() != juce::AudioChannelSet::disabled()) {
         return false;
     }
-    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
+    for (int bus = 1; bus < layouts.outputBuses.size(); ++bus) {
+        const auto& channels = layouts.outputBuses[bus];
+        if (channels != juce::AudioChannelSet::disabled() && channels != juce::AudioChannelSet::stereo())
+            return false;
+    }
+    return true;
 }
 
 void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
     juce::ScopedNoDenormals noDenormals;
 
     const int numSamples = buffer.getNumSamples();
-    const int numChannels = buffer.getNumChannels();
-
-    for (int ch = 0; ch < numChannels; ++ch) {
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
         buffer.clear(ch, 0, numSamples);
     }
 
-    if (numChannels < 2) {
+    auto mainOutput = getBusBuffer(buffer, false, 0);
+    if (mainOutput.getNumChannels() < 2) {
         return;
     }
+
+    const auto settings = openhatter::params::readSettings(parameters);
 
     openhatter::core::Transport transport;
     if (auto* playHead = getPlayHead()) {
@@ -71,6 +84,13 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
                 .velocity = vel,
                 .audition = false
             });
+        } else if (msg.isNoteOff() && msg.getNoteNumber() == settings.midiChokeNote) {
+            triggers.push_back({
+                .sampleOffset = meta.samplePosition,
+                .noteNumber = msg.getNoteNumber(),
+                .velocity = 0.0f,
+                .choke = true
+            });
         } else if (msg.isController()) {
             ccEvents.push_back({
                 .sampleOffset = meta.samplePosition,
@@ -89,10 +109,31 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
         });
     }
 
-    const auto settings = openhatter::params::readSettings(parameters);
-    float* channelPointers[2] = { buffer.getWritePointer(0), buffer.getWritePointer(1) };
+    float* channelPointers[2] = { mainOutput.getWritePointer(0), mainOutput.getWritePointer(1) };
 
-    engine_.process(settings, transport, triggers, channelPointers, 2, numSamples, ccEvents);
+    auto metalOutput = getBusBuffer(buffer, false, 1);
+    auto airOutput = getBusBuffer(buffer, false, 2);
+    auto chickOutput = getBusBuffer(buffer, false, 3);
+    auto reverbOutput = getBusBuffer(buffer, false, 4);
+    openhatter::core::LayerOutputBuffers layerOutputs;
+    if (metalOutput.getNumChannels() >= 2) {
+        layerOutputs.metalLeft = metalOutput.getWritePointer(0);
+        layerOutputs.metalRight = metalOutput.getWritePointer(1);
+    }
+    if (airOutput.getNumChannels() >= 2) {
+        layerOutputs.airLeft = airOutput.getWritePointer(0);
+        layerOutputs.airRight = airOutput.getWritePointer(1);
+    }
+    if (chickOutput.getNumChannels() >= 2) {
+        layerOutputs.chickLeft = chickOutput.getWritePointer(0);
+        layerOutputs.chickRight = chickOutput.getWritePointer(1);
+    }
+    if (reverbOutput.getNumChannels() >= 2) {
+        layerOutputs.reverbLeft = reverbOutput.getWritePointer(0);
+        layerOutputs.reverbRight = reverbOutput.getWritePointer(1);
+    }
+
+    engine_.process(settings, transport, triggers, channelPointers, 2, numSamples, ccEvents, &layerOutputs);
 
     displayPeak.store(engine_.currentPeak());
     displayBeatPhase.store(engine_.currentBeatPhase());
