@@ -123,6 +123,44 @@ TEST_CASE("HatEngine follows host PPQ for enabled 1/16-note rolls", "[core][engi
     REQUIRE(engine.triggerSerial() == 8);
 }
 
+TEST_CASE("HatEngine reverses the first reverse-enabled MIDI hit", "[core][engine][reverse]") {
+    HatEngine reverseEngine;
+    HatEngine dryReference;
+    reverseEngine.prepare(48000.0);
+    dryReference.prepare(48000.0);
+
+    EngineSettings reverseSettings;
+    reverseSettings.effects.reverseMode = ReverseSyncMode::HalfBeat;
+    reverseSettings.effects.reverseMix = 1.0f;
+    auto drySettings = reverseSettings;
+    drySettings.effects.reverseMode = ReverseSyncMode::Off;
+    Transport transport;
+    transport.bpm = 120.0;
+    transport.ppqPosition = 0.0;
+    const std::array<MidiTrigger, 1> triggers {{
+        { .sampleOffset = 0, .noteNumber = 46, .velocity = 0.8f }
+    }};
+    std::vector<float> reverseLeft(2048, 0.0f);
+    std::vector<float> reverseRight(2048, 0.0f);
+    std::vector<float> dryLeft(2048, 0.0f);
+    std::vector<float> dryRight(2048, 0.0f);
+    float* reverseChannels[2] = { reverseLeft.data(), reverseRight.data() };
+    float* dryChannels[2] = { dryLeft.data(), dryRight.data() };
+
+    callbackAllocations.store(0, std::memory_order_relaxed);
+    countCallbackAllocations = true;
+    reverseEngine.process(reverseSettings, transport, triggers, reverseChannels, 2, 2048);
+    countCallbackAllocations = false;
+    dryReference.process(drySettings, transport, triggers, dryChannels, 2, 2048);
+
+    constexpr int maxReverseSamples = 96000;
+    constexpr int reverseCheckSample = 512;
+    REQUIRE(callbackAllocations.load(std::memory_order_relaxed) == 0);
+    REQUIRE(reverseEngine.reversePreviewRenderCount() == 1);
+    REQUIRE(reverseEngine.reverseCallbackWorkUnits() <= maxReverseSamples + 2048 + 1);
+    REQUIRE(std::abs(reverseLeft[reverseCheckSample] - dryLeft[reverseCheckSample]) > 0.000001f);
+}
+
 TEST_CASE("HatEngine keeps 1/32 rolls with synced reverse allocation-free and bounded", "[core][engine][performance][realtime]") {
     HatEngine engine;
     engine.prepare(48000.0);
@@ -159,8 +197,9 @@ TEST_CASE("HatEngine keeps 1/32 rolls with synced reverse allocation-free and bo
 
     REQUIRE(engine.triggerSerial() == 32);
     REQUIRE(callbackAllocations.load(std::memory_order_relaxed) == 0);
+    REQUIRE(engine.reversePreviewRenderCount() == 1);
     REQUIRE(engine.reverseCallbackWorkUnits() > 0);
-    REQUIRE(engine.reverseCallbackWorkUnits() <= sampleCount + engine.triggerSerial());
+    REQUIRE(engine.reverseCallbackWorkUnits() <= sampleCount + 96000 + engine.triggerSerial());
 
     constexpr int reverseCheckSample = 5999;
     REQUIRE(std::abs(left[reverseCheckSample] - dryLeft[reverseCheckSample]) > 0.000001f);

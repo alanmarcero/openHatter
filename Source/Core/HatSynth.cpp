@@ -640,4 +640,21 @@ void HatSynth::renderMidiBlock(
     }
 }
 
+int HatSynth::renderMidiBlock(
+    std::span<float> leftOut,
+    std::span<float> rightOut,
+    const HatSynthSettings& settings,
+    float velocity,
+    int midiNoteNumber) noexcept {
+    triggerMidi(settings, velocity, midiNoteNumber);
+    const int renderCount = std::min({ totalDurationSamples_, static_cast<int>(leftOut.size()),
+                                       static_cast<int>(rightOut.size()) });
+    for (int i = 0; i < renderCount; ++i) {
+        const auto frame = processSample(settings);
+        leftOut[static_cast<size_t>(i)] = frame.left;
+        rightOut[static_cast<size_t>(i)] = frame.right;
+    }
+    return renderCount;
+}
+
 } // namespace openhatter::core
