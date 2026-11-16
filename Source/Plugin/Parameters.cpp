@@ -3,6 +3,12 @@
 
 namespace openhatter::params {
 
+namespace {
+juce::String resonatorParameterId(int resonator, const char* suffix) {
+    return "resonator_" + juce::String(resonator) + "_" + suffix;
+}
+}
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
@@ -51,6 +57,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kToneLevel, 1 }, "Metal Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.20f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kVelocityMetal, 1 }, "Metal Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
+    for (int resonator = 1; resonator <= 6; ++resonator) {
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID{ resonatorParameterId(resonator, "enabled"), 1 },
+            "Resonator " + juce::String(resonator) + " Enabled", true));
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID{ resonatorParameterId(resonator, "solo"), 1 },
+            "Resonator " + juce::String(resonator) + " Solo", false));
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID{ resonatorParameterId(resonator, "tune"), 1 },
+            "Resonator " + juce::String(resonator) + " Tune",
+            juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 0.0f,
+            juce::AudioParameterFloatAttributes().withLabel("st")));
+    }
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kAmpAttack, 1 }, "Amp Attack", juce::NormalisableRange<float>(0.05f, 20.0f, 0.05f), 0.35f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
@@ -87,6 +108,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kNoiseStereoWidth, 1 }, "Shimmer Width", juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f), 1.2f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kNoiseLevel, 1 }, "Air Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.88f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kVelocityAir, 1 }, "Air Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
 
     // Stick Chick / Transient
     juce::StringArray clickTypes{ "Crisp Stick", "Pedal Foot", "Laser Tick" };
@@ -97,6 +120,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kClickFreq, 1 }, "Chick Freq", juce::NormalisableRange<float>(1000.0f, 14000.0f, 10.0f, 0.35f), 6800.0f,
         juce::AudioParameterFloatAttributes().withLabel("Hz")));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kVelocityChick, 1 }, "Chick Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
 
     // Shimmer Saturation & Exciter
     juce::StringArray distTypes{ "Tape Warmth", "Tube Sheen", "Hard Clip", "Crystal Exciter" };
@@ -150,6 +175,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kReverbMix, 1 }, "Reverb Mix", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.24f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kVelocityReverb, 1 }, "Reverb Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
 
     // Reverse & Sync
     juce::StringArray revModes{ "Off", "Beat End (Sync)", "Beat 4 Auto", "1/2 Beat", "1/4 Beat" };
@@ -171,6 +198,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kOutputGain, 1 }, "Output Gain", juce::NormalisableRange<float>(-36.0f, 12.0f, 0.5f), 0.0f,
         juce::AudioParameterFloatAttributes().withLabel("dB")));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID{ kMidiChokeNote, 1 }, "MIDI Choke Note", 0, 127, 42));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID{ kMidiChokeCc, 1 }, "MIDI Choke CC", 0, 119, 4));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{ kRollEnabled, 1 }, "Roll Enabled", false));
+    juce::StringArray rollDivisions{ "1/8", "1/16", "1/32" };
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{ kRollDivision, 1 }, "Roll Division", rollDivisions, 1));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kRollSwing, 1 }, "Roll Swing", juce::NormalisableRange<float>(0.0f, 0.49f, 0.01f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kRollAccent, 1 }, "Roll Accent", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID{ kPreset, 1 }, "Preset Index", 0, 47, 0));
 
@@ -201,6 +241,13 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     s.synth.tonePitchEnv = *apvts.getRawParameterValue(kTonePitchEnv);
     s.synth.tonePitchDecayMs = *apvts.getRawParameterValue(kTonePitchDecay);
     s.synth.toneLevel = *apvts.getRawParameterValue(kToneLevel);
+    s.synth.velocityMetal = *apvts.getRawParameterValue(kVelocityMetal);
+    for (int resonator = 1; resonator <= 6; ++resonator) {
+        const auto index = static_cast<size_t>(resonator - 1);
+        s.synth.resonatorEnabled[index] = *apvts.getRawParameterValue(resonatorParameterId(resonator, "enabled")) > 0.5f;
+        s.synth.resonatorSolo[index] = *apvts.getRawParameterValue(resonatorParameterId(resonator, "solo")) > 0.5f;
+        s.synth.resonatorTuneSemitones[index] = *apvts.getRawParameterValue(resonatorParameterId(resonator, "tune"));
+    }
     s.synth.ampAttackMs = *apvts.getRawParameterValue(kAmpAttack);
     s.synth.ampDecayMs = *apvts.getRawParameterValue(kAmpDecay);
     s.synth.ampSustain = *apvts.getRawParameterValue(kAmpSustain);
@@ -215,18 +262,21 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     s.synth.noiseLPF = *apvts.getRawParameterValue(kNoiseLPF);
     s.synth.noiseStereoWidth = *apvts.getRawParameterValue(kNoiseStereoWidth);
     s.synth.noiseLevel = *apvts.getRawParameterValue(kNoiseLevel);
+    s.synth.velocityAir = *apvts.getRawParameterValue(kVelocityAir);
 
     if (const auto* pClickType = apvts.getRawParameterValue(kClickType)) {
         s.synth.chickType = static_cast<openhatter::core::ChickType>(static_cast<int>(*pClickType));
     }
     s.synth.chickLevel = *apvts.getRawParameterValue(kClickLevel);
     s.synth.chickFreqHz = *apvts.getRawParameterValue(kClickFreq);
+    s.synth.velocityChick = *apvts.getRawParameterValue(kVelocityChick);
 
     s.synth.reverbSize = *apvts.getRawParameterValue(kReverbSize);
     s.synth.reverbDecayMs = *apvts.getRawParameterValue(kReverbDecay);
     s.synth.reverbDamp = *apvts.getRawParameterValue(kReverbDamp);
     s.synth.reverbGateMs = *apvts.getRawParameterValue(kReverbGate);
     s.synth.reverbMix = *apvts.getRawParameterValue(kReverbMix);
+    s.synth.velocityReverb = *apvts.getRawParameterValue(kVelocityReverb);
 
     s.effects.distType = static_cast<openhatter::core::DistortionType>(static_cast<int>(*apvts.getRawParameterValue(kDistType)));
     s.effects.distDrive = *apvts.getRawParameterValue(kDistDrive);
@@ -249,6 +299,12 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
 
     s.effects.stereoWidth = *apvts.getRawParameterValue(kStereoWidth);
     s.effects.outputGainDb = *apvts.getRawParameterValue(kOutputGain);
+    s.midiChokeNote = static_cast<int>(*apvts.getRawParameterValue(kMidiChokeNote));
+    s.midiChokeCc = static_cast<int>(*apvts.getRawParameterValue(kMidiChokeCc));
+    s.rollEnabled = *apvts.getRawParameterValue(kRollEnabled) > 0.5f;
+    s.rollDivision = static_cast<int>(*apvts.getRawParameterValue(kRollDivision));
+    s.rollSwing = *apvts.getRawParameterValue(kRollSwing);
+    s.rollAccent = *apvts.getRawParameterValue(kRollAccent);
 
     return s;
 }

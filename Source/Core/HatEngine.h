@@ -22,6 +22,7 @@ struct MidiTrigger {
     int noteNumber = 66; // F#4
     float velocity = 1.0f;
     bool audition = false;
+    bool choke = false;
 };
 
 struct MidiCcEvent {
@@ -49,7 +50,24 @@ struct HatEffectSettings {
 struct EngineSettings {
     HatSynthSettings synth{};
     HatEffectSettings effects{};
+    int midiChokeNote = 42;
+    int midiChokeCc = 4;
+    bool rollEnabled = false;
+    int rollDivision = 1; // 0 = 1/8, 1 = 1/16, 2 = 1/32
+    float rollSwing = 0.0f;
+    float rollAccent = 0.25f;
     bool bypass = false;
+};
+
+struct LayerOutputBuffers {
+    float* metalLeft = nullptr;
+    float* metalRight = nullptr;
+    float* airLeft = nullptr;
+    float* airRight = nullptr;
+    float* chickLeft = nullptr;
+    float* chickRight = nullptr;
+    float* reverbLeft = nullptr;
+    float* reverbRight = nullptr;
 };
 
 // Internal 32-bit float stereo WAV cache for deterministic Lock-In mode
@@ -86,7 +104,8 @@ public:
         float* const* channels,
         int numChannels,
         int numSamples,
-        std::span<const MidiCcEvent> controlChanges = {}) noexcept;
+        std::span<const MidiCcEvent> controlChanges = {},
+        const LayerOutputBuffers* layerOutputs = nullptr) noexcept;
 
     void lockCurrentHat(const EngineSettings& settings);
     void unlockHat() noexcept;
@@ -128,6 +147,13 @@ private:
     int reversePlayHead_ = -1;
     int reverseDuration_ = 0;
     bool isReversing_ = false;
+
+    bool rollActive_ = false;
+    int rollNoteNumber_ = 66;
+    float rollVelocity_ = 1.0f;
+    int rollStep_ = 0;
+    double nextRollPpq_ = 0.0;
+    bool rollTransportWasPlaying_ = false;
 
     // Performance CCs
     float ccVolume_ = 1.0f;

@@ -218,6 +218,8 @@ void HatSynth::reset() noexcept {
     totalSamplesPlayed_ = 0;
     totalDurationSamples_ = 0;
     dryDurationSamples_ = 0;
+    chokeStartSample_ = -1;
+    chokeFadeSamples_ = 0;
     modalFrequencies_.fill(0.0f);
     modalMaxDownwardSemitones_.fill(0.0f);
     modalPhases_.fill(0.0f);
@@ -254,6 +256,7 @@ void HatSynth::triggerMidi(const HatSynthSettings& settings, float velocity, int
 void HatSynth::triggerAtFrequency(const HatSynthSettings& settings, float velocity, float baseFrequencyHz) noexcept {
     reset();
     isPlaying_ = true;
+    chokeStartSample_ = -1;
     velocity_ = std::clamp(velocity, 0.0f, 1.0f);
     baseFrequencyHz_ = baseFrequencyHz;
     for (auto& phase : modalPhases_)
@@ -362,12 +365,23 @@ float HatSynth::getEnvelopeProgress() const noexcept {
 }
 
 StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
-    if (!isPlaying_) return {0.0f, 0.0f};
+    return processSampleLayers(settings).output;
+}
+
+void HatSynth::choke() noexcept {
+    if (!isPlaying_ || chokeStartSample_ >= 0)
+        return;
+    chokeStartSample_ = totalSamplesPlayed_;
+    chokeFadeSamples_ = std::max(1, static_cast<int>(sampleRate_ * 0.005));
+}
+
+HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) noexcept {
+    if (!isPlaying_) return {};
 
     const int currentSample = totalSamplesPlayed_++;
     if (totalSamplesPlayed_ >= totalDurationSamples_) {
         isPlaying_ = false;
-        return {0.0f, 0.0f};
+        return {};
     }
 
     float preChickGainL = 0.0f;
@@ -417,6 +431,14 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
     const float rawNoiseR = generateNoiseSample(settings.noiseType);
     float metalL = 0.0f;
     float metalR = 0.0f;
+    const bool hasSoloedResonator = std::any_of(settings.resonatorSolo.begin(), settings.resonatorSolo.end(),
+                                                [](bool solo) { return solo; });
+    const float metalVelocity = std::pow(velocity_, std::clamp(settings.velocityMetal, 0.25f, 4.0f));
+    const float airVelocity = std::pow(velocity_, std::clamp(settings.velocityAir, 0.25f, 4.0f));
+    const float chickVelocity = std::pow(velocity_, std::clamp(settings.velocityChick, 0.25f, 4.0f));
+    const float reverbVelocity = std::pow(velocity_, std::clamp(settings.velocityReverb, 0.25f, 4.0f));
+    float unscaledMetalL = 0.0f;
+    float unscaledMetalR = 0.0f;
     if (mainAge >= 0.0f && settings.toneLevel > 0.001f) {
         const float decaySamples = std::max(1.0f, settings.toneDecayMs * 0.001f * static_cast<float>(sampleRate_));
         const float pitchDecaySamples = std::max(1.0f, settings.tonePitchDecayMs * 0.001f * static_cast<float>(sampleRate_));
@@ -429,7 +451,10 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
         float sumR = 0.0f;
 
         for (size_t i = 0; i < modalFrequencies_.size(); ++i) {
-            const float baseModeHz = modalFrequencies_[i];
+            if (!settings.resonatorEnabled[i] || (hasSoloedResonator && !settings.resonatorSolo[i]))
+                continue;
+            const float tuneSemitones = std::clamp(settings.resonatorTuneSemitones[i], -24.0f, 24.0f);
+            const float baseModeHz = modalFrequencies_[i] * std::exp2(tuneSemitones / 12.0f);
             if (baseModeHz <= 0.0f) continue;
             const float semitoneShift = pitchShift * static_cast<float>(i) / 5.0f;
             const float boundedSemitoneShift = i == 0
@@ -469,12 +494,14 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
             sumL += left * envelope * weight * character;
             sumR += right * envelope * weight * character;
         }
-        metalL = sumL * settings.toneLevel * velocity_;
-        metalR = sumR * settings.toneLevel * velocity_;
+        unscaledMetalL = sumL * settings.toneLevel;
+        unscaledMetalR = sumR * settings.toneLevel;
+        metalL = unscaledMetalL * metalVelocity;
+        metalR = unscaledMetalR * metalVelocity;
     }
 
-    const float noiseSwellL = (rawNoiseL * preChickGainL * 0.4f + rawNoiseL * noiseEnvelope * settings.noiseLevel) * velocity_;
-    const float noiseSwellR = (rawNoiseR * preChickGainR * 0.4f + rawNoiseR * noiseEnvelope * settings.noiseLevel) * velocity_;
+    const float noiseSwellL = rawNoiseL * preChickGainL * 0.4f + rawNoiseL * noiseEnvelope * settings.noiseLevel;
+    const float noiseSwellR = rawNoiseR * preChickGainR * 0.4f + rawNoiseR * noiseEnvelope * settings.noiseLevel;
     if (std::abs(settings.noiseHPF - lastNoiseHPF_) > 1.0f) {
         lastNoiseHPF_ = settings.noiseHPF;
         computeHighpassCoeffs(lastNoiseHPF_, 0.54f, sampleRate_, b0_nh1_, b1_nh1_, b2_nh1_, a1_nh1_, a2_nh1_);
@@ -505,6 +532,10 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
         airL = mid + side;
         airR = mid - side;
     }
+    const float unscaledAirL = airL;
+    const float unscaledAirR = airR;
+    airL *= airVelocity;
+    airR *= airVelocity;
 
     const float dryDuration = static_cast<float>(dryDurationSamples_);
     const float attackSamples = std::clamp(settings.ampAttackMs, 0.05f, 20.0f) * 0.001f * static_cast<float>(sampleRate_);
@@ -528,17 +559,53 @@ StereoFrame HatSynth::processSample(const HatSynthSettings& settings) noexcept {
             / std::max(1.0f, dryDuration - releaseStart);
     }
 
-    const float dryL = (airL + metalL + (chick + preChickTickL) * velocity_) * amplitudeEnvelope;
-    const float dryR = (airR + metalR + (chick + preChickTickR) * velocity_) * amplitudeEnvelope;
+    const float unscaledChickL = chick + preChickTickL;
+    const float unscaledChickR = chick + preChickTickR;
+    const float chickL = unscaledChickL * chickVelocity;
+    const float chickR = unscaledChickR * chickVelocity;
+    const float dryL = (airL + metalL + chickL) * amplitudeEnvelope;
+    const float dryR = (airR + metalR + chickR) * amplitudeEnvelope;
+    const float reverbSendL = (unscaledAirL + unscaledMetalL + unscaledChickL) * reverbVelocity * amplitudeEnvelope;
+    const float reverbSendR = (unscaledAirR + unscaledMetalR + unscaledChickR) * reverbVelocity * amplitudeEnvelope;
     StereoFrame reverbOut{0.0f, 0.0f};
     if (settings.reverbMix > 0.001f) {
-        reverbOut = reverb_.process(dryL, dryR, settings.reverbSize, settings.reverbDecayMs,
+        reverbOut = reverb_.process(reverbSendL, reverbSendR, settings.reverbSize, settings.reverbDecayMs,
                                     settings.reverbDamp, settings.reverbGateMs, sampleRate_);
     }
-    return {
-        dryL * (1.0f - settings.reverbMix * 0.40f) + reverbOut.left * settings.reverbMix,
-        dryR * (1.0f - settings.reverbMix * 0.40f) + reverbOut.right * settings.reverbMix
+    const float dryMix = 1.0f - settings.reverbMix * 0.40f;
+    HatSynthLayers layers {
+        .metal = { metalL * amplitudeEnvelope * dryMix, metalR * amplitudeEnvelope * dryMix },
+        .air = { airL * amplitudeEnvelope * dryMix, airR * amplitudeEnvelope * dryMix },
+        .chick = { chickL * amplitudeEnvelope * dryMix, chickR * amplitudeEnvelope * dryMix },
+        .reverb = { reverbOut.left * settings.reverbMix,
+                    reverbOut.right * settings.reverbMix }
     };
+    layers.output = {
+        layers.metal.left + layers.air.left + layers.chick.left + layers.reverb.left,
+        layers.metal.right + layers.air.right + layers.chick.right + layers.reverb.right
+    };
+
+    if (chokeStartSample_ >= 0) {
+        const int chokeAge = currentSample - chokeStartSample_;
+        const float chokeGain = std::clamp(1.0f - static_cast<float>(chokeAge) / static_cast<float>(chokeFadeSamples_),
+                                           0.0f, 1.0f);
+        const auto applyChokeGain = [chokeGain](StereoFrame& frame) {
+            frame.left *= chokeGain;
+            frame.right *= chokeGain;
+        };
+        applyChokeGain(layers.metal);
+        applyChokeGain(layers.air);
+        applyChokeGain(layers.chick);
+        applyChokeGain(layers.reverb);
+        applyChokeGain(layers.output);
+        if (chokeAge >= chokeFadeSamples_) {
+            isPlaying_ = false;
+            reverb_.reset();
+            chokeStartSample_ = -1;
+            return {};
+        }
+    }
+    return layers;
 }
 
 void HatSynth::renderBlock(

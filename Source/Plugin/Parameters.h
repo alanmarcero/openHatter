@@ -24,6 +24,7 @@ inline constexpr const char* kToneDecay = "tone_decay";
 inline constexpr const char* kTonePitchEnv = "tone_pitch_env";
 inline constexpr const char* kTonePitchDecay = "tone_pitch_decay";
 inline constexpr const char* kToneLevel = "tone_level";
+inline constexpr const char* kVelocityMetal = "velocity_metal";
 inline constexpr const char* kAmpAttack = "amp_attack";
 inline constexpr const char* kAmpDecay = "amp_decay";
 inline constexpr const char* kAmpSustain = "amp_sustain";
@@ -39,11 +40,13 @@ inline constexpr const char* kNoiseHPF = "noise_hpf";
 inline constexpr const char* kNoiseLPF = "noise_lpf";
 inline constexpr const char* kNoiseStereoWidth = "noise_stereo_width";
 inline constexpr const char* kNoiseLevel = "noise_level";
+inline constexpr const char* kVelocityAir = "velocity_air";
 
 // Stick Chick / Transient
 inline constexpr const char* kClickType = "click_type";
 inline constexpr const char* kClickLevel = "click_level";
 inline constexpr const char* kClickFreq = "click_freq";
+inline constexpr const char* kVelocityChick = "velocity_chick";
 
 // Shimmer Saturation & Exciter
 inline constexpr const char* kDistType = "dist_type";
@@ -70,6 +73,7 @@ inline constexpr const char* kReverbDecay = "reverb_decay";
 inline constexpr const char* kReverbDamp = "reverb_damp";
 inline constexpr const char* kReverbGate = "reverb_gate";
 inline constexpr const char* kReverbMix = "reverb_mix";
+inline constexpr const char* kVelocityReverb = "velocity_reverb";
 
 // Reverse Swell & Sync
 inline constexpr const char* kReverseMode = "reverse_mode";
@@ -82,6 +86,12 @@ inline constexpr const char* kLockIn = "lock_in";
 inline constexpr const char* kStereoWidth = "stereo_width";
 inline constexpr const char* kOutputGain = "output_gain";
 inline constexpr const char* kPreset = "preset";
+inline constexpr const char* kMidiChokeNote = "midi_choke_note";
+inline constexpr const char* kMidiChokeCc = "midi_choke_cc";
+inline constexpr const char* kRollEnabled = "roll_enabled";
+inline constexpr const char* kRollDivision = "roll_division";
+inline constexpr const char* kRollSwing = "roll_swing";
+inline constexpr const char* kRollAccent = "roll_accent";
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTreeState& apvts);

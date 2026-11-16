@@ -23,6 +23,164 @@ TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") 
     REQUIRE(processor.parameters.getParameter(openhatter::params::kReverbMix) != nullptr);
 }
 
+TEST_CASE("OpenHatter exposes the approved velocity, resonator, choke, and roll controls", "[plugin][performance]") {
+    OpenHatterProcessor processor;
+    const std::array<const char*, 4> velocityIds {
+        "velocity_metal", "velocity_air", "velocity_chick", "velocity_reverb"
+    };
+    for (const auto* id : velocityIds)
+        REQUIRE(processor.parameters.getParameter(id) != nullptr);
+
+    for (int resonator = 1; resonator <= 6; ++resonator) {
+        const auto prefix = "resonator_" + juce::String(resonator);
+        REQUIRE(processor.parameters.getParameter(prefix + "_enabled") != nullptr);
+        REQUIRE(processor.parameters.getParameter(prefix + "_solo") != nullptr);
+        REQUIRE(processor.parameters.getParameter(prefix + "_tune") != nullptr);
+    }
+
+    REQUIRE(processor.parameters.getParameter("midi_choke_note") != nullptr);
+    REQUIRE(processor.parameters.getParameter("midi_choke_cc") != nullptr);
+    REQUIRE(processor.parameters.getParameter("roll_enabled") != nullptr);
+    REQUIRE(processor.parameters.getParameter("roll_division") != nullptr);
+    REQUIRE(processor.parameters.getParameter("roll_swing") != nullptr);
+    REQUIRE(processor.parameters.getParameter("roll_accent") != nullptr);
+}
+
+TEST_CASE("OpenHatter exposes independent stereo outputs for the sound layers", "[plugin][outputs]") {
+    OpenHatterProcessor processor;
+    REQUIRE(processor.getBusCount(false) == 5);
+    REQUIRE(processor.getBus(false, 1)->getName() == "Metal");
+    REQUIRE(processor.getBus(false, 2)->getName() == "Air");
+    REQUIRE(processor.getBus(false, 3)->getName() == "Chick");
+    REQUIRE(processor.getBus(false, 4)->getName() == "Reverb");
+}
+
+TEST_CASE("OpenHatter routes audio to enabled stereo layer buses", "[plugin][outputs]") {
+    OpenHatterProcessor processor;
+    auto layout = processor.getBusesLayout();
+    for (int bus = 1; bus < layout.outputBuses.size(); ++bus)
+        layout.outputBuses.set(bus, juce::AudioChannelSet::stereo());
+    REQUIRE(processor.setBusesLayout(layout));
+    REQUIRE(processor.getTotalNumOutputChannels() == 10);
+    processor.prepareToPlay(48000.0, 2048);
+
+    juce::AudioBuffer<float> buffer(processor.getTotalNumOutputChannels(), 2048);
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(110)), 0);
+    processor.processBlock(buffer, midi);
+
+    for (int busIndex = 1; busIndex < 5; ++busIndex) {
+        auto stem = processor.getBusBuffer(buffer, false, busIndex);
+        float stemPeak = 0.0f;
+        for (int channel = 0; channel < stem.getNumChannels(); ++channel)
+            for (int sample = 0; sample < stem.getNumSamples(); ++sample)
+                stemPeak = std::max(stemPeak, std::abs(stem.getSample(channel, sample)));
+        INFO(processor.getBus(false, busIndex)->getName().toStdString());
+        REQUIRE(stemPeak > 0.001f);
+    }
+}
+
+TEST_CASE("OpenHatter velocity curves change modal response independently of the MIDI note velocity", "[plugin][performance]") {
+    const auto renderPeak = [](float velocityCurve) {
+        OpenHatterProcessor processor;
+        const auto setValue = [&processor](const char* id, float value) {
+            auto* parameter = processor.parameters.getParameter(id);
+            REQUIRE(parameter != nullptr);
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+        };
+        setValue("velocity_metal", velocityCurve);
+        setValue(openhatter::params::kToneLevel, 1.0f);
+        setValue(openhatter::params::kNoiseLevel, 0.0f);
+        setValue(openhatter::params::kClickLevel, 0.0f);
+        setValue(openhatter::params::kPreLevel, 0.0f);
+        setValue(openhatter::params::kReverbMix, 0.0f);
+        setValue(openhatter::params::kCompMix, 0.0f);
+        setValue(openhatter::params::kDistMix, 0.0f);
+        setValue(openhatter::params::kLimiterEnabled, 0.0f);
+        processor.prepareToPlay(48000.0, 2048);
+        juce::AudioBuffer<float> buffer(2, 2048);
+        juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::noteOn(1, 69, static_cast<juce::uint8>(64)), 0);
+        processor.processBlock(buffer, midi);
+        float peak = 0.0f;
+        for (int channel = 0; channel < 2; ++channel)
+            for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+                peak = std::max(peak, std::abs(buffer.getSample(channel, sample)));
+        return peak;
+    };
+
+    const float linearResponse = renderPeak(1.0f);
+    const float compressedResponse = renderPeak(2.0f);
+    REQUIRE(linearResponse > 0.0f);
+    REQUIRE(compressedResponse < linearResponse * 0.8f);
+}
+
+TEST_CASE("OpenHatter configured MIDI choke note closes a ringing hat", "[plugin][midi]") {
+    OpenHatterProcessor processor;
+    auto* reverbMix = processor.parameters.getParameter(openhatter::params::kReverbMix);
+    reverbMix->setValueNotifyingHost(reverbMix->convertTo0to1(0.0f));
+    processor.prepareToPlay(48000.0, 2048);
+
+    juce::AudioBuffer<float> first(2, 256);
+    juce::MidiBuffer noteOn;
+    noteOn.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(120)), 0);
+    processor.processBlock(first, noteOn);
+    REQUIRE(processor.displayTriggerCount.load() == 1);
+
+    juce::AudioBuffer<float> afterChoke(2, 2048);
+    juce::MidiBuffer noteOff;
+    noteOff.addEvent(juce::MidiMessage::noteOff(1, 42), 64);
+    processor.processBlock(afterChoke, noteOff);
+    float tailPeak = 0.0f;
+    for (int channel = 0; channel < 2; ++channel)
+        for (int sample = 512; sample < afterChoke.getNumSamples(); ++sample)
+            tailPeak = std::max(tailPeak, std::abs(afterChoke.getSample(channel, sample)));
+    REQUIRE(tailPeak < 1.0e-6f);
+}
+
+TEST_CASE("OpenHatter configured MIDI choke CC closes a ringing hat at its sample offset", "[plugin][midi]") {
+    OpenHatterProcessor processor;
+    auto* reverbMix = processor.parameters.getParameter(openhatter::params::kReverbMix);
+    reverbMix->setValueNotifyingHost(reverbMix->convertTo0to1(0.0f));
+    processor.prepareToPlay(48000.0, 2048);
+
+    juce::AudioBuffer<float> first(2, 256);
+    juce::MidiBuffer noteOn;
+    noteOn.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(120)), 0);
+    processor.processBlock(first, noteOn);
+
+    juce::AudioBuffer<float> afterChoke(2, 2048);
+    juce::MidiBuffer chokeCc;
+    chokeCc.addEvent(juce::MidiMessage::controllerEvent(1, 4, 127), 64);
+    processor.processBlock(afterChoke, chokeCc);
+    float tailPeak = 0.0f;
+    for (int channel = 0; channel < 2; ++channel)
+        for (int sample = 512; sample < afterChoke.getNumSamples(); ++sample)
+            tailPeak = std::max(tailPeak, std::abs(afterChoke.getSample(channel, sample)));
+    REQUIRE(tailPeak < 1.0e-6f);
+}
+
+TEST_CASE("OpenHatter host-synced roll repeats the last MIDI hit while transport advances", "[plugin][performance]") {
+    OpenHatterProcessor processor;
+    auto* rollEnabled = processor.parameters.getParameter("roll_enabled");
+    REQUIRE(rollEnabled != nullptr);
+    rollEnabled->setValueNotifyingHost(rollEnabled->convertTo0to1(1.0f));
+    auto* reverbMix = processor.parameters.getParameter(openhatter::params::kReverbMix);
+    reverbMix->setValueNotifyingHost(reverbMix->convertTo0to1(0.0f));
+    processor.prepareToPlay(48000.0, 512);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    juce::MidiBuffer firstHit;
+    firstHit.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(110)), 0);
+    processor.processBlock(buffer, firstHit);
+    for (int block = 0; block < 48; ++block) {
+        juce::MidiBuffer noEvents;
+        processor.processBlock(buffer, noEvents);
+    }
+
+    REQUIRE(processor.displayTriggerCount.load() >= 4);
+}
+
 TEST_CASE("OpenHatterProcessor provides exactly 48 EDM and trance factory presets", "[plugin]") {
     OpenHatterProcessor processor;
     REQUIRE(processor.getNumPrograms() == 48);
@@ -76,6 +234,14 @@ TEST_CASE("OpenHatterProcessor renders audio upon MIDI note-on", "[plugin]") {
 TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]") {
     OpenHatterProcessor proc1;
     proc1.setCurrentProgram(12); // Lucent Rise
+    const auto setValue = [&proc1](const char* id, float value) {
+        auto* parameter = proc1.parameters.getParameter(id);
+        REQUIRE(parameter != nullptr);
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    };
+    setValue("midi_choke_note", 49.0f);
+    setValue("resonator_3_tune", -7.5f);
+    setValue("roll_enabled", 1.0f);
 
     juce::MemoryBlock block;
     proc1.getStateInformation(block);
@@ -87,6 +253,9 @@ TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]"
     const float p1 = proc1.parameters.getRawParameterValue(openhatter::params::kDistDrive)->load();
     const float p2 = proc2.parameters.getRawParameterValue(openhatter::params::kDistDrive)->load();
     REQUIRE(std::abs(p1 - p2) < 0.001f);
+    REQUIRE(std::abs(proc2.parameters.getRawParameterValue("midi_choke_note")->load() - 49.0f) < 0.001f);
+    REQUIRE(std::abs(proc2.parameters.getRawParameterValue("resonator_3_tune")->load() + 7.5f) < 0.001f);
+    REQUIRE(proc2.parameters.getRawParameterValue("roll_enabled")->load() > 0.5f);
 }
 
 TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin][gui]") {
@@ -100,27 +269,15 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
     auto* hatterEditor = dynamic_cast<OpenHatterEditor*>(editor.get());
     REQUIRE(hatterEditor != nullptr);
 
-    auto screenshots = juce::File::getCurrentWorkingDirectory().getChildFile("assets");
-    if (!screenshots.isDirectory())
-        screenshots = juce::File::getCurrentWorkingDirectory().getParentDirectory().getChildFile("assets");
-    REQUIRE(screenshots.isDirectory());
-    const std::array<const char*, 3> pageNames { "hat", "motion", "fx" };
     for (int mode = 0; mode < 2; ++mode) {
         hatterEditor->setAdvancedView(mode == 1);
-        for (int page = 0; page < 3; ++page) {
+        for (int page = 0; page < 2; ++page) {
             hatterEditor->setPage(page);
+            REQUIRE(hatterEditor->getPage() == page);
             const auto snapshot = editor->createComponentSnapshot(editor->getLocalBounds());
             REQUIRE(snapshot.isValid());
             REQUIRE(snapshot.getWidth() == 1100);
             REQUIRE(snapshot.getHeight() == 972);
-            const auto file = mode == 0
-                ? screenshots.getChildFile("openHatter-" + juce::String(pageNames[static_cast<size_t>(page)]) + ".png")
-                : screenshots.getChildFile("openHatter-" + juce::String(pageNames[static_cast<size_t>(page)]) + "-advanced.png");
-            file.deleteFile();
-            juce::FileOutputStream stream(file);
-            REQUIRE(stream.openedOk());
-            juce::PNGImageFormat png;
-            REQUIRE(png.writeImageToStream(snapshot, stream));
         }
     }
 }

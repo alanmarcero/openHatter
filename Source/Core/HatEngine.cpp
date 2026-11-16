@@ -179,6 +179,10 @@ void HatEngine::reset() noexcept {
     reversePlayHead_ = -1;
     reverseDuration_ = 0;
     isReversing_ = false;
+    rollActive_ = false;
+    rollStep_ = 0;
+    nextRollPpq_ = 0.0;
+    rollTransportWasPlaying_ = false;
     currentPeak_ = 0.0f;
     currentBeatPhase_ = 0.0f;
     currentHatProgress_ = 1.0f;
@@ -280,38 +284,96 @@ void HatEngine::process(
     float* const* channels,
     int numChannels,
     int numSamples,
-    std::span<const MidiCcEvent> controlChanges) noexcept {
+    std::span<const MidiCcEvent> controlChanges,
+    const LayerOutputBuffers* layerOutputs) noexcept {
     if (settings.bypass || numChannels < 2 || channels == nullptr || numSamples <= 0) {
         return;
-    }
-
-    for (const auto& cc : controlChanges) {
-        if (cc.controller == 7) {
-            ccVolume_ = static_cast<float>(cc.value) / 127.0f;
-        } else if (cc.controller == 74) {
-            ccBrightness_ = static_cast<float>(cc.value) / 127.0f;
-        } else if (cc.controller == 120 || cc.controller == 123) {
-            synth_.reset();
-            reversePlayHead_ = -1;
-        } else if (cc.controller == 121) {
-            ccVolume_ = 1.0f;
-            ccBrightness_ = 1.0f;
-        }
     }
 
     double ppq = transport.ppqPosition.value_or(fallbackPpq_);
     const double ppqPerSample = (transport.bpm / 60.0) / sampleRate_;
     const double beatsPerBar = transport.beatsPerBar > 0.0 ? transport.beatsPerBar : 4.0;
+    constexpr std::array<double, 3> rollStepLengths { 0.5, 0.25, 0.125 };
+    const int divisionIndex = std::clamp(settings.rollDivision, 0, 2);
+    const double rollStepPpq = rollStepLengths[static_cast<size_t>(divisionIndex)];
+    const double swing = std::clamp(static_cast<double>(settings.rollSwing), 0.0, 0.49);
+    if (!settings.rollEnabled)
+        rollActive_ = false;
+    if (rollActive_ && transport.isPlaying && !rollTransportWasPlaying_) {
+        const double nextGrid = (std::floor(ppq / rollStepPpq) + 1.0) * rollStepPpq;
+        nextRollPpq_ = nextGrid + (rollStep_ % 2 == 1 ? rollStepPpq * swing : 0.0);
+    }
+    if (transport.ppqPosition && std::abs(*transport.ppqPosition - fallbackPpq_) > 0.5 && rollActive_) {
+        const double nextGrid = (std::floor(ppq / rollStepPpq) + 1.0) * rollStepPpq;
+        nextRollPpq_ = nextGrid + (rollStep_ % 2 == 1 ? rollStepPpq * swing : 0.0);
+    }
+    rollTransportWasPlaying_ = transport.isPlaying;
 
     int triggerIdx = 0;
+    int ccIdx = 0;
     float blockPeak = 0.0f;
-    const float masterGain = dbToLin(settings.effects.outputGainDb) * ccVolume_;
+    const float outputGain = dbToLin(settings.effects.outputGainDb);
 
     for (int sample = 0; sample < numSamples; ++sample) {
+        while (ccIdx < static_cast<int>(controlChanges.size()) && controlChanges[ccIdx].sampleOffset <= sample) {
+            const auto& cc = controlChanges[ccIdx++];
+            if (cc.controller == settings.midiChokeCc && cc.value >= 64) {
+                synth_.choke();
+                rollActive_ = false;
+                reversePlayHead_ = -1;
+                isReversing_ = false;
+            }
+            if (cc.controller == 7) {
+                ccVolume_ = static_cast<float>(cc.value) / 127.0f;
+            } else if (cc.controller == 74) {
+                ccBrightness_ = static_cast<float>(cc.value) / 127.0f;
+            } else if (cc.controller == 120 || cc.controller == 123) {
+                synth_.reset();
+                rollActive_ = false;
+                reversePlayHead_ = -1;
+                isReversing_ = false;
+            } else if (cc.controller == 121) {
+                ccVolume_ = 1.0f;
+                ccBrightness_ = 1.0f;
+            }
+        }
+
         while (triggerIdx < static_cast<int>(midiTriggers.size()) && midiTriggers[triggerIdx].sampleOffset <= sample) {
             const auto& trig = midiTriggers[triggerIdx++];
+            if (trig.choke) {
+                synth_.choke();
+                rollActive_ = false;
+                reversePlayHead_ = -1;
+                isReversing_ = false;
+                continue;
+            }
             triggerHat(settings, ppq, transport.bpm, beatsPerBar, trig.velocity, trig.noteNumber, trig.audition);
+            if (settings.rollEnabled) {
+                rollActive_ = true;
+                rollNoteNumber_ = trig.noteNumber;
+                rollVelocity_ = trig.velocity;
+                rollStep_ = 1;
+                nextRollPpq_ = (std::floor(ppq / rollStepPpq) + 1.0) * rollStepPpq;
+                if (rollStep_ % 2 == 1)
+                    nextRollPpq_ += rollStepPpq * swing;
+            }
         }
+
+        if (rollActive_ && settings.rollEnabled && transport.isPlaying) {
+            int catchupSteps = 0;
+            while (ppq + 1.0e-10 >= nextRollPpq_ && catchupSteps++ < 8) {
+                const float accent = rollStep_ % 4 == 3
+                    ? 1.0f + std::clamp(settings.rollAccent, 0.0f, 1.0f)
+                    : 1.0f;
+                triggerHat(settings, ppq, transport.bpm, beatsPerBar,
+                           std::clamp(rollVelocity_ * accent, 0.0f, 1.0f), rollNoteNumber_, false);
+                rollStep_ = (rollStep_ + 1) % 4;
+                const double interval = rollStepPpq * (rollStep_ % 2 == 1 ? 1.0 + swing : 1.0 - swing);
+                nextRollPpq_ += interval;
+            }
+        }
+
+        const float masterGain = outputGain * ccVolume_;
 
         float sL = 0.0f;
         float sR = 0.0f;
@@ -320,12 +382,34 @@ void HatEngine::process(
             if (std::abs(ccBrightness_ - 1.0f) > 0.001f) {
                 activeSettings.noiseLPF = std::clamp(settings.synth.noiseLPF * ccBrightness_, 800.0f, 20000.0f);
             }
-            const auto frame = synth_.processSample(activeSettings);
-            sL = frame.left;
-            sR = frame.right;
+            const auto layers = synth_.processSampleLayers(activeSettings);
+            sL = layers.output.left;
+            sR = layers.output.right;
             currentHatProgress_ = synth_.getEnvelopeProgress();
+
+            if (layerOutputs != nullptr) {
+                if (layerOutputs->metalLeft != nullptr) layerOutputs->metalLeft[sample] = layers.metal.left * masterGain;
+                if (layerOutputs->metalRight != nullptr) layerOutputs->metalRight[sample] = layers.metal.right * masterGain;
+                if (layerOutputs->airLeft != nullptr) layerOutputs->airLeft[sample] = layers.air.left * masterGain;
+                if (layerOutputs->airRight != nullptr) layerOutputs->airRight[sample] = layers.air.right * masterGain;
+                if (layerOutputs->chickLeft != nullptr) layerOutputs->chickLeft[sample] = layers.chick.left * masterGain;
+                if (layerOutputs->chickRight != nullptr) layerOutputs->chickRight[sample] = layers.chick.right * masterGain;
+                if (layerOutputs->reverbLeft != nullptr) layerOutputs->reverbLeft[sample] = layers.reverb.left * masterGain;
+                if (layerOutputs->reverbRight != nullptr) layerOutputs->reverbRight[sample] = layers.reverb.right * masterGain;
+            }
         } else {
             currentHatProgress_ = 1.0f;
+        }
+
+        if (layerOutputs != nullptr && !synth_.isPlaying()) {
+            if (layerOutputs->metalLeft != nullptr) layerOutputs->metalLeft[sample] = 0.0f;
+            if (layerOutputs->metalRight != nullptr) layerOutputs->metalRight[sample] = 0.0f;
+            if (layerOutputs->airLeft != nullptr) layerOutputs->airLeft[sample] = 0.0f;
+            if (layerOutputs->airRight != nullptr) layerOutputs->airRight[sample] = 0.0f;
+            if (layerOutputs->chickLeft != nullptr) layerOutputs->chickLeft[sample] = 0.0f;
+            if (layerOutputs->chickRight != nullptr) layerOutputs->chickRight[sample] = 0.0f;
+            if (layerOutputs->reverbLeft != nullptr) layerOutputs->reverbLeft[sample] = 0.0f;
+            if (layerOutputs->reverbRight != nullptr) layerOutputs->reverbRight[sample] = 0.0f;
         }
 
         if (reversePlayHead_ >= 0 && reversePlayHead_ < reverseDuration_) {

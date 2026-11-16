@@ -58,6 +58,10 @@ struct HatSynthSettings {
     float tonePitchEnv = 3.5f;    // -24..+24 semitone sweep across upper modal partials
     float tonePitchDecayMs = 14.0f;// 3..80 ms upper-mode sweep decay
     float toneLevel = 0.80f;      // 0..1 level of tuned metallic matrix
+    float velocityMetal = 1.0f;
+    std::array<bool, 6> resonatorEnabled { true, true, true, true, true, true };
+    std::array<bool, 6> resonatorSolo { false, false, false, false, false, false };
+    std::array<float, 6> resonatorTuneSemitones { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
     float ampAttackMs = 0.35f;
     float ampDecayMs = 72.0f;
@@ -74,11 +78,13 @@ struct HatSynthSettings {
     float noiseLPF = 16500.0f;    // 1500..20000 Hz low-pass filter cutoff
     float noiseStereoWidth = 1.2f;// 0 (mono) .. 2 (ultra-wide stereo shimmer)
     float noiseLevel = 0.88f;     // 0..1
+    float velocityAir = 1.0f;
 
     // Stick Chick / Transient
     ChickType chickType = ChickType::CrispStick;
     float chickLevel = 0.45f;     // 0..1
     float chickFreqHz = 6800.0f;  // 1000..14000 Hz
+    float velocityChick = 1.0f;
 
     // Shimmer Reverb & Choke Gate Tail
     float reverbSize = 0.55f;     // 0.1..1.0
@@ -86,6 +92,7 @@ struct HatSynthSettings {
     float reverbDamp = 0.25f;     // 0..1 high damping
     float reverbGateMs = 180.0f;  // 0 (off) .. 600 ms
     float reverbMix = 0.24f;      // 0..1
+    float velocityReverb = 1.0f;
 
     bool operator==(const HatSynthSettings&) const noexcept = default;
 };
@@ -121,6 +128,14 @@ struct BiquadState {
 struct StereoFrame {
     float left = 0.0f;
     float right = 0.0f;
+};
+
+struct HatSynthLayers {
+    StereoFrame metal;
+    StereoFrame air;
+    StereoFrame chick;
+    StereoFrame reverb;
+    StereoFrame output;
 };
 
 // Stereo allpass diffuser for smooth cymbal shimmer dispersion
@@ -185,6 +200,8 @@ public:
     void trigger(const HatSynthSettings& settings, float velocity = 1.0f, int semitoneOffset = 0) noexcept;
     void triggerMidi(const HatSynthSettings& settings, float velocity, int midiNoteNumber) noexcept;
     [[nodiscard]] StereoFrame processSample(const HatSynthSettings& settings) noexcept;
+    [[nodiscard]] HatSynthLayers processSampleLayers(const HatSynthSettings& settings) noexcept;
+    void choke() noexcept;
     [[nodiscard]] bool isPlaying() const noexcept { return isPlaying_; }
     [[nodiscard]] float getEnvelopeProgress() const noexcept;
 
@@ -215,6 +232,8 @@ private:
     int totalSamplesPlayed_ = 0;
     int totalDurationSamples_ = 0;
     int dryDurationSamples_ = 0;
+    int chokeStartSample_ = -1;
+    int chokeFadeSamples_ = 0;
 
     // Stick micro-bounce articulation
     int preChickCount_ = 1;

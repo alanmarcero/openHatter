@@ -18,9 +18,15 @@ Every MIDI note-on triggers the sound at the note's equal-tempered frequency:
 frequency = 440 × 2 ^ ((MIDI note − 69) / 12)
 ```
 
-The first modal partial follows that frequency. Upper partials use the selected cymbal mode's inharmonic ratios, and partials above Nyquist are omitted. MIDI note-offs do not shorten the one-shot hat tail. Velocity scales each hit.
+The first modal partial follows that frequency. Upper partials use the selected cymbal mode's inharmonic ratios, and partials above Nyquist are omitted. Ordinary MIDI note-offs do not shorten the one-shot hat tail. The configurable choke note (default 42) closes it; the configurable choke CC (default 4) does the same at values of 64 or higher. Velocity scales each hit.
 
 The note monitor reports the most recent incoming note. **Audition** plays that note, or MIDI note 60 (C4) before any MIDI note arrives. MIDI CC 7 controls output volume and CC 74 controls air brightness.
+
+The **Performance** page has independent velocity curves for metal, air, chick, and reverb, plus six resonator tuning, mute, and solo controls. Enable **Roll** to repeat the most recent MIDI hit on host-synced eighth, sixteenth, or thirty-second notes. Swing delays alternating steps and accent raises every fourth hit. Rolls pause while the host transport is stopped and stop when the configured choke note or CC is received.
+
+![openHatter performance controls](assets/openHatter-performance.png)
+
+Four optional stereo outputs expose the metal, air, chick, and reverb stems. They are disabled by default to preserve the usual stereo output layout. Stems include the master output gain and CC 7 level, but bypass the shared exciter, compressor, limiter, and width processing.
 
 ## Controls
 
@@ -33,6 +39,7 @@ The note monitor reports the most recent incoming note. **Audition** plays that 
 | Exciter | Mode, drive, sheen, mix |
 | Dynamics | Compressor threshold, ratio, attack, release, makeup, mix; limiter ceiling, release, enable |
 | Space / Output | Reverb size, decay, damping, choke, mix; reverse sync and mix; stereo width and output |
+| Performance | Layer velocity curves; resonator tuning, mute and solo; MIDI choke note and CC; host-synced roll division, swing and accents |
 
 The six preset sections can be locked while browsing. A lock keeps that section's values when another preset is selected; its controls remain editable. Lock states are saved with the project.
 

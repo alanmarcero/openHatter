@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "Presets.h"
 #include "Theme.h"
+#include <algorithm>
 
 namespace {
 namespace theme = openhatter::theme;
@@ -18,6 +19,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
       processor_(processorToEdit),
       midiPanel_(processorToEdit),
       synthPanel_(processorToEdit),
+      performancePanel_(processorToEdit),
       effectsPanel_(processorToEdit),
       tooltipWindow_(this, 500) {
     juce::LookAndFeel::setDefaultLookAndFeel(&lookAndFeel_);
@@ -54,9 +56,16 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     auditionBtn_.onClick = [this] { processor_.triggerAudition(); };
     addAndMakeVisible(auditionBtn_);
 
+    styleHeaderButton(pageToggleBtn_, theme::kAccentAqua);
+    pageToggleBtn_.setTooltip("Switch between sound design and performance controls.");
+    pageToggleBtn_.onClick = [this] { setPage(1 - page_); };
+    addAndMakeVisible(pageToggleBtn_);
+
     addAndMakeVisible(midiPanel_);
     addAndMakeVisible(synthPanel_);
+    addAndMakeVisible(performancePanel_);
     addAndMakeVisible(effectsPanel_);
+    setPage(0);
     syncPresetBox();
     setSize(1100, 972);
     setResizable(false, false);
@@ -70,6 +79,18 @@ OpenHatterEditor::~OpenHatterEditor() {
 
 void OpenHatterEditor::syncPresetBox() {
     presetBox_.setSelectedId(processor_.getCurrentProgram() + 1, juce::dontSendNotification);
+}
+
+void OpenHatterEditor::setPage(int page) {
+    page_ = std::clamp(page, 0, 1);
+    const bool soundPage = page_ == 0;
+    midiPanel_.setVisible(soundPage);
+    synthPanel_.setVisible(soundPage);
+    effectsPanel_.setVisible(soundPage);
+    performancePanel_.setVisible(!soundPage);
+    pageToggleBtn_.setButtonText(soundPage ? "PERFORMANCE" : "SOUND DESIGN");
+    resized();
+    repaint();
 }
 
 void OpenHatterEditor::timerCallback() {
@@ -112,9 +133,14 @@ void OpenHatterEditor::resized() {
     prevPresetBtn_.setBounds(24, rowY, 34, 32);
     presetBox_.setBounds(64, rowY + 2, 560, 28);
     nextPresetBtn_.setBounds(630, rowY, 34, 32);
+    pageToggleBtn_.setBounds(676, rowY, 150, 32);
     auditionBtn_.setBounds(getWidth() - 162, rowY, 138, 32);
 
-    midiPanel_.setBounds(margin, 100, getWidth() - margin * 2, 148);
-    synthPanel_.setBounds(margin, 258, getWidth() - margin * 2, 390);
-    effectsPanel_.setBounds(margin, 658, getWidth() - margin * 2, getHeight() - 670);
+    if (page_ == 0) {
+        midiPanel_.setBounds(margin, 100, getWidth() - margin * 2, 148);
+        synthPanel_.setBounds(margin, 258, getWidth() - margin * 2, 390);
+        effectsPanel_.setBounds(margin, 658, getWidth() - margin * 2, getHeight() - 670);
+    } else {
+        performancePanel_.setBounds(margin, 100, getWidth() - margin * 2, getHeight() - 112);
+    }
 }

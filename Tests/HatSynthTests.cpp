@@ -4,6 +4,15 @@
 
 using namespace openhatter::core;
 
+namespace {
+float peak(const std::vector<float>& samples) {
+    float value = 0.0f;
+    for (const float sample : samples)
+        value = std::max(value, std::abs(sample));
+    return value;
+}
+}
+
 TEST_CASE("noteToHz calculation is musically accurate", "[core][synth]") {
     const float a4 = noteToHz(9, 4, 0.0f);
     REQUIRE(std::abs(a4 - 440.0f) < 0.1f);
@@ -147,4 +156,97 @@ TEST_CASE("HatSynth metallic pitch responds to note and octave settings", "[core
         diffSum += std::abs(leftLow[i] - leftHigh[i]);
     }
     REQUIRE(diffSum > 1.0f);
+}
+
+TEST_CASE("HatSynth independently applies metal velocity curve and resonator tuning", "[core][synth][performance]") {
+    HatSynthSettings settings;
+    settings.toneLevel = 1.0f;
+    settings.noiseLevel = 0.0f;
+    settings.chickLevel = 0.0f;
+    settings.preChickLevel = 0.0f;
+    settings.reverbMix = 0.0f;
+
+    HatSynth linearSynth;
+    linearSynth.prepare(48000.0);
+    std::vector<float> linearLeft, linearRight;
+    linearSynth.renderBlock(linearLeft, linearRight, settings, 0.5f, 0);
+
+    settings.velocityMetal = 2.0f;
+    HatSynth curvedSynth;
+    curvedSynth.prepare(48000.0);
+    std::vector<float> curvedLeft, curvedRight;
+    curvedSynth.renderBlock(curvedLeft, curvedRight, settings, 0.5f, 0);
+    REQUIRE(peak(linearLeft) > 0.0f);
+    REQUIRE(peak(curvedLeft) < peak(linearLeft) * 0.8f);
+
+    settings.velocityMetal = 1.0f;
+    HatSynth tunedSynth;
+    tunedSynth.prepare(48000.0);
+    std::vector<float> tunedLeft, tunedRight;
+    settings.resonatorTuneSemitones[0] = 12.0f;
+    tunedSynth.renderBlock(tunedLeft, tunedRight, settings, 1.0f, 0);
+
+    float difference = 0.0f;
+    for (size_t i = 0; i < std::min(linearLeft.size(), tunedLeft.size()); ++i)
+        difference += std::abs(linearLeft[i] * 2.0f - tunedLeft[i]);
+    REQUIRE(difference > 0.1f);
+}
+
+TEST_CASE("HatSynth resonator mute removes the metallic layer", "[core][synth][performance]") {
+    HatSynthSettings settings;
+    settings.toneLevel = 1.0f;
+    settings.noiseLevel = 0.0f;
+    settings.chickLevel = 0.0f;
+    settings.preChickLevel = 0.0f;
+    settings.reverbMix = 0.0f;
+    settings.resonatorEnabled.fill(false);
+
+    const auto renderMetalPeak = [&settings] {
+        HatSynth synth;
+        synth.prepare(48000.0);
+        synth.trigger(settings, 1.0f, 0);
+        float maximum = 0.0f;
+        while (synth.isPlaying()) {
+            const auto layers = synth.processSampleLayers(settings);
+            maximum = std::max(maximum, std::max(std::abs(layers.metal.left), std::abs(layers.metal.right)));
+        }
+        return maximum;
+    };
+    REQUIRE(renderMetalPeak() < 1.0e-6f);
+
+    settings.resonatorEnabled[0] = true;
+    REQUIRE(renderMetalPeak() > 0.01f);
+}
+
+TEST_CASE("HatSynth gives reverb an independent velocity response", "[core][synth][performance]") {
+    const auto renderReverbPeak = [](float velocity, float reverbCurve) {
+        HatSynth synth;
+        synth.prepare(48000.0);
+        HatSynthSettings settings;
+        settings.toneLevel = 1.0f;
+        settings.noiseLevel = 0.0f;
+        settings.chickLevel = 0.0f;
+        settings.preChickLevel = 0.0f;
+        settings.reverbMix = 1.0f;
+        settings.velocityMetal = 2.0f;
+        settings.velocityReverb = reverbCurve;
+        synth.trigger(settings, velocity, 0);
+        float maximum = 0.0f;
+        while (synth.isPlaying()) {
+            const auto layers = synth.processSampleLayers(settings);
+            maximum = std::max(maximum, std::max(std::abs(layers.reverb.left), std::abs(layers.reverb.right)));
+        }
+        return maximum;
+    };
+
+    const float soft = renderReverbPeak(0.5f, 1.0f);
+    const float full = renderReverbPeak(1.0f, 1.0f);
+    REQUIRE(soft > 0.0f);
+    REQUIRE(soft / full > 0.4f);
+    REQUIRE(soft / full < 0.6f);
+
+    const float softReverbCurve = renderReverbPeak(0.5f, 2.0f);
+    const float fullReverbCurve = renderReverbPeak(1.0f, 2.0f);
+    REQUIRE(softReverbCurve / fullReverbCurve > 0.2f);
+    REQUIRE(softReverbCurve / fullReverbCurve < 0.3f);
 }
