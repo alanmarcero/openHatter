@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 
@@ -45,6 +46,165 @@ TEST_CASE("OpenHatter exposes the approved velocity, resonator, choke, and roll 
     REQUIRE(processor.parameters.getParameter("roll_division") != nullptr);
     REQUIRE(processor.parameters.getParameter("roll_swing") != nullptr);
     REQUIRE(processor.parameters.getParameter("roll_accent") != nullptr);
+}
+
+TEST_CASE("OpenHatter exposes opt-in Full ADSR with a 20-second release range", "[plugin][midi]") {
+    OpenHatterProcessor processor;
+    auto* enabled = processor.parameters.getParameter("amp_enabled");
+    auto* release = processor.parameters.getParameter(openhatter::params::kAmpRelease);
+    REQUIRE(enabled != nullptr);
+    REQUIRE(release != nullptr);
+    REQUIRE(std::abs(processor.parameters.getRawParameterValue("amp_enabled")->load()) < 0.001f);
+    REQUIRE(std::abs(release->convertFrom0to1(0.0f)) < 0.001f);
+    REQUIRE(std::abs(release->convertFrom0to1(1.0f) - 20000.0f) < 0.1f);
+}
+
+TEST_CASE("Full ADSR applies matching note-off at its exact MIDI sample offset", "[plugin][midi]") {
+    OpenHatterProcessor processor;
+    const auto setValue = [&processor](const char* id, float value) {
+        auto* parameter = processor.parameters.getParameter(id);
+        REQUIRE(parameter != nullptr);
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    };
+    setValue("amp_enabled", 1.0f);
+    setValue(openhatter::params::kAmpAttack, 0.05f);
+    setValue(openhatter::params::kAmpDecay, 1.0f);
+    setValue(openhatter::params::kAmpSustain, 1.0f);
+    setValue(openhatter::params::kAmpRelease, 0.0f);
+    setValue(openhatter::params::kReverbMix, 0.0f);
+    setValue(openhatter::params::kDistMix, 0.0f);
+    setValue(openhatter::params::kCompMix, 0.0f);
+    setValue(openhatter::params::kLimiterEnabled, 0.0f);
+    processor.prepareToPlay(48000.0, 512);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(110)), 0);
+    midi.addEvent(juce::MidiMessage::noteOff(1, 46), 128);
+    processor.processBlock(buffer, midi);
+
+    const auto* left = buffer.getReadPointer(0);
+    const auto beforeNoteOff = std::max_element(left, left + 128, [](float lhs, float rhs) {
+        return std::abs(lhs) < std::abs(rhs);
+    });
+    const auto afterNoteOff = std::max_element(left + 128, left + 512, [](float lhs, float rhs) {
+        return std::abs(lhs) < std::abs(rhs);
+    });
+    REQUIRE(std::abs(*beforeNoteOff) > 0.001f);
+    REQUIRE(std::abs(*afterNoteOff) < 1.0e-8f);
+}
+
+TEST_CASE("Full ADSR note-off matches both MIDI note and channel", "[plugin][midi]") {
+    OpenHatterProcessor processor;
+    OpenHatterProcessor reference;
+    const auto setValue = [](OpenHatterProcessor& target, const char* id, float value) {
+        auto* parameter = target.parameters.getParameter(id);
+        REQUIRE(parameter != nullptr);
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    };
+    setValue(processor, "amp_enabled", 1.0f);
+    setValue(processor, openhatter::params::kAmpAttack, 0.05f);
+    setValue(processor, openhatter::params::kAmpDecay, 1.0f);
+    setValue(processor, openhatter::params::kAmpSustain, 1.0f);
+    setValue(processor, openhatter::params::kAmpRelease, 0.0f);
+    setValue(processor, openhatter::params::kReverbMix, 0.0f);
+    setValue(processor, openhatter::params::kDistMix, 0.0f);
+    setValue(processor, openhatter::params::kCompMix, 0.0f);
+    setValue(processor, openhatter::params::kLimiterEnabled, 0.0f);
+    setValue(reference, "amp_enabled", 1.0f);
+    setValue(reference, openhatter::params::kAmpAttack, 0.05f);
+    setValue(reference, openhatter::params::kAmpDecay, 1.0f);
+    setValue(reference, openhatter::params::kAmpSustain, 1.0f);
+    setValue(reference, openhatter::params::kAmpRelease, 0.0f);
+    setValue(reference, openhatter::params::kReverbMix, 0.0f);
+    setValue(reference, openhatter::params::kDistMix, 0.0f);
+    setValue(reference, openhatter::params::kCompMix, 0.0f);
+    setValue(reference, openhatter::params::kLimiterEnabled, 0.0f);
+    processor.prepareToPlay(48000.0, 512);
+    reference.prepareToPlay(48000.0, 512);
+
+    juce::AudioBuffer<float> buffer(2, 512);
+    juce::AudioBuffer<float> referenceBuffer(2, 512);
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(110)), 0);
+    midi.addEvent(juce::MidiMessage::noteOn(2, 60, static_cast<juce::uint8>(110)), 64);
+    midi.addEvent(juce::MidiMessage::noteOff(1, 60), 128);
+    juce::MidiBuffer referenceMidi;
+    referenceMidi.addEvent(juce::MidiMessage::noteOn(1, 60, static_cast<juce::uint8>(110)), 0);
+    referenceMidi.addEvent(juce::MidiMessage::noteOn(2, 60, static_cast<juce::uint8>(110)), 64);
+    processor.processBlock(buffer, midi);
+    reference.processBlock(referenceBuffer, referenceMidi);
+
+    REQUIRE(std::equal(buffer.getReadPointer(0) + 128, buffer.getReadPointer(0) + 512,
+                       referenceBuffer.getReadPointer(0) + 128));
+    REQUIRE(std::equal(buffer.getReadPointer(1) + 128, buffer.getReadPointer(1) + 512,
+                       referenceBuffer.getReadPointer(1) + 128));
+}
+
+TEST_CASE("Full ADSR holds through sustain and completes a 20-second release", "[plugin][midi]") {
+    OpenHatterProcessor processor;
+    const auto setValue = [&processor](const char* id, float value) {
+        auto* parameter = processor.parameters.getParameter(id);
+        REQUIRE(parameter != nullptr);
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    };
+    setValue("amp_enabled", 1.0f);
+    setValue(openhatter::params::kAmpAttack, 0.05f);
+    setValue(openhatter::params::kAmpDecay, 1.0f);
+    setValue(openhatter::params::kAmpSustain, 1.0f);
+    setValue(openhatter::params::kAmpRelease, 20000.0f);
+    setValue(openhatter::params::kToneLevel, 1.0f);
+    setValue(openhatter::params::kNoiseLevel, 0.0f);
+    setValue(openhatter::params::kClickLevel, 0.0f);
+    setValue(openhatter::params::kPreLevel, 0.0f);
+    setValue(openhatter::params::kReverbMix, 0.0f);
+    setValue(openhatter::params::kDistMix, 0.0f);
+    setValue(openhatter::params::kCompMix, 0.0f);
+    setValue(openhatter::params::kLimiterEnabled, 0.0f);
+    processor.prepareToPlay(1000.0, 22000);
+
+    juce::AudioBuffer<float> buffer(2, 22000);
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 69, static_cast<juce::uint8>(110)), 0);
+    midi.addEvent(juce::MidiMessage::noteOff(1, 69), 100);
+    processor.processBlock(buffer, midi);
+
+    const auto* left = buffer.getReadPointer(0);
+    const auto duringRelease = std::max_element(left + 10000, left + 10200, [](float lhs, float rhs) {
+        return std::abs(lhs) < std::abs(rhs);
+    });
+    const auto afterReleaseAndTail = std::max_element(left + 21000, left + 22000, [](float lhs, float rhs) {
+        return std::abs(lhs) < std::abs(rhs);
+    });
+    REQUIRE(std::abs(*duringRelease) > 0.001f);
+    REQUIRE(std::abs(*afterReleaseAndTail) < 1.0e-8f);
+    REQUIRE(processor.getTailLengthSeconds() > 20.0);
+}
+
+TEST_CASE("MIDI note-off leaves the default one-shot output unchanged", "[plugin][midi]") {
+    OpenHatterProcessor withNoteOff;
+    OpenHatterProcessor withoutNoteOff;
+    withNoteOff.prepareToPlay(48000.0, 256);
+    withoutNoteOff.prepareToPlay(48000.0, 256);
+    juce::AudioBuffer<float> firstWith(2, 256);
+    juce::AudioBuffer<float> firstWithout(2, 256);
+    juce::MidiBuffer noteOn;
+    noteOn.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(110)), 0);
+    withNoteOff.processBlock(firstWith, noteOn);
+    withoutNoteOff.processBlock(firstWithout, noteOn);
+
+    juce::AudioBuffer<float> secondWith(2, 512);
+    juce::AudioBuffer<float> secondWithout(2, 512);
+    juce::MidiBuffer noteOff;
+    noteOff.addEvent(juce::MidiMessage::noteOff(1, 46), 64);
+    juce::MidiBuffer noMidi;
+    withNoteOff.processBlock(secondWith, noteOff);
+    withoutNoteOff.processBlock(secondWithout, noMidi);
+
+    REQUIRE(std::equal(secondWith.getReadPointer(0), secondWith.getReadPointer(0) + 512,
+                       secondWithout.getReadPointer(0)));
+    REQUIRE(std::equal(secondWith.getReadPointer(1), secondWith.getReadPointer(1) + 512,
+                       secondWithout.getReadPointer(1)));
 }
 
 TEST_CASE("OpenHatter exposes independent stereo outputs for the sound layers", "[plugin][outputs]") {
@@ -243,6 +403,8 @@ TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]"
     setValue("midi_choke_note", 49.0f);
     setValue("resonator_3_tune", -7.5f);
     setValue("roll_enabled", 1.0f);
+    setValue(openhatter::params::kAmpEnabled, 1.0f);
+    setValue(openhatter::params::kAmpRelease, 20000.0f);
 
     juce::MemoryBlock block;
     proc1.getStateInformation(block);
@@ -257,6 +419,8 @@ TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]"
     REQUIRE(std::abs(proc2.parameters.getRawParameterValue("midi_choke_note")->load() - 49.0f) < 0.001f);
     REQUIRE(std::abs(proc2.parameters.getRawParameterValue("resonator_3_tune")->load() + 7.5f) < 0.001f);
     REQUIRE(proc2.parameters.getRawParameterValue("roll_enabled")->load() > 0.5f);
+    REQUIRE(proc2.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() > 0.5f);
+    REQUIRE(std::abs(proc2.parameters.getRawParameterValue(openhatter::params::kAmpRelease)->load() - 20000.0f) < 0.1f);
 }
 
 TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin][gui]") {
@@ -292,18 +456,21 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
             REQUIRE(snapshot.getWidth() == 1100);
             REQUIRE(snapshot.getHeight() == 972);
 
-            if (page == 1 && mode == 1) {
-                if (const auto* capturePath = std::getenv("OPENHATTER_PERFORMANCE_CAPTURE")) {
-                    juce::File outputFile(capturePath);
-                    REQUIRE(outputFile.getParentDirectory().createDirectory().wasOk());
-                    if (outputFile.exists())
-                        REQUIRE(outputFile.deleteFile());
-                    auto output = outputFile.createOutputStream();
-                    REQUIRE(output != nullptr);
-                    juce::PNGImageFormat png;
-                    REQUIRE(png.writeImageToStream(snapshot, *output));
-                    output->flush();
-                }
+            const char* capturePath = nullptr;
+            if (mode == 1 && page == 0)
+                capturePath = std::getenv("OPENHATTER_SOUND_CAPTURE");
+            if (mode == 1 && page == 1)
+                capturePath = std::getenv("OPENHATTER_PERFORMANCE_CAPTURE");
+            if (capturePath != nullptr) {
+                juce::File outputFile(capturePath);
+                REQUIRE(outputFile.getParentDirectory().createDirectory().wasOk());
+                if (outputFile.exists())
+                    REQUIRE(outputFile.deleteFile());
+                auto output = outputFile.createOutputStream();
+                REQUIRE(output != nullptr);
+                juce::PNGImageFormat png;
+                REQUIRE(png.writeImageToStream(snapshot, *output));
+                output->flush();
             }
         }
     }

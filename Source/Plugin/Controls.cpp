@@ -12,7 +12,7 @@ Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& ti
     title_.setText(title, juce::dontSendNotification);
     title_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     title_.setJustificationType(juce::Justification::centred);
-    title_.setColour(juce::Label::textColourId, theme::kTextDim.brighter(0.2f));
+    title_.setColour(juce::Label::textColourId, theme::kTextDim);
     addAndMakeVisible(title_);
 
     bind(state, parameterId);
@@ -38,14 +38,14 @@ void Knob::setTooltip(const juce::String& text) {
 
 Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     box_.setColour(juce::ComboBox::arrowColourId, accent);
-    box_.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff0c141e));
-    box_.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff223246));
+    box_.setColour(juce::ComboBox::backgroundColourId, theme::kBackground);
+    box_.setColour(juce::ComboBox::outlineColourId, theme::kPanelEdge);
     addAndMakeVisible(box_);
 
     title_.setText(title, juce::dontSendNotification);
     title_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     title_.setJustificationType(juce::Justification::centred);
-    title_.setColour(juce::Label::textColourId, theme::kTextDim.brighter(0.2f));
+    title_.setColour(juce::Label::textColourId, theme::kTextDim);
     addAndMakeVisible(title_);
 
     bind(state, parameterId);
@@ -132,15 +132,15 @@ void drawPanel(juce::Graphics& g, juce::Rectangle<int> area, const juce::String&
     g.fillRoundedRectangle(bounds, 6.0f);
 
     g.setGradientFill(juce::ColourGradient(
-        juce::Colour(0xff121a24), bounds.getTopLeft(),
-        juce::Colour(0xff080d13), bounds.getBottomLeft(), false));
+        theme::kPanel, bounds.getTopLeft(),
+        theme::kBackground, bounds.getBottomLeft(), false));
     g.fillRoundedRectangle(bounds.reduced(0.5f), 6.0f);
 
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(bounds, 6.0f, 1.0f);
 
     auto titleBar = bounds.removeFromTop(22.0f);
-    g.setColour(juce::Colour(0xff090f16));
+    g.setColour(theme::kBackground);
     g.fillRoundedRectangle(titleBar, 6.0f);
     g.fillRect(titleBar.removeFromBottom(6.0f));
 

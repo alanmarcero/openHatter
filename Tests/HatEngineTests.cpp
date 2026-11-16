@@ -123,6 +123,31 @@ TEST_CASE("HatEngine follows host PPQ for enabled 1/16-note rolls", "[core][engi
     REQUIRE(engine.triggerSerial() == 8);
 }
 
+TEST_CASE("Full ADSR note-off stops the matching host-synced roll", "[core][engine][performance][midi]") {
+    HatEngine engine;
+    engine.prepare(48000.0);
+    EngineSettings settings;
+    settings.synth.fullAdsrEnabled = true;
+    settings.synth.ampReleaseMs = 0.0f;
+    settings.rollEnabled = true;
+    settings.rollDivision = 2;
+    Transport transport;
+    transport.bpm = 120.0;
+    transport.ppqPosition = 0.0;
+
+    const std::array<MidiTrigger, 2> triggers {{
+        { .sampleOffset = 0, .noteNumber = 60, .velocity = 0.8f, .midiChannel = 2 },
+        { .sampleOffset = 100, .noteNumber = 60, .midiChannel = 2, .noteOff = true }
+    }};
+    std::array<float, 4000> left{};
+    std::array<float, 4000> right{};
+    float* channels[2] = { left.data(), right.data() };
+
+    engine.process(settings, transport, triggers, channels, 2, static_cast<int>(left.size()));
+
+    REQUIRE(engine.triggerSerial() == 1);
+}
+
 TEST_CASE("HatEngine reverses the first reverse-enabled MIDI hit", "[core][engine][reverse]") {
     HatEngine reverseEngine;
     HatEngine dryReference;

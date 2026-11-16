@@ -187,6 +187,7 @@ void HatEngine::reset() noexcept {
     reverseCallbackWorkUnits_ = 0;
     reversePreviewRenderCount_ = 0;
     rollActive_ = false;
+    rollFullAdsrActive_ = false;
     rollStep_ = 0;
     nextRollPpq_ = 0.0;
     rollTransportWasPlaying_ = false;
@@ -253,6 +254,7 @@ void HatEngine::triggerHat(
     double beatsPerBar,
     float velocity,
     int midiNoteNumber,
+    int midiChannel,
     bool reverseCue,
     bool cacheIncomingHit) noexcept {
     triggerSerial_++;
@@ -282,7 +284,7 @@ void HatEngine::triggerHat(
             ++reverseCallbackWorkUnits_;
     }
 
-    synth_.triggerMidi(settings.synth, velocity, midiNoteNumber);
+    synth_.triggerMidi(settings.synth, velocity, midiNoteNumber, midiChannel);
 }
 
 void HatEngine::process(
@@ -355,11 +357,20 @@ void HatEngine::process(
                 isReversing_ = false;
                 continue;
             }
+            if (trig.noteOff) {
+                synth_.noteOff(trig.noteNumber, trig.midiChannel, settings.synth);
+                if (rollFullAdsrActive_ && trig.noteNumber == rollNoteNumber_
+                    && trig.midiChannel == rollMidiChannel_)
+                    rollActive_ = false;
+                continue;
+            }
             triggerHat(settings, ppq, transport.bpm, beatsPerBar,
-                       trig.velocity, trig.noteNumber, trig.audition, true);
+                       trig.velocity, trig.noteNumber, trig.midiChannel, trig.audition, true);
             if (settings.rollEnabled) {
                 rollActive_ = true;
                 rollNoteNumber_ = trig.noteNumber;
+                rollMidiChannel_ = trig.midiChannel;
+                rollFullAdsrActive_ = settings.synth.fullAdsrEnabled;
                 rollVelocity_ = trig.velocity;
                 rollStep_ = 1;
                 nextRollPpq_ = (std::floor(ppq / rollStepPpq) + 1.0) * rollStepPpq;
@@ -375,7 +386,9 @@ void HatEngine::process(
                     ? 1.0f + std::clamp(settings.rollAccent, 0.0f, 1.0f)
                     : 1.0f;
                 triggerHat(settings, ppq, transport.bpm, beatsPerBar,
-                           std::clamp(rollVelocity_ * accent, 0.0f, 1.0f), rollNoteNumber_, false, false);
+                           std::clamp(rollVelocity_ * accent, 0.0f, 1.0f),
+                           rollNoteNumber_, rollMidiChannel_, false, false);
+                rollFullAdsrActive_ = settings.synth.fullAdsrEnabled;
                 rollStep_ = (rollStep_ + 1) % 4;
                 const double interval = rollStepPpq * (rollStep_ % 2 == 1 ? 1.0 + swing : 1.0 - swing);
                 nextRollPpq_ += interval;

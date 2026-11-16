@@ -15,9 +15,15 @@ EdmLookAndFeel::EdmLookAndFeel() {
     setColour(juce::ResizableWindow::backgroundColourId, theme::kBackground);
     setColour(juce::Label::textColourId, theme::kText);
     setColour(juce::Slider::textBoxTextColourId, theme::kText);
-    setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff1e2b3c));
-    setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff090f17));
-    setColour(juce::Slider::textBoxHighlightColourId, theme::kTrack);
+    setColour(juce::Slider::textBoxOutlineColourId, theme::kPanelEdge);
+    setColour(juce::Slider::textBoxBackgroundColourId, theme::kBackground);
+    setColour(juce::Slider::textBoxHighlightColourId, theme::kAccentCyan);
+    setColour(juce::TextEditor::backgroundColourId, theme::kBackground);
+    setColour(juce::TextEditor::textColourId, theme::kText);
+    setColour(juce::TextEditor::highlightColourId, theme::kAccentCyan.withAlpha(0.35f));
+    setColour(juce::TextEditor::highlightedTextColourId, theme::kBackground);
+    setColour(juce::TextEditor::outlineColourId, theme::kPanelEdge);
+    setColour(juce::TextEditor::focusedOutlineColourId, theme::kAccentCyan);
     setColour(juce::ComboBox::backgroundColourId, theme::kKnobBody);
     setColour(juce::ComboBox::textColourId, theme::kText);
     setColour(juce::ComboBox::arrowColourId, theme::kAccentCyan);
@@ -79,19 +85,23 @@ void EdmLookAndFeel::drawRotarySlider(
     g.fillEllipse(body.translated(0.0f, 2.5f));
 
     g.setGradientFill(juce::ColourGradient(
-        juce::Colour(0xff223244), centre.x, body.getY(),
-        juce::Colour(0xff0c131c), centre.x, body.getBottom(), false));
+        theme::kPanel, centre.x, body.getY(),
+        theme::kBackground, centre.x, body.getBottom(), false));
     g.fillEllipse(body);
-    g.setColour(theme::kPanelEdge.brighter(0.3f));
+    g.setColour(theme::kPanelEdge);
     g.drawEllipse(body, 1.0f);
+    if (slider.hasKeyboardFocus(true)) {
+        g.setColour(accent);
+        g.drawEllipse(body.expanded(2.0f), 1.3f);
+    }
 
     const float capRadius = bodyRadius * 0.45f;
     const auto cap = juce::Rectangle<float>(capRadius * 2.0f, capRadius * 2.0f).withCentre(centre);
     g.setGradientFill(juce::ColourGradient(
-        juce::Colour(0xff16202c), centre.x, cap.getY(),
-        juce::Colour(0xff080d13), centre.x, cap.getBottom(), false));
+        theme::kPanelEdge, centre.x, cap.getY(),
+        theme::kBackground, centre.x, cap.getBottom(), false));
     g.fillEllipse(cap);
-    g.setColour(juce::Colour(0xff2b3d54));
+    g.setColour(theme::kPanelEdge);
     g.drawEllipse(cap, 0.8f);
 
     const auto tip = centre.getPointOnCircumference(bodyRadius - 2.0f, valueAngle);
@@ -100,7 +110,7 @@ void EdmLookAndFeel::drawRotarySlider(
     g.drawLine({ tail, tip }, 3.5f);
     g.setColour(accent.brighter(0.7f));
     g.drawLine({ tail, tip }, 2.0f);
-    g.setColour(juce::Colours::white);
+    g.setColour(theme::kText);
     g.fillEllipse(juce::Rectangle<float>(3.0f, 3.0f).withCentre(tip));
 }
 
@@ -117,8 +127,9 @@ void EdmLookAndFeel::drawComboBox(
     const auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)).reduced(0.5f);
     g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
     g.fillRoundedRectangle(bounds, kCornerRadius);
-    g.setColour(theme::kPanelEdge);
-    g.drawRoundedRectangle(bounds, kCornerRadius, 1.0f);
+    const bool focused = box.hasKeyboardFocus(true);
+    g.setColour(focused ? theme::kAccentCyan : theme::kPanelEdge);
+    g.drawRoundedRectangle(bounds, kCornerRadius, focused ? 1.8f : 1.0f);
 
     const auto arrowZone = juce::Rectangle<float>(static_cast<float>(width) - 20.0f, 0.0f, 16.0f, static_cast<float>(height));
     juce::Path arrow;
@@ -150,12 +161,14 @@ void EdmLookAndFeel::drawButtonBackground(
     }
 
     const auto baseColour = isOn ? onColour : backgroundColour;
-    const auto fill = isDown ? baseColour.darker(0.2f) : (isHighlighted ? baseColour.brighter(0.18f) : baseColour);
+    const auto fill = isDown ? onColour.withAlpha(isOn ? 1.0f : 0.35f)
+        : (isHighlighted ? baseColour.brighter(0.18f) : baseColour);
 
     g.setColour(fill);
     g.fillRoundedRectangle(bounds, kCornerRadius);
-    g.setColour(isOn ? onColour.brighter(0.6f) : theme::kPanelEdge.brighter(0.1f));
-    g.drawRoundedRectangle(bounds, kCornerRadius, 1.2f);
+    const bool focused = button.hasKeyboardFocus(true);
+    g.setColour(focused ? theme::kAccentCyan : (isOn ? onColour : theme::kPanelEdge));
+    g.drawRoundedRectangle(bounds, kCornerRadius, focused ? 1.8f : 1.2f);
 }
 
 void EdmLookAndFeel::drawButtonText(
@@ -184,8 +197,8 @@ juce::Label* EdmLookAndFeel::createSliderTextBox(juce::Slider& slider) {
     auto* l = LookAndFeel_V4::createSliderTextBox(slider);
     l->setFont(juce::FontOptions(11.0f, juce::Font::bold));
     l->setJustificationType(juce::Justification::centred);
-    l->setColour(juce::Label::backgroundColourId, juce::Colour(0xff090f17));
-    l->setColour(juce::Label::outlineColourId, juce::Colour(0xff1e2b3c));
+    l->setColour(juce::Label::backgroundColourId, theme::kBackground);
+    l->setColour(juce::Label::outlineColourId, theme::kPanelEdge);
     return l;
 }
 

@@ -158,6 +158,54 @@ TEST_CASE("HatSynth metallic pitch responds to note and octave settings", "[core
     REQUIRE(diffSum > 1.0f);
 }
 
+TEST_CASE("HatSynth filtered air follows an octave shift in MIDI pitch", "[core][synth][pitch]") {
+    HatSynth lowNote;
+    HatSynth highNote;
+    lowNote.prepare(48000.0);
+    highNote.prepare(48000.0);
+    HatSynthSettings settings;
+    settings.toneLevel = 0.0f;
+    settings.noiseLevel = 1.0f;
+    settings.noiseHPF = 800.0f;
+    settings.noiseLPF = 12000.0f;
+    settings.noiseAttackMs = 0.0f;
+    settings.noiseHoldMs = 0.0f;
+    settings.chickLevel = 0.0f;
+    settings.preChickLevel = 0.0f;
+    settings.reverbMix = 0.0f;
+    lowNote.triggerMidi(settings, 1.0f, 60);
+    highNote.triggerMidi(settings, 1.0f, 72);
+
+    static_cast<void>(lowNote.processSampleLayers(settings));
+    static_cast<void>(highNote.processSampleLayers(settings));
+    const float lowAir = lowNote.processSampleLayers(settings).air.left;
+    const float highAir = highNote.processSampleLayers(settings).air.left;
+
+    REQUIRE(std::abs(lowAir - highAir) > 1.0e-5f);
+}
+
+TEST_CASE("HatSynth metallic modes follow an octave shift in MIDI pitch", "[core][synth][pitch]") {
+    HatSynth lowNote;
+    HatSynth highNote;
+    lowNote.prepare(48000.0);
+    highNote.prepare(48000.0);
+    HatSynthSettings settings;
+    settings.toneLevel = 1.0f;
+    settings.noiseLevel = 0.0f;
+    settings.chickLevel = 0.0f;
+    settings.preChickLevel = 0.0f;
+    settings.reverbMix = 0.0f;
+    lowNote.triggerMidi(settings, 1.0f, 60);
+    highNote.triggerMidi(settings, 1.0f, 72);
+
+    static_cast<void>(lowNote.processSampleLayers(settings));
+    static_cast<void>(highNote.processSampleLayers(settings));
+    const float lowMetal = lowNote.processSampleLayers(settings).metal.left;
+    const float highMetal = highNote.processSampleLayers(settings).metal.left;
+
+    REQUIRE(std::abs(lowMetal - highMetal) > 1.0e-5f);
+}
+
 TEST_CASE("HatSynth independently applies metal velocity curve and resonator tuning", "[core][synth][performance]") {
     HatSynthSettings settings;
     settings.toneLevel = 1.0f;

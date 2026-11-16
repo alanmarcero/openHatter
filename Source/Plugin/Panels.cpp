@@ -10,7 +10,7 @@ namespace {
 void drawSection(juce::Graphics& g, juce::Rectangle<int> bounds,
                  const juce::String& title, juce::Colour accent) {
     auto area = bounds.toFloat().reduced(0.5f);
-    g.setColour(theme::kPanel.brighter(0.025f));
+    g.setColour(theme::kPanel);
     g.fillRoundedRectangle(area, 7.0f);
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(area, 7.0f, 1.0f);
@@ -38,7 +38,7 @@ void layoutRows(juce::Rectangle<int> area,
 void drawMetric(juce::Graphics& g, juce::Rectangle<int> bounds,
                 const juce::String& label, const juce::String& value,
                 const juce::String& unit, juce::Colour accent) {
-    g.setColour(theme::kPanel.brighter(0.05f));
+    g.setColour(theme::kPanel);
     g.fillRoundedRectangle(bounds.toFloat(), 7.0f);
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(bounds.toFloat().reduced(0.5f), 7.0f, 1.0f);
@@ -98,7 +98,7 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
     auto midiArea = area.removeFromLeft(metricWidth);
     area.removeFromLeft(10);
 
-    g.setColour(theme::kPanel.brighter(0.05f));
+    g.setColour(theme::kPanel);
     g.fillRoundedRectangle(lead.toFloat(), 7.0f);
     g.setColour(theme::kPanelEdge);
     g.drawRoundedRectangle(lead.toFloat().reduced(0.5f), 7.0f, 1.0f);
@@ -144,6 +144,7 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       preJitter_(processor.parameters, params::kPreJitter, "HUMANIZE", theme::kAccentCoral),
       flamSpread_(processor.parameters, params::kFlamSpread, "PAN", theme::kAccentCoral),
       preLevel_(processor.parameters, params::kPreLevel, "LEVEL", theme::kAccentCoral),
+      fullAdsr_(processor.parameters, params::kAmpEnabled, "FULL ADSR", theme::kAccentBrass),
       ampAttack_(processor.parameters, params::kAmpAttack, "ATTACK", theme::kAccentBrass),
       ampDecay_(processor.parameters, params::kAmpDecay, "DECAY", theme::kAccentBrass),
       ampSustain_(processor.parameters, params::kAmpSustain, "SUSTAIN", theme::kAccentBrass),
@@ -160,11 +161,12 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       airLock_("Air", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::air); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, on); }) {
-    for (juce::Component* component : std::array<juce::Component*, 31>{
+    fullAdsr_.setTooltip("Hold MIDI notes until a matching note-off. Release extends to 20 seconds.");
+    for (juce::Component* component : std::array<juce::Component*, 32>{
              &toneMode_, &toneFreq_, &toneQ_, &toneDecay_, &tonePitchEnv_, &tonePitchDecay_, &toneLevel_,
              &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &noiseLevel_,
              &preBursts_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_,
-             &ampAttack_, &ampDecay_, &ampSustain_, &ampRelease_, &clickType_, &clickLevel_, &clickFreq_, &articulationLock_, &cymbalLock_})
+             &fullAdsr_, &ampAttack_, &ampDecay_, &ampSustain_, &ampRelease_, &clickType_, &clickLevel_, &clickFreq_, &articulationLock_, &cymbalLock_})
         addAndMakeVisible(component);
     addAndMakeVisible(airLock_);
 }
@@ -212,6 +214,7 @@ void HatSynthPanel::resized() {
 
     auto envelope = sectionBounds_[3].reduced(5, 27);
     layoutRows(envelope, {
+        { &fullAdsr_ },
         { &ampAttack_, &ampDecay_ },
         { &ampSustain_, &ampRelease_ },
         { &clickType_, &clickLevel_ },

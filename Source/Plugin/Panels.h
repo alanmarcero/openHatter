@@ -60,6 +60,7 @@ private:
     Knob preJitter_;
     Knob flamSpread_;
     Knob preLevel_;
+    Toggle fullAdsr_;
     Knob ampAttack_;
     Knob ampDecay_;
     Knob ampSustain_;

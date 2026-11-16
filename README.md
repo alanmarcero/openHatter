@@ -18,7 +18,7 @@ Every MIDI note-on triggers the sound at the note's equal-tempered frequency:
 frequency = 440 × 2 ^ ((MIDI note − 69) / 12)
 ```
 
-The first modal partial follows that frequency. Upper partials use the selected cymbal mode's inharmonic ratios, and partials above Nyquist are omitted. Ordinary MIDI note-offs do not shorten the one-shot hat tail. The configurable choke note (default 42) closes it; the configurable choke CC (default 4) does the same at values of 64 or higher. Velocity scales each hit.
+The first modal partial follows that frequency. Upper partials use the selected cymbal mode's inharmonic ratios, and partials above Nyquist are omitted. Chick pitch and the air filter cutoffs follow the incoming note while the noise remains broadband. By default, MIDI note-offs leave the one-shot hat tail unchanged. Turn on **Full ADSR** in Envelope / Chick to hold the metal and air layers through sustain and release them from the matching note and MIDI channel. Release reaches 20 seconds. The configurable choke note (default 42) closes the hat; the configurable choke CC (default 4) does the same at values of 64 or higher. Velocity scales each hit.
 
 The note monitor reports the most recent incoming note. **Audition** plays that note, or MIDI note 60 (C4) before any MIDI note arrives. MIDI CC 7 controls output volume and CC 74 controls air brightness.
 
@@ -35,7 +35,7 @@ Four optional stereo outputs expose the metal, air, chick, and reverb stems. The
 | Metal Resonator | Cymbal mode, bell focus, resonance, decay, upper-mode sweep and time, level |
 | Air Tail | Texture, attack, hold, decay, curve, high-pass, low-pass, stereo width, level |
 | Bounce / Groove | Bounce count, spread, decay, humanize, pan, level |
-| Envelope / Chick | Amplitude attack, decay, sustain, release; chick type, level, frequency |
+| Envelope / Chick | Optional Full ADSR; attack, decay, sustain, release up to 20 seconds; chick type, level, frequency |
 | Exciter | Mode, drive, sheen, mix |
 | Dynamics | Compressor threshold, ratio, attack, release, makeup, mix; limiter ceiling, release, enable |
 | Space / Output | Reverb size, decay, damping, choke, mix; reverse sync and mix; stereo width and output |
@@ -58,7 +58,7 @@ All v2 factory programs have been replaced. The 48 new presets are grouped by st
 
 ## State and compatibility
 
-The plugin identity, format IDs, parameter IDs, and project parameter state remain compatible with v2 sessions. Legacy root note, octave, fine tune, pitch lock, MIDI mode, and WAV-lock parameter IDs remain for state migration; they do not select the live voice's pitch. Any cached v2 WAV render is discarded. MIDI input always sets the sounding pitch.
+The plugin identity, format IDs, and existing parameter IDs remain compatible with v2 sessions. Full ADSR is a new parameter and is off by default, so existing sessions retain one-shot note behavior. Legacy root note, octave, fine tune, pitch lock, MIDI mode, and WAV-lock parameter IDs remain for state migration; they do not select the live voice's pitch. Any cached v2 WAV render is discarded. MIDI input always sets the sounding pitch.
 
 ## Build
 

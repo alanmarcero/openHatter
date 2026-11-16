@@ -82,7 +82,8 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
                 .sampleOffset = meta.samplePosition,
                 .noteNumber = msg.getNoteNumber(),
                 .velocity = vel,
-                .audition = false
+                .audition = false,
+                .midiChannel = msg.getChannel()
             });
         } else if (msg.isNoteOff() && msg.getNoteNumber() == settings.midiChokeNote) {
             triggers.push_back({
@@ -90,6 +91,13 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
                 .noteNumber = msg.getNoteNumber(),
                 .velocity = 0.0f,
                 .choke = true
+            });
+        } else if (msg.isNoteOff()) {
+            triggers.push_back({
+                .sampleOffset = meta.samplePosition,
+                .noteNumber = msg.getNoteNumber(),
+                .midiChannel = msg.getChannel(),
+                .noteOff = true
             });
         } else if (msg.isController()) {
             ccEvents.push_back({
@@ -140,6 +148,23 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
     displayHatProgress.store(engine_.currentHatProgress());
     displayTriggerCount.store(engine_.triggerSerial());
     displayLockedIn.store(false, std::memory_order_relaxed);
+}
+
+double OpenHatterProcessor::getTailLengthSeconds() const {
+    const auto settings = openhatter::params::readSettings(parameters);
+    const float dryTailMs = std::max(settings.synth.noiseAttackMs + settings.synth.noiseHoldMs
+                                         + settings.synth.noiseDecayMs,
+                                     settings.synth.toneDecayMs);
+    const float synthTailMs = std::max({ dryTailMs, settings.synth.reverbDecayMs, settings.synth.reverbGateMs });
+    const float releaseMs = settings.synth.fullAdsrEnabled
+        ? std::clamp(settings.synth.ampReleaseMs, 0.0f, 20000.0f)
+        : 0.0f;
+    const float preRollMs = static_cast<float>(std::clamp(settings.synth.preChickCount, 1, 5) - 1)
+        * std::max(0.0f, settings.synth.preChickSpreadMs);
+    const float dynamicsTailMs = std::max(settings.effects.compressor.releaseMs, settings.effects.limiter.releaseMs);
+    const float reverseTailMs = settings.effects.reverseMode == openhatter::core::ReverseSyncMode::Off ? 0.0f : 2000.0f;
+    const float tailMs = releaseMs + preRollMs + synthTailMs + dynamicsTailMs + 80.0f;
+    return std::max(tailMs, reverseTailMs) * 0.001;
 }
 
 juce::AudioProcessorEditor* OpenHatterProcessor::createEditor() {
