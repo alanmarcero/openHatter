@@ -8,7 +8,7 @@ namespace theme = openhatter::theme;
 
 void styleHeaderButton(juce::TextButton& button, juce::Colour accent) {
     button.setColour(juce::TextButton::buttonColourId, theme::kKnobBody);
-    button.setColour(juce::TextButton::buttonOnColourId, accent.withAlpha(0.22f));
+    button.setColour(juce::TextButton::buttonOnColourId, accent);
     button.setColour(juce::TextButton::textColourOffId, accent);
     button.setColour(juce::TextButton::textColourOnId, accent.brighter(0.2f));
 }

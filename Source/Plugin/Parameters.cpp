@@ -71,6 +71,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
             juce::NormalisableRange<float>(-24.0f, 24.0f, 0.1f), 0.0f,
             juce::AudioParameterFloatAttributes().withLabel("st")));
     }
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{ kAmpEnabled, 1 }, "Full ADSR", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kAmpAttack, 1 }, "Amp Attack", juce::NormalisableRange<float>(0.05f, 20.0f, 0.05f), 0.35f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
@@ -80,7 +82,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kAmpSustain, 1 }, "Amp Sustain", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.70f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kAmpRelease, 1 }, "Amp Release", juce::NormalisableRange<float>(5.0f, 800.0f, 1.0f, 0.35f), 180.0f,
+        juce::ParameterID{ kAmpRelease, 1 }, "Amp Release", juce::NormalisableRange<float>(0.0f, 20000.0f, 1.0f, 0.35f), 180.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
 
     // Air Sizzle & Shimmer Noise
@@ -248,6 +250,7 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
         s.synth.resonatorSolo[index] = *apvts.getRawParameterValue(resonatorParameterId(resonator, "solo")) > 0.5f;
         s.synth.resonatorTuneSemitones[index] = *apvts.getRawParameterValue(resonatorParameterId(resonator, "tune"));
     }
+    s.synth.fullAdsrEnabled = *apvts.getRawParameterValue(kAmpEnabled) > 0.5f;
     s.synth.ampAttackMs = *apvts.getRawParameterValue(kAmpAttack);
     s.synth.ampDecayMs = *apvts.getRawParameterValue(kAmpDecay);
     s.synth.ampSustain = *apvts.getRawParameterValue(kAmpSustain);

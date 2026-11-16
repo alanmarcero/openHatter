@@ -64,6 +64,7 @@ struct HatSynthSettings {
     std::array<bool, 6> resonatorSolo { false, false, false, false, false, false };
     std::array<float, 6> resonatorTuneSemitones { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
+    bool fullAdsrEnabled = false;
     float ampAttackMs = 0.35f;
     float ampDecayMs = 72.0f;
     float ampSustain = 0.70f;
@@ -199,7 +200,8 @@ public:
     void prepare(double sampleRate);
     void reset() noexcept;
     void trigger(const HatSynthSettings& settings, float velocity = 1.0f, int semitoneOffset = 0) noexcept;
-    void triggerMidi(const HatSynthSettings& settings, float velocity, int midiNoteNumber) noexcept;
+    void triggerMidi(const HatSynthSettings& settings, float velocity, int midiNoteNumber, int midiChannel = 1) noexcept;
+    void noteOff(int midiNoteNumber, int midiChannel, const HatSynthSettings& settings) noexcept;
     [[nodiscard]] StereoFrame processSample(const HatSynthSettings& settings) noexcept;
     [[nodiscard]] HatSynthLayers processSampleLayers(const HatSynthSettings& settings) noexcept;
     void choke() noexcept;
@@ -229,6 +231,7 @@ public:
 
 private:
     void triggerAtFrequency(const HatSynthSettings& settings, float velocity, float baseFrequencyHz) noexcept;
+    [[nodiscard]] float fullAdsrEnvelopeAt(int sample, const HatSynthSettings& settings) const noexcept;
     [[nodiscard]] float generateNoiseSample(NoiseType type) noexcept;
     [[nodiscard]] float generateChickSample(ChickType type, float freqHz, int ageSamples, float level) noexcept;
 
@@ -236,6 +239,13 @@ private:
     bool isPlaying_ = false;
     float velocity_ = 1.0f;
     float baseFrequencyHz_ = 1850.0f;
+    float midiPitchRatio_ = 1.0f;
+    bool fullAdsrActive_ = false;
+    int activeMidiNote_ = -1;
+    int activeMidiChannel_ = 0;
+    int adsrReleaseStartSample_ = -1;
+    int adsrReleaseSamples_ = 0;
+    float adsrReleaseStartLevel_ = 0.0f;
 
     int totalSamplesPlayed_ = 0;
     int totalDurationSamples_ = 0;

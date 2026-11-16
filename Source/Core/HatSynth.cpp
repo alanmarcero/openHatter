@@ -1,6 +1,7 @@
 #include "HatSynth.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
 
 namespace openhatter::core {
@@ -220,6 +221,13 @@ void HatSynth::reset() noexcept {
     dryDurationSamples_ = 0;
     chokeStartSample_ = -1;
     chokeFadeSamples_ = 0;
+    midiPitchRatio_ = 1.0f;
+    fullAdsrActive_ = false;
+    activeMidiNote_ = -1;
+    activeMidiChannel_ = 0;
+    adsrReleaseStartSample_ = -1;
+    adsrReleaseSamples_ = 0;
+    adsrReleaseStartLevel_ = 0.0f;
     modalFrequencies_.fill(0.0f);
     modalMaxDownwardSemitones_.fill(0.0f);
     modalPhases_.fill(0.0f);
@@ -249,8 +257,59 @@ void HatSynth::trigger(const HatSynthSettings& settings, float velocity, int sem
     triggerAtFrequency(settings, velocity, rootHz * std::pow(2.0f, static_cast<float>(semitoneOffset) / 12.0f));
 }
 
-void HatSynth::triggerMidi(const HatSynthSettings& settings, float velocity, int midiNoteNumber) noexcept {
-    triggerAtFrequency(settings, velocity, midiNoteToHz(midiNoteNumber));
+void HatSynth::triggerMidi(const HatSynthSettings& settings, float velocity, int midiNoteNumber, int midiChannel) noexcept {
+    const int note = std::clamp(midiNoteNumber, 0, 127);
+    triggerAtFrequency(settings, velocity, midiNoteToHz(note));
+    midiPitchRatio_ = midiNoteToHz(note) / midiNoteToHz(60);
+    activeMidiNote_ = note;
+    activeMidiChannel_ = std::clamp(midiChannel, 1, 16);
+    fullAdsrActive_ = settings.fullAdsrEnabled;
+    if (fullAdsrActive_) {
+        totalDurationSamples_ = std::numeric_limits<int>::max();
+        adsrReleaseStartLevel_ = fullAdsrEnvelopeAt(0, settings);
+    }
+}
+
+float HatSynth::fullAdsrEnvelopeAt(int sample, const HatSynthSettings& settings) const noexcept {
+    if (adsrReleaseStartSample_ >= 0) {
+        if (adsrReleaseSamples_ <= 0) return 0.0f;
+        const float releaseProgress = static_cast<float>(sample - adsrReleaseStartSample_)
+            / static_cast<float>(adsrReleaseSamples_);
+        return adsrReleaseStartLevel_ * std::clamp(1.0f - releaseProgress, 0.0f, 1.0f);
+    }
+
+    const float attackSamples = std::clamp(settings.ampAttackMs, 0.05f, 20.0f)
+        * 0.001f * static_cast<float>(sampleRate_);
+    const float decaySamples = std::clamp(settings.ampDecayMs, 1.0f, 600.0f)
+        * 0.001f * static_cast<float>(sampleRate_);
+    const float sustain = std::clamp(settings.ampSustain, 0.0f, 1.0f);
+    if (static_cast<float>(sample) < attackSamples)
+        return static_cast<float>(sample) / std::max(1.0f, attackSamples);
+    if (static_cast<float>(sample) < attackSamples + decaySamples) {
+        const float progress = (static_cast<float>(sample) - attackSamples) / std::max(1.0f, decaySamples);
+        return 1.0f + (sustain - 1.0f) * progress;
+    }
+    return sustain;
+}
+
+void HatSynth::noteOff(int midiNoteNumber, int midiChannel, const HatSynthSettings& settings) noexcept {
+    if (!fullAdsrActive_ || adsrReleaseStartSample_ >= 0
+        || activeMidiNote_ != midiNoteNumber || activeMidiChannel_ != midiChannel)
+        return;
+
+    const int releaseStartSample = totalSamplesPlayed_;
+    adsrReleaseStartLevel_ = fullAdsrEnvelopeAt(releaseStartSample, settings);
+    adsrReleaseStartSample_ = releaseStartSample;
+    const float releaseMs = std::clamp(settings.ampReleaseMs, 0.0f, 20000.0f);
+    adsrReleaseSamples_ = releaseMs <= 0.0f
+        ? 0
+        : std::max(1, static_cast<int>(releaseMs * 0.001f * static_cast<float>(sampleRate_)));
+    const float dryTailMs = std::max(settings.noiseAttackMs + settings.noiseHoldMs + settings.noiseDecayMs,
+                                     settings.toneDecayMs);
+    const float effectTailMs = std::max({ settings.reverbDecayMs, settings.reverbGateMs, dryTailMs });
+    const int tailSamples = static_cast<int>((effectTailMs + 0.08f) * 0.001f * static_cast<float>(sampleRate_));
+    totalDurationSamples_ = std::max(totalSamplesPlayed_ + 1,
+        adsrReleaseStartSample_ + adsrReleaseSamples_ + tailSamples);
 }
 
 void HatSynth::triggerAtFrequency(const HatSynthSettings& settings, float velocity, float baseFrequencyHz) noexcept {
@@ -400,7 +459,8 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
         const float gainR = std::sqrt(std::clamp(0.5f * (1.0f + pan), 0.0f, 1.0f));
         preChickGainL += envelope * gainL;
         preChickGainR += envelope * gainR;
-        const float tick = generateChickSample(settings.chickType, settings.chickFreqHz, age, burstAmplitudes_[i] * 0.55f);
+        const float tick = generateChickSample(settings.chickType, settings.chickFreqHz * midiPitchRatio_,
+                                               age, burstAmplitudes_[i] * 0.55f);
         preChickTickL += tick * gainL;
         preChickTickR += tick * gainR;
     }
@@ -408,23 +468,28 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
     float noiseEnvelope = 0.0f;
     float chick = 0.0f;
     if (mainAge >= 0.0f) {
-        const float attackSamples = std::max(0.0f, settings.noiseAttackMs) * 0.001f * static_cast<float>(sampleRate_);
-        const float holdSamples = std::max(0.0f, settings.noiseHoldMs) * 0.001f * static_cast<float>(sampleRate_);
-        const float decaySamples = std::max(1.0f, settings.noiseDecayMs * 0.001f * static_cast<float>(sampleRate_));
-        if (mainAge < attackSamples && attackSamples > 0.0f) {
-            noiseEnvelope = 0.5f * (1.0f - std::cos(pi() * mainAge / attackSamples));
-        } else if (mainAge < attackSamples + holdSamples) {
+        if (fullAdsrActive_) {
             noiseEnvelope = 1.0f;
         } else {
-            const float decayAge = mainAge - attackSamples - holdSamples;
-            const float linear = std::clamp(decayAge / decaySamples, 0.0f, 1.0f);
-            const float exponential = std::exp(-decayAge / std::max(1.0f, decaySamples * 0.35f));
-            const float curve = std::clamp(settings.noiseCurve, -1.0f, 1.0f);
-            noiseEnvelope = curve < 0.0f
-                ? (1.0f + curve) * (1.0f - linear) - curve * exponential
-                : (1.0f - curve) * exponential + curve * (1.0f - linear);
+            const float attackSamples = std::max(0.0f, settings.noiseAttackMs) * 0.001f * static_cast<float>(sampleRate_);
+            const float holdSamples = std::max(0.0f, settings.noiseHoldMs) * 0.001f * static_cast<float>(sampleRate_);
+            const float decaySamples = std::max(1.0f, settings.noiseDecayMs * 0.001f * static_cast<float>(sampleRate_));
+            if (mainAge < attackSamples && attackSamples > 0.0f) {
+                noiseEnvelope = 0.5f * (1.0f - std::cos(pi() * mainAge / attackSamples));
+            } else if (mainAge < attackSamples + holdSamples) {
+                noiseEnvelope = 1.0f;
+            } else {
+                const float decayAge = mainAge - attackSamples - holdSamples;
+                const float linear = std::clamp(decayAge / decaySamples, 0.0f, 1.0f);
+                const float exponential = std::exp(-decayAge / std::max(1.0f, decaySamples * 0.35f));
+                const float curve = std::clamp(settings.noiseCurve, -1.0f, 1.0f);
+                noiseEnvelope = curve < 0.0f
+                    ? (1.0f + curve) * (1.0f - linear) - curve * exponential
+                    : (1.0f - curve) * exponential + curve * (1.0f - linear);
+            }
         }
-        chick = generateChickSample(settings.chickType, settings.chickFreqHz, static_cast<int>(mainAge), settings.chickLevel);
+        chick = generateChickSample(settings.chickType, settings.chickFreqHz * midiPitchRatio_,
+                                     static_cast<int>(mainAge), settings.chickLevel);
     }
 
     const float rawNoiseL = generateNoiseSample(settings.noiseType);
@@ -469,7 +534,7 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
             if (modalPhases_[i] >= 1.0f) modalPhases_[i] -= 1.0f;
 
             const float modeDecay = decaySamples * kModalDamping[i] * (0.72f + 0.55f * focus);
-            const float envelope = std::exp(-mainAge / std::max(1.0f, modeDecay));
+            const float envelope = fullAdsrActive_ ? 1.0f : std::exp(-mainAge / std::max(1.0f, modeDecay));
             const float highModeWeight = 0.62f + brightness * 0.76f * static_cast<float>(i) / 5.0f;
             const float focusedWeight = 1.0f - focus * 0.55f * static_cast<float>(i) / 5.0f;
             const float weight = kModalWeights[i] * highModeWeight * focusedWeight;
@@ -502,13 +567,15 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
 
     const float noiseSwellL = rawNoiseL * preChickGainL * 0.4f + rawNoiseL * noiseEnvelope * settings.noiseLevel;
     const float noiseSwellR = rawNoiseR * preChickGainR * 0.4f + rawNoiseR * noiseEnvelope * settings.noiseLevel;
-    if (std::abs(settings.noiseHPF - lastNoiseHPF_) > 1.0f) {
-        lastNoiseHPF_ = settings.noiseHPF;
+    const float midiNoiseHPF = settings.noiseHPF * midiPitchRatio_;
+    const float midiNoiseLPF = settings.noiseLPF * midiPitchRatio_;
+    if (std::abs(midiNoiseHPF - lastNoiseHPF_) > 1.0f) {
+        lastNoiseHPF_ = midiNoiseHPF;
         computeHighpassCoeffs(lastNoiseHPF_, 0.54f, sampleRate_, b0_nh1_, b1_nh1_, b2_nh1_, a1_nh1_, a2_nh1_);
         computeHighpassCoeffs(lastNoiseHPF_, 1.30f, sampleRate_, b0_nh2_, b1_nh2_, b2_nh2_, a1_nh2_, a2_nh2_);
     }
-    if (std::abs(settings.noiseLPF - lastNoiseLPF_) > 1.0f) {
-        lastNoiseLPF_ = settings.noiseLPF;
+    if (std::abs(midiNoiseLPF - lastNoiseLPF_) > 1.0f) {
+        lastNoiseLPF_ = midiNoiseLPF;
         computeLowpassCoeffs(lastNoiseLPF_, 0.54f, sampleRate_, b0_nl1_, b1_nl1_, b2_nl1_, a1_nl1_, a2_nl1_);
         computeLowpassCoeffs(lastNoiseLPF_, 1.30f, sampleRate_, b0_nl2_, b1_nl2_, b2_nl2_, a1_nl2_, a2_nl2_);
     }
@@ -547,7 +614,9 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
     const float sustain = std::clamp(settings.ampSustain, 0.0f, 1.0f);
     const float releaseStart = std::max(safeAttack + safeDecay, dryDuration - safeRelease);
     float amplitudeEnvelope = 0.0f;
-    if (static_cast<float>(currentSample) < safeAttack) {
+    if (fullAdsrActive_) {
+        amplitudeEnvelope = fullAdsrEnvelopeAt(currentSample, settings);
+    } else if (static_cast<float>(currentSample) < safeAttack) {
         amplitudeEnvelope = static_cast<float>(currentSample) / std::max(1.0f, safeAttack);
     } else if (static_cast<float>(currentSample) < safeAttack + safeDecay) {
         const float phase = (static_cast<float>(currentSample) - safeAttack) / std::max(1.0f, safeDecay);
@@ -630,7 +699,9 @@ void HatSynth::renderMidiBlock(
     const HatSynthSettings& settings,
     float velocity,
     int midiNoteNumber) noexcept {
-    triggerMidi(settings, velocity, midiNoteNumber);
+    auto oneShotSettings = settings;
+    oneShotSettings.fullAdsrEnabled = false;
+    triggerMidi(oneShotSettings, velocity, midiNoteNumber);
     leftOut.resize(totalDurationSamples_);
     rightOut.resize(totalDurationSamples_);
     for (int i = 0; i < totalDurationSamples_; ++i) {
@@ -646,7 +717,9 @@ int HatSynth::renderMidiBlock(
     const HatSynthSettings& settings,
     float velocity,
     int midiNoteNumber) noexcept {
-    triggerMidi(settings, velocity, midiNoteNumber);
+    auto oneShotSettings = settings;
+    oneShotSettings.fullAdsrEnabled = false;
+    triggerMidi(oneShotSettings, velocity, midiNoteNumber);
     const int renderCount = std::min({ totalDurationSamples_, static_cast<int>(leftOut.size()),
                                        static_cast<int>(rightOut.size()) });
     for (int i = 0; i < renderCount; ++i) {

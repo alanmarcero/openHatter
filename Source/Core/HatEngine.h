@@ -23,6 +23,8 @@ struct MidiTrigger {
     float velocity = 1.0f;
     bool audition = false;
     bool choke = false;
+    int midiChannel = 1;
+    bool noteOff = false;
 };
 
 struct MidiCcEvent {
@@ -130,6 +132,7 @@ private:
         double beatsPerBar,
         float velocity,
         int midiNoteNumber,
+        int midiChannel,
         bool reverseCue,
         bool cacheIncomingHit) noexcept;
 
@@ -158,6 +161,8 @@ private:
 
     bool rollActive_ = false;
     int rollNoteNumber_ = 66;
+    int rollMidiChannel_ = 1;
+    bool rollFullAdsrActive_ = false;
     float rollVelocity_ = 1.0f;
     int rollStep_ = 0;
     double nextRollPpq_ = 0.0;
