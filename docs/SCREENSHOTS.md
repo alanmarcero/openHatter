@@ -1,4 +1,4 @@
-# openHatter v3 screenshots
+# openHatter v3.2 screenshots
 
 [The Sound Design page](../assets/openHatter-v3.png) is captured from the native JUCE editor snapshot at its default 1100 × 972 size. The MIDI monitor is idle because no MIDI keyboard was connected during capture. The screenshot shows the optional Full ADSR control in its default off state.
 
