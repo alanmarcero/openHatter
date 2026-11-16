@@ -259,7 +259,9 @@ void HatEngine::triggerHat(
     currentHatProgress_ = 0.0f;
 
     const bool engageReverse = shouldTriggerReverse(settings.effects.reverseMode, reverseCue, samplePpq, beatsPerBar);
-    if (settings.effects.reverseMode != ReverseSyncMode::Off && cacheIncomingHit) {
+    const bool cacheReversePreview = settings.effects.reverseMode != ReverseSyncMode::Off
+        && cacheIncomingHit && (engageReverse || settings.rollEnabled);
+    if (cacheReversePreview) {
         reversePreviewSynth_.copyRandomStateFrom(synth_);
         reversePreviewSamples_ = reversePreviewSynth_.renderMidiBlock(
             std::span<float>(reversePreviewL_), std::span<float>(reversePreviewR_),

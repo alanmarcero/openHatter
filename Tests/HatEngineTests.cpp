@@ -161,6 +161,60 @@ TEST_CASE("HatEngine reverses the first reverse-enabled MIDI hit", "[core][engin
     REQUIRE(std::abs(reverseLeft[reverseCheckSample] - dryLeft[reverseCheckSample]) > 0.000001f);
 }
 
+TEST_CASE("HatEngine skips Beat4Auto preview work outside the trigger window", "[core][engine][reverse]") {
+    HatEngine engine;
+    engine.prepare(48000.0);
+    EngineSettings settings;
+    settings.effects.reverseMode = ReverseSyncMode::Beat4Auto;
+    Transport transport;
+    transport.bpm = 120.0;
+    transport.ppqPosition = 0.0;
+    const std::array<MidiTrigger, 1> triggers {{
+        { .sampleOffset = 0, .noteNumber = 46, .velocity = 0.8f }
+    }};
+    std::array<float, 512> left {};
+    std::array<float, 512> right {};
+    float* channels[2] = { left.data(), right.data() };
+
+    engine.process(settings, transport, triggers, channels, 2, static_cast<int>(left.size()));
+
+    REQUIRE(engine.triggerSerial() == 1);
+    REQUIRE(engine.reversePreviewRenderCount() == 0);
+    REQUIRE(engine.reverseCallbackWorkUnits() == 0);
+}
+
+TEST_CASE("HatEngine caches one Beat4Auto preview for an enabled roll", "[core][engine][reverse][performance]") {
+    HatEngine engine;
+    engine.prepare(48000.0);
+    EngineSettings settings;
+    settings.rollEnabled = true;
+    settings.rollDivision = 2;
+    settings.effects.reverseMode = ReverseSyncMode::Beat4Auto;
+    Transport transport;
+    transport.bpm = 120.0;
+    transport.ppqPosition = 0.0;
+    const std::array<MidiTrigger, 1> triggers {{
+        { .sampleOffset = 0, .noteNumber = 46, .velocity = 0.8f }
+    }};
+    std::array<float, 1> startLeft {};
+    std::array<float, 1> startRight {};
+    float* startChannels[2] = { startLeft.data(), startRight.data() };
+
+    engine.process(settings, transport, triggers, startChannels, 2, 1);
+    const auto previewWork = engine.reverseCallbackWorkUnits();
+
+    transport.ppqPosition = 3.0;
+    std::vector<float> rollLeft(5000, 0.0f);
+    std::vector<float> rollRight(5000, 0.0f);
+    float* rollChannels[2] = { rollLeft.data(), rollRight.data() };
+    engine.process(settings, transport, {}, rollChannels, 2, static_cast<int>(rollLeft.size()));
+
+    REQUIRE(engine.triggerSerial() == 2);
+    REQUIRE(engine.reversePreviewRenderCount() == 1);
+    REQUIRE(engine.isReversing());
+    REQUIRE(engine.reverseCallbackWorkUnits() > previewWork);
+}
+
 TEST_CASE("HatEngine keeps 1/32 rolls with synced reverse allocation-free and bounded", "[core][engine][performance][realtime]") {
     HatEngine engine;
     engine.prepare(48000.0);
