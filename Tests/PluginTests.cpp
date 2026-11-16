@@ -4,6 +4,7 @@
 #include "Presets.h"
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <cstdlib>
 
 TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") {
     OpenHatterProcessor processor;
@@ -262,6 +263,18 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
     OpenHatterProcessor processor;
     processor.prepareToPlay(48000.0, 512);
 
+    if (std::getenv("OPENHATTER_PERFORMANCE_CAPTURE") != nullptr) {
+        const auto setCaptureValue = [&processor](const char* id, float value) {
+            auto* parameter = processor.parameters.getParameter(id);
+            REQUIRE(parameter != nullptr);
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+        };
+        setCaptureValue(openhatter::params::kRollEnabled, 1.0f);
+        setCaptureValue(openhatter::params::kRollDivision, 2.0f);
+        setCaptureValue(openhatter::params::kRollSwing, 0.12f);
+        setCaptureValue(openhatter::params::kRollAccent, 0.5f);
+    }
+
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     REQUIRE(editor != nullptr);
     REQUIRE(editor->getWidth() == 1100);
@@ -278,6 +291,20 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
             REQUIRE(snapshot.isValid());
             REQUIRE(snapshot.getWidth() == 1100);
             REQUIRE(snapshot.getHeight() == 972);
+
+            if (page == 1 && mode == 1) {
+                if (const auto* capturePath = std::getenv("OPENHATTER_PERFORMANCE_CAPTURE")) {
+                    juce::File outputFile(capturePath);
+                    REQUIRE(outputFile.getParentDirectory().createDirectory().wasOk());
+                    if (outputFile.exists())
+                        REQUIRE(outputFile.deleteFile());
+                    auto output = outputFile.createOutputStream();
+                    REQUIRE(output != nullptr);
+                    juce::PNGImageFormat png;
+                    REQUIRE(png.writeImageToStream(snapshot, *output));
+                    output->flush();
+                }
+            }
         }
     }
 }

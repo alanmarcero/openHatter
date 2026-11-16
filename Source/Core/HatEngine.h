@@ -119,6 +119,7 @@ public:
     [[nodiscard]] float currentHatProgress() const noexcept { return currentHatProgress_; }
     [[nodiscard]] uint32_t triggerSerial() const noexcept { return triggerSerial_; }
     [[nodiscard]] bool isReversing() const noexcept { return isReversing_; }
+    [[nodiscard]] uint64_t reverseCallbackWorkUnits() const noexcept { return reverseCallbackWorkUnits_; }
 
 private:
     void triggerHat(
@@ -141,12 +142,20 @@ private:
 
     HatWavCache wavCache_;
 
-    // Reverse swell buffer
-    std::vector<float> reverseBufferL_;
-    std::vector<float> reverseBufferR_;
+    // Reversed audio is read from preallocated dry-synth history. The ring is
+    // twice the maximum reverse duration so its reader cannot collide with the
+    // writer during a reverse pass.
+    std::vector<float> reverseHistoryL_;
+    std::vector<float> reverseHistoryR_;
+    int reverseHistoryWriteIndex_ = 0;
+    int reverseHistorySamplesAvailable_ = 0;
+    int reverseSourceStart_ = 0;
+    int reverseSourceSamplesAvailable_ = 0;
     int reversePlayHead_ = -1;
     int reverseDuration_ = 0;
+    float reverseMix_ = 0.5f;
     bool isReversing_ = false;
+    uint64_t reverseCallbackWorkUnits_ = 0;
 
     bool rollActive_ = false;
     int rollNoteNumber_ = 66;
