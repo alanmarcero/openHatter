@@ -80,7 +80,7 @@ Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String
 }
 
 void Toggle::resized() {
-    button_.setBounds(getLocalBounds().reduced(2, 3));
+    button_.setBounds(getLocalBounds().reduced(2, 0));
 }
 
 void Toggle::setTooltip(const juce::String& text) {

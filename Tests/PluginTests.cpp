@@ -14,6 +14,18 @@
 namespace {
 std::atomic<uint64_t> pluginCallbackAllocations { 0 };
 thread_local bool countPluginCallbackAllocations = false;
+
+void checkVisibleButtonTargets(juce::Component& component) {
+    for (auto* child : component.getChildren()) {
+        if (!child->isVisible()) continue;
+        if (auto* button = dynamic_cast<juce::TextButton*>(child)) {
+            INFO(button->getButtonText());
+            CHECK(button->getHeight() >= 36);
+            CHECK(button->getLookAndFeel().getTextButtonFont(*button, button->getHeight()).getHeight() >= 14.0f);
+        }
+        checkVisibleButtonTargets(*child);
+    }
+}
 }
 
 void* operator new(std::size_t size) {
@@ -621,6 +633,7 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
         for (int page = 0; page < 2; ++page) {
             hatterEditor->setPage(page);
             REQUIRE(hatterEditor->getPage() == page);
+            checkVisibleButtonTargets(*hatterEditor);
             const auto snapshot = editor->createComponentSnapshot(editor->getLocalBounds());
             REQUIRE(snapshot.isValid());
             REQUIRE(snapshot.getWidth() == 1360);
