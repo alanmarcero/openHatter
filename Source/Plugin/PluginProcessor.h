@@ -27,7 +27,8 @@ public:
     double getTailLengthSeconds() const override;
 
     int getNumPrograms() override;
-    int getCurrentProgram() override { return currentProgram_; }
+    int getCurrentProgram() override { return currentProgram_.load(); }
+    bool hasLegacySound() const noexcept { return legacySound_.load(); }
     void setCurrentProgram(int index) override;
     const juce::String getProgramName(int index) override;
     void changeProgramName(int, const juce::String&) override {}
@@ -43,7 +44,7 @@ public:
     juce::AudioProcessorValueTreeState parameters;
 
     std::atomic<float> displayPeak{ 0.0f };
-    std::atomic<float> displayBeatPhase{ 0.0f };
+    std::atomic<float> displayBeatPhase{ -1.0f };
     std::atomic<float> displayBpm{ 138.0f };
     std::atomic<float> displayBeatsPerBar{ 4.0f };
     std::atomic<float> displayHatProgress{ 1.0f };
@@ -61,5 +62,6 @@ private:
     std::array<openhatter::core::MidiCcEvent, kMidiEventCapacityPerBlock> midiCcEvents_{};
     std::atomic<bool> auditionPending_{ false };
     std::array<std::atomic<bool>, static_cast<size_t>(PresetSection::count)> sectionLocks_{};
-    int currentProgram_ = 0;
+    std::atomic<int> currentProgram_{ 0 };
+    std::atomic<bool> legacySound_{ false };
 };

@@ -1,40 +1,50 @@
-# openHatter v4.0.1
+# openHatter v4.1.0
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-openHatter is a pitched open hi-hat instrument for electronic music. Play MIDI notes to change the hat's pitch and octave. The editor displays the incoming note, velocity, and frequency. Shape a restrained tuned metal sound with a clear air layer and attack.
+openHatter is a pitched hi-hat synthesizer. Play a note to tune six metal resonators, filtered air and a stick or pedal strike together. Use one-shots for sequenced offbeats, or hold a key to sustain the cymbal as a synth voice.
 
-The 48 factory presets cover Progressive, Uplifting, Classic, Tech, Psy, and Club styles. Use Simple or Advanced controls to build sounds from the resonators, air, chick, transient, effects, and reverb.
+![Native openHatter editor showing the selected hat, metal and air decay, MIDI pitch and controls for the three layers](assets/openHatter-hat.png)
 
-## Shape the sound
+## Find a hat
 
-- **Metal Resonator:** Choose a cymbal mode, then set bell focus, resonance, decay, pitch sweep, partial spread, damping, stereo width, and level.
-- **Air Tail:** Set the noise texture, envelope, filters, stereo width, and level.
-- **Bounce / Groove:** Add up to five stick bounces with adjustable spread, decay, humanization, pan, and level.
-- **Envelope / Chick:** Set the optional held-note envelope and shape the chick type, level, and pitch.
-- **Exciter and Dynamics:** Add drive, sheen, compression, and limiting.
-- **Space / Output:** Set reverb, reverse swell, stereo width, and output level.
+Choose a **Factory preset** or step through the bank with **Previous** and **Next**. **Preview hat** plays a one-shot at the last incoming pitch, or C4 before the first note. The 48 new sounds span six families of eight.
 
-By default, each hit plays as a one-shot. Turn on **Hold MIDI Notes (ADSR)** to hold the metal and air until the matching MIDI note and channel end. Set release up to 20 seconds. **Preview Hat** plays the latest note, or C4 if no note has arrived.
+| Family | Try | What to listen for |
+| --- | --- | --- |
+| Progressive | Silk Offbeat | A soft metal ring under a wider noise tail |
+| Uplifting | Long Arc | Bright, open air between kick hits |
+| Classic | Pressed Bronze | A stick strike and rounded 909-style body |
+| Tech | Dry Contact | A narrow, short hat with a defined attack |
+| Psy | Twin Pulses | Two close strikes with a pitched laser tick |
+| Club | Main Floor | An even offbeat with a firm leading edge |
 
-## Perform with MIDI
+## Shape the hit
 
-Use the Performance page to set separate velocity curves for metal, air, chick, and reverb. Tune, mute, or solo the six resonators. Set the MIDI choke note (default 42) and choke CC (default 4) to stop a ringing hat. CC 7 controls output volume and CC 74 controls air brightness.
+On **Hat**, set **Metal body** decay, bell focus and level to place the pitched ring. Set **Air tail** decay and low-pass cutoff for the length and brightness of the hiss. **Stick & bounce** sets the contact type, strike count, frequency and level. **Detailed controls** opens the pitch sweep, resonator spread and damping, air attack and hold, filters, and bounce timing.
 
-Enable **Roll** to repeat the most recent hit at host-synced eighth, sixteenth, or thirty-second notes. Add swing and an accent every fourth hit. Rolls pause when the host transport stops and end when a choke arrives.
+The animated cymbal opens on the offbeat and follows the host through tempo changes and seeks. It rests when transport stops and uses a 138 BPM clock in Standalone. The two decay bars compare the current metal and air settings in milliseconds. The MIDI monitor shows the last played note, frequency and velocity. The factory hats use 72–158 ms metal decay and 113–242 ms air decay. Each section's **Lock** keeps its settings when browsing. The metal lock also protects the amplitude envelope. You can edit a locked control and save the lock state with your project.
 
-Four optional stereo outputs provide separate metal, air, chick, and reverb stems. They are off by default. The stems include output gain but bypass shared effects and stereo width. Lock any of the six preset sections to keep its values while browsing. You can edit locked controls, and the lock state saves with the project.
+## Play sustained notes
 
-## Screenshots
+Open **Envelope** and select **Hold notes**. Attack brings the metal and air in, decay settles them at the sustain level, and a matching note-off on the same MIDI channel starts release. Release runs from zero to 20 seconds. Select **One-shot** to let the sound finish on its own. The four envelope controls also shape the one-shot within its natural tail. The selected play mode stays active when you browse presets.
 
-![openHatter sound design page](assets/openHatter-v4.png)
+![Native Envelope page in Hold notes mode with editable attack, decay, sustain and release](assets/openHatter-envelope.png)
 
-![openHatter performance controls](assets/openHatter-v4-performance.png)
+## Performance and effects
 
-![openHatter performance page with velocity curves, resonators, choke, and rolls](assets/openHatter-performance.png)
+On **Performance**, set separate velocity curves for metal, air, stick and reverb. Tune, mute or solo any of the six resonators. A note-off on the choke note (42 by default) or a high value on the choke CC (4) closes a ringing hat. CC 7 controls output volume and CC 74 controls air brightness. **Roll on** repeats the last hit at host-synced eighth, sixteenth or thirty-second notes. Set swing and a fourth-hit accent. Rolls pause with the host and end on a choke.
+
+On **Effects**, shape the exciter, parallel compressor, limiter and reverb, add a synced reverse swell, then set master width and gain. Four optional stereo buses carry metal, air, stick and reverb for separate mixing. They include output gain and bypass shared effects and master width.
+
+[See the detailed Hat, Performance and Effects pages.](docs/SCREENSHOTS.md)
+
+## Changes in 4.1
+
+The stick and pedal oscillators now fade individual overtones as they approach Nyquist. The laser strike follows a continuous downward pitch sweep and fades when it reaches the upper frequency limit. These changes also apply to stick bounces and held-note attacks. Earlier sessions retain their parameter values, MIDI behavior and section locks. The preset browser labels sounds from earlier banks **Custom sound** until you pick a new preset.
 
 ## Formats and license
 
-VST3, AU, LV2, and Standalone formats are available on macOS, Windows, and Linux.
+The project builds VST3, LV2 and Standalone on macOS, Windows and Linux, plus AU on macOS. See the [latest release](https://github.com/alanmarcero/openHatter/releases/latest) for packaged downloads.
 
 MIT License. See [LICENSE](LICENSE).

@@ -16,6 +16,7 @@ public:
     void drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour& backgroundColour,
                               bool isHighlighted, bool isDown) override;
     void drawButtonText(juce::Graphics& g, juce::TextButton& button, bool isHighlighted, bool isDown) override;
+    juce::Font getTextButtonFont(juce::TextButton&, int) override;
     juce::Font getComboBoxFont(juce::ComboBox& box) override;
     juce::Font getPopupMenuFont() override;
     juce::Label* createSliderTextBox(juce::Slider& slider) override;

@@ -4,6 +4,8 @@
 namespace openhatter::ui {
 
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
+    slider_.setName(title);
+    slider_.setComponentID(parameterId);
     slider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     slider_.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 68, 20);
     slider_.setColour(juce::Slider::rotarySliderFillColourId, accent);
@@ -20,13 +22,14 @@ Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& ti
 
 void Knob::bind(Apvts& state, const juce::String& parameterId) {
     if (auto* param = state.getParameter(parameterId)) {
+        slider_.setTextValueSuffix(param->getLabel().isEmpty() ? juce::String{} : " " + param->getLabel());
         slider_.setDoubleClickReturnValue(true, param->convertFrom0to1(param->getDefaultValue()));
     }
     attachment_ = std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_);
 }
 
 void Knob::resized() {
-    auto area = getLocalBounds();
+    auto area = getLocalBounds().withSizeKeepingCentre(getWidth(), std::min(getHeight(), 135));
     title_.setBounds(area.removeFromTop(19));
     slider_.setBounds(area);
 }
@@ -37,6 +40,8 @@ void Knob::setTooltip(const juce::String& text) {
 }
 
 Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
+    box_.setName(title);
+    box_.setComponentID(parameterId);
     box_.setColour(juce::ComboBox::arrowColourId, accent);
     box_.setColour(juce::ComboBox::backgroundColourId, theme::kBackground);
     box_.setColour(juce::ComboBox::outlineColourId, theme::kPanelEdge);
@@ -61,9 +66,9 @@ void Choice::bind(Apvts& state, const juce::String& parameterId) {
 }
 
 void Choice::resized() {
-    auto area = getLocalBounds();
-    title_.setBounds(area.removeFromTop(19));
-    box_.setBounds(area.reduced(2, 4));
+    auto area = getLocalBounds().reduced(5, 0).withSizeKeepingCentre(getWidth() - 10, std::min(getHeight(), 62));
+    title_.setBounds(area.removeFromTop(20));
+    box_.setBounds(area.reduced(1, 3));
 }
 
 void Choice::setTooltip(const juce::String& text) {
@@ -71,16 +76,21 @@ void Choice::setTooltip(const juce::String& text) {
     title_.setTooltip(text);
 }
 
-Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent)
+Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String& offText,
+               const juce::String& onText, juce::Colour accent)
     : attachment_(state, parameterId, button_) {
-    button_.setButtonText(text);
+    button_.setComponentID(parameterId);
+    button_.onStateChange = [this, offText, onText] {
+        button_.setButtonText(button_.getToggleState() ? onText : offText);
+    };
+    button_.onStateChange();
     button_.setClickingTogglesState(true);
     button_.setColour(juce::TextButton::buttonOnColourId, accent);
     addAndMakeVisible(button_);
 }
 
 void Toggle::resized() {
-    button_.setBounds(getLocalBounds().reduced(2, 0));
+    button_.setBounds(getLocalBounds().reduced(2, 0).withHeight(38).withCentre(getLocalBounds().getCentre()));
 }
 
 void Toggle::setTooltip(const juce::String& text) {
@@ -89,14 +99,17 @@ void Toggle::setTooltip(const juce::String& text) {
 
 SectionLockButton::SectionLockButton(const juce::String& sectionName, juce::Colour accent,
                                      std::function<bool()> isLocked, std::function<void(bool)> setLocked)
-    : accent_(accent), isLocked_(std::move(isLocked)), setLocked_(std::move(setLocked)) {
-    button_.setTooltip("Keep " + sectionName + " unchanged when you select another preset. Controls remain editable.");
+    : section_(sectionName), isLocked_(std::move(isLocked)), setLocked_(std::move(setLocked)) {
+    button_.setToggleable(true);
+    button_.setColour(juce::TextButton::buttonOnColourId, accent);
+    button_.setColour(juce::TextButton::textColourOffId, accent);
     button_.onClick = [this] {
         setLocked_(!isLocked_());
         refresh();
     };
     addAndMakeVisible(button_);
     refresh();
+    startTimerHz(8);
 }
 
 void SectionLockButton::resized() {
@@ -105,11 +118,15 @@ void SectionLockButton::resized() {
 
 void SectionLockButton::refresh() {
     const bool locked = isLocked_();
-    button_.setButtonText(locked ? "LOCKED" : "LOCK SECTION");
-    button_.setColour(juce::TextButton::buttonColourId, locked ? accent_ : theme::kKnobBody);
-    button_.setColour(juce::TextButton::textColourOffId, locked ? theme::kBackground : accent_);
-    button_.setTooltip(locked ? "This section stays unchanged when you select another preset. Controls remain editable."
-                              : "Lock this section to keep its settings when you select another preset.");
+    button_.setToggleState(locked, juce::dontSendNotification);
+    button_.setButtonText(locked ? "Unlock" : "Lock");
+    button_.setTitle(button_.getButtonText() + " " + section_);
+    button_.setTooltip(locked ? "Allow presets to change " + section_ + "."
+                              : "Keep " + section_ + " settings when changing presets.");
+}
+
+void SectionLockButton::timerCallback() {
+    if (button_.getToggleState() != isLocked_()) refresh();
 }
 
 void layoutRow(juce::Rectangle<int> area, std::initializer_list<juce::Component*> components) {
@@ -123,48 +140,6 @@ void layoutRow(juce::Rectangle<int> area, std::initializer_list<juce::Component*
         }
         idx++;
     }
-}
-
-void drawPanel(juce::Graphics& g, juce::Rectangle<int> area, const juce::String& title, juce::Colour accent) {
-    auto bounds = area.toFloat().reduced(0.5f);
-
-    g.setColour(theme::kPanel);
-    g.fillRoundedRectangle(bounds, 6.0f);
-
-    g.setGradientFill(juce::ColourGradient(
-        theme::kPanel, bounds.getTopLeft(),
-        theme::kBackground, bounds.getBottomLeft(), false));
-    g.fillRoundedRectangle(bounds.reduced(0.5f), 6.0f);
-
-    g.setColour(theme::kPanelEdge);
-    g.drawRoundedRectangle(bounds, 6.0f, 1.0f);
-
-    auto titleBar = bounds.removeFromTop(22.0f);
-    g.setColour(theme::kBackground);
-    g.fillRoundedRectangle(titleBar, 6.0f);
-    g.fillRect(titleBar.removeFromBottom(6.0f));
-
-    const auto topBar = bounds.removeFromTop(3.0f).reduced(6.0f, 0.0f);
-    g.setColour(accent);
-    g.fillRoundedRectangle(topBar, 1.5f);
-
-    if (title.isNotEmpty()) {
-        g.setColour(theme::kText);
-        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-        g.drawText(title, area.getX() + 12, area.getY() + 3, area.getWidth() - 24, 18, juce::Justification::left, true);
-    }
-}
-
-void drawCaption(juce::Graphics& g, juce::Rectangle<int> area, const juce::String& text) {
-    g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-    g.drawText(text, area, juce::Justification::centred, true);
-}
-
-void drawGlow(juce::Graphics& g, juce::Rectangle<float> area, juce::Colour colour) {
-    const juce::Graphics::ScopedSaveState state(g);
-    g.setColour(colour.withAlpha(0.25f));
-    g.fillEllipse(area);
 }
 
 } // namespace openhatter::ui

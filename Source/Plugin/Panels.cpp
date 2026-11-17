@@ -1,4 +1,5 @@
 #include "Panels.h"
+#include <BinaryData.h>
 #include "Parameters.h"
 #include "PluginProcessor.h"
 #include "Theme.h"
@@ -9,20 +10,14 @@ namespace {
 
 void drawSection(juce::Graphics& g, juce::Rectangle<int> bounds,
                  const juce::String& title, juce::Colour accent) {
-    auto area = bounds.toFloat().reduced(0.5f);
     g.setColour(theme::kPanel);
-    g.fillRoundedRectangle(area, 7.0f);
-    g.setColour(theme::kPanelEdge);
-    g.drawRoundedRectangle(area, 7.0f, 1.0f);
-    g.setColour(accent.withAlpha(0.8f));
-    g.fillRoundedRectangle(area.removeFromTop(2.0f).reduced(9.0f, 0.0f), 1.0f);
+    g.fillRoundedRectangle(bounds.toFloat(), 9.0f);
     g.setColour(accent);
-    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-    const auto titleArea = bounds.reduced(9, 0)
-                               .withY(bounds.getY() + 6)
-                               .withWidth(std::max(0, bounds.getWidth() - 160))
-                               .withHeight(18);
-    g.drawText(title, titleArea, juce::Justification::centredLeft, true);
+    g.fillRoundedRectangle(static_cast<float>(bounds.getX() + 16), static_cast<float>(bounds.getY() + 21), 18, 3, 1.5f);
+    g.setColour(theme::kText);
+    g.setFont(juce::FontOptions(19.0f, juce::Font::bold));
+    g.drawText(title, bounds.getX() + 43, bounds.getY() + 5, bounds.getWidth() - 58, 35,
+               juce::Justification::centredLeft);
 }
 
 void layoutRows(juce::Rectangle<int> area,
@@ -38,212 +33,266 @@ void layoutRows(juce::Rectangle<int> area,
     }
 }
 
-void drawMetric(juce::Graphics& g, juce::Rectangle<int> bounds,
-                const juce::String& label, const juce::String& value,
-                const juce::String& unit, juce::Colour accent) {
-    g.setColour(theme::kPanel);
-    g.fillRoundedRectangle(bounds.toFloat(), 7.0f);
-    g.setColour(theme::kPanelEdge);
-    g.drawRoundedRectangle(bounds.toFloat().reduced(0.5f), 7.0f, 1.0f);
-    auto area = bounds.reduced(12, 8);
-    g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText(label, area.removeFromTop(16), juce::Justification::left, true);
-    g.setColour(accent);
-    g.setFont(juce::FontOptions(25.0f, juce::Font::bold));
-    g.drawText(value, area.removeFromTop(38), juce::Justification::left, true);
-    g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(11.0f));
-    g.drawText(unit, area.removeFromTop(15), juce::Justification::left, true);
-}
-
 } // namespace
 
-MidiMonitorPanel::MidiMonitorPanel(OpenHatterProcessor& processor) : processor_(processor) {
-    startTimerHz(20);
+MidiMonitorPanel::MidiMonitorPanel(OpenHatterProcessor& processor)
+    : processor_(processor),
+      cymbals_(juce::Drawable::createFromImageData(BinaryData::cymbalmotion_svg, BinaryData::cymbalmotion_svgSize)) {
+    if (cymbals_) upperPlate_ = cymbals_->findChildWithID("upper-plate");
+    timerCallback();
+    startTimerHz(30);
 }
 
-MidiMonitorPanel::~MidiMonitorPanel() {
-    stopTimer();
-}
+MidiMonitorPanel::~MidiMonitorPanel() { stopTimer(); }
 
 void MidiMonitorPanel::timerCallback() {
-    const int note = processor_.displayMidiNoteNumber.load(std::memory_order_relaxed);
-    const float velocity = processor_.displayVelocity.load(std::memory_order_relaxed);
-    const bool received = processor_.displayMidiNoteReceived.load(std::memory_order_relaxed);
-    const int displayed = received ? note : -1;
-    if (displayed != lastNote_ || std::abs(velocity - lastVelocity_) > 0.005f) {
-        lastNote_ = displayed;
+    const auto hostPhase = processor_.displayBeatPhase.load(std::memory_order_relaxed);
+    const float phase = hostPhase >= 0 ? hostPhase : static_cast<float>(std::fmod(
+        (juce::Time::getMillisecondCounterHiRes() - openedAt_) * processor_.displayBpm.load() / 60000.0, 1.0));
+    if (!juce::approximatelyEqual(phase, beatPhase_)) {
+        beatPhase_ = phase;
+        if (isShowing()) repaint(0, 0, 310, getHeight());
+    }
+    const int note = processor_.displayMidiNoteReceived.load() ? processor_.displayMidiNoteNumber.load() : -1;
+    const float velocity = processor_.displayVelocity.load();
+    const float metal = processor_.parameters.getRawParameterValue(params::kToneDecay)->load();
+    const float air = processor_.parameters.getRawParameterValue(params::kNoiseDecay)->load();
+    if (note != lastNote_ || !juce::approximatelyEqual(velocity, lastVelocity_)
+        || !juce::approximatelyEqual(metal, metalMs_) || !juce::approximatelyEqual(air, airMs_)) {
+        lastNote_ = note;
         lastVelocity_ = velocity;
+        metalMs_ = metal;
+        airMs_ = air;
         repaint();
     }
 }
 
 void MidiMonitorPanel::paint(juce::Graphics& g) {
-    drawPanel(g, getLocalBounds(), "MIDI IN  /  DIRECT PITCH", theme::kAccentAqua);
-    auto area = getLocalBounds().reduced(12, 30);
-    if (area.isEmpty()) return;
+    const auto bounds = getLocalBounds().toFloat();
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff3d3938), bounds.getTopLeft(),
+                                            juce::Colour(0xff232d3e), bounds.getBottomRight(), false));
+    g.fillRoundedRectangle(bounds, 10.0f);
+    if (cymbals_) {
+        // An open offbeat stroke lifts the top plate and lets it settle before the next beat.
+        const float distance = (beatPhase_ - .5f) * 7.0f;
+        const float lift = std::exp(-distance * distance);
+        if (upperPlate_)
+            upperPlate_->setTransform(juce::AffineTransform::rotation(-.035f * lift, 150, 83).translated(0, -14 * lift));
+        cymbals_->draw(g, 1.0f, juce::AffineTransform::translation(12, 10));
+    }
 
-    const bool received = processor_.displayMidiNoteReceived.load(std::memory_order_relaxed);
-    const int note = std::clamp(processor_.displayMidiNoteNumber.load(std::memory_order_relaxed), 0, 127);
-    const float frequency = processor_.displayMidiFrequency.load(std::memory_order_relaxed);
-    const float velocity = std::clamp(processor_.displayVelocity.load(std::memory_order_relaxed), 0.0f, 1.0f);
-    const auto noteNames = std::array<const char*, 12>{ "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-    const juce::String noteLabel = received
-        ? juce::String(noteNames[static_cast<size_t>(note % 12)]) + juce::String(note / 12 - 1)
-        : juce::String("Waiting for MIDI");
-    const int leadWidth = std::min(340, area.getWidth() / 3);
-    auto lead = area.removeFromLeft(leadWidth);
-    area.removeFromLeft(10);
-    const int metricWidth = (area.getWidth() - 20) / 3;
-    auto frequencyArea = area.removeFromLeft(metricWidth);
-    area.removeFromLeft(10);
-    auto midiArea = area.removeFromLeft(metricWidth);
-    area.removeFromLeft(10);
-
-    g.setColour(theme::kPanel);
-    g.fillRoundedRectangle(lead.toFloat(), 7.0f);
+    const int pitchX = getWidth() - 234;
     g.setColour(theme::kPanelEdge);
-    g.drawRoundedRectangle(lead.toFloat().reduced(0.5f), 7.0f, 1.0f);
-    auto noteArea = lead.reduced(16, 10);
-    g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText(received ? "LAST NOTE" : "NO NOTE RECEIVED", noteArea.removeFromTop(16), juce::Justification::left, true);
-    g.setColour(received ? theme::kAccentBrass : theme::kTextDim);
-    g.setFont(juce::FontOptions(received ? 42.0f : 23.0f, juce::Font::bold));
-    g.drawText(noteLabel, noteArea.removeFromTop(received ? 50 : 38), juce::Justification::left, true);
-    g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(12.0f));
-    g.drawText(received ? "Pitch follows every incoming note-on" : "Send MIDI to track pitch and octave",
-               noteArea, juce::Justification::left, true);
+    g.drawVerticalLine(pitchX - 26, 24.0f, bounds.getHeight() - 24.0f);
+    g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
+    g.setColour(theme::kText);
+    g.drawText("Layer decay", 326, 16, 200, 22, juce::Justification::left);
+    const float scale = std::max({ 250.0f, metalMs_, airMs_ });
+    const auto decayBar = [&](int y, const char* label, float value, juce::Colour colour) {
+        g.setFont(juce::FontOptions(15.0f));
+        g.setColour(theme::kTextDim);
+        g.drawText(label, 326, y, 90, 22, juce::Justification::left);
+        g.setColour(theme::kText);
+        g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
+        g.drawText(juce::String(juce::roundToInt(value)) + " ms", pitchX - 131, y, 70, 22, juce::Justification::right);
+        const juce::Rectangle<float> track(326, static_cast<float>(y + 27), static_cast<float>(pitchX - 387), 4);
+        g.setColour(theme::kPanelEdge);
+        g.fillRoundedRectangle(track, 2);
+        g.setColour(colour);
+        g.fillRoundedRectangle(track.withWidth(track.getWidth() * value / scale), 2);
+    };
+    decayBar(47, "Metal", metalMs_, theme::kAccentBrass);
+    decayBar(95, "Air", airMs_, theme::kAccentAqua);
 
-    drawMetric(g, frequencyArea, "FREQUENCY", received ? juce::String(frequency, 2) : "--", "Hz", theme::kAccentAqua);
-    drawMetric(g, midiArea, "MIDI NOTE", received ? juce::String(note) : "--", "0-127", theme::kAccentBrass);
-    drawMetric(g, area, "VELOCITY", received ? juce::String(juce::roundToInt(velocity * 127.0f)) : "--",
-               received ? juce::String(juce::roundToInt(velocity * 100.0f)) + "%" : "0-127",
-               theme::kAccentCoral);
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    g.drawText("MIDI input", pitchX, 21, 200, 21, juce::Justification::left);
+    const bool received = lastNote_ >= 0;
+    g.setColour(theme::kText);
+    g.setFont(juce::FontOptions(received ? 43.0f : 25.0f, juce::Font::bold));
+    g.drawText(received ? juce::MidiMessage::getMidiNoteName(lastNote_, true, true, 4) : juce::String("Waiting for MIDI"),
+               pitchX, 45, 222, 54, juce::Justification::left);
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(15.0f));
+    if (received) {
+        g.drawText(juce::String(processor_.displayMidiFrequency.load(), 1) + " Hz", pitchX, 98, 211, 20, juce::Justification::left);
+        g.drawText("Note " + juce::String(lastNote_) + "   /   Velocity " + juce::String(juce::roundToInt(lastVelocity_ * 127)),
+                   pitchX, 120, 212, 21, juce::Justification::left);
+    } else {
+        g.drawText("Play a note to set the pitch.", pitchX, 99, 224, 24, juce::Justification::left);
+    }
 }
 
 HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
-    : toneMode_(processor.parameters, params::kToneMode, "MODE", theme::kAccentBrass),
-      toneFreq_(processor.parameters, params::kToneFreq, "BELL", theme::kAccentBrass),
-      toneQ_(processor.parameters, params::kToneQ, "RESONANCE", theme::kAccentBrass),
-      toneDecay_(processor.parameters, params::kToneDecay, "DECAY", theme::kAccentBrass),
-      tonePitchEnv_(processor.parameters, params::kTonePitchEnv, "SWEEP", theme::kAccentBrass),
-      tonePitchDecay_(processor.parameters, params::kTonePitchDecay, "SWEEP TIME", theme::kAccentBrass),
-      metalSpread_(processor.parameters, params::kMetalSpread, "SPREAD", theme::kAccentBrass),
-      metalDampingSlope_(processor.parameters, params::kMetalDampingSlope, "DAMP SLOPE", theme::kAccentBrass),
-      metalStereoSpread_(processor.parameters, params::kMetalStereoSpread, "STEREO", theme::kAccentBrass),
-      toneLevel_(processor.parameters, params::kToneLevel, "LEVEL", theme::kAccentBrass),
-      noiseType_(processor.parameters, params::kNoiseType, "TEXTURE", theme::kAccentAqua),
-      noiseAttack_(processor.parameters, params::kNoiseAttack, "ATTACK", theme::kAccentAqua),
-      noiseHold_(processor.parameters, params::kNoiseHold, "HOLD", theme::kAccentAqua),
-      noiseDecay_(processor.parameters, params::kNoiseDecay, "DECAY", theme::kAccentAqua),
-      noiseCurve_(processor.parameters, params::kNoiseCurve, "CURVE", theme::kAccentAqua),
-      noiseHPF_(processor.parameters, params::kNoiseHPF, "HIGH PASS", theme::kAccentAqua),
-      noiseLPF_(processor.parameters, params::kNoiseLPF, "LOW PASS", theme::kAccentAqua),
-      noiseWidth_(processor.parameters, params::kNoiseStereoWidth, "WIDTH", theme::kAccentAqua),
-      noiseLevel_(processor.parameters, params::kNoiseLevel, "LEVEL", theme::kAccentAqua),
-      preBursts_(processor.parameters, params::kPreBursts, "BOUNCES", theme::kAccentCoral),
-      preSpread_(processor.parameters, params::kPreSpread, "SPREAD", theme::kAccentCoral),
-      preDecay_(processor.parameters, params::kPreDecay, "DECAY", theme::kAccentCoral),
-      preJitter_(processor.parameters, params::kPreJitter, "HUMANIZE", theme::kAccentCoral),
-      flamSpread_(processor.parameters, params::kFlamSpread, "PAN", theme::kAccentCoral),
-      preLevel_(processor.parameters, params::kPreLevel, "LEVEL", theme::kAccentCoral),
-      fullAdsr_(processor.parameters, params::kAmpEnabled, "HOLD MIDI NOTES (ADSR)", theme::kAccentBrass),
-      ampAttack_(processor.parameters, params::kAmpAttack, "ATTACK", theme::kAccentBrass),
-      ampDecay_(processor.parameters, params::kAmpDecay, "DECAY", theme::kAccentBrass),
-      ampSustain_(processor.parameters, params::kAmpSustain, "SUSTAIN", theme::kAccentBrass),
-      ampRelease_(processor.parameters, params::kAmpRelease, "RELEASE", theme::kAccentBrass),
-      clickType_(processor.parameters, params::kClickType, "CHICK TYPE", theme::kAccentBrass),
-      clickLevel_(processor.parameters, params::kClickLevel, "CHICK LEVEL", theme::kAccentBrass),
-      clickFreq_(processor.parameters, params::kClickFreq, "CHICK FREQ", theme::kAccentBrass),
+    : toneMode_(processor.parameters, params::kToneMode, "Cymbal model", theme::kAccentBrass),
+      toneFreq_(processor.parameters, params::kToneFreq, "Bell focus", theme::kAccentBrass),
+      toneQ_(processor.parameters, params::kToneQ, "Resonance", theme::kAccentBrass),
+      toneDecay_(processor.parameters, params::kToneDecay, "Decay", theme::kAccentBrass),
+      tonePitchEnv_(processor.parameters, params::kTonePitchEnv, "Sweep", theme::kAccentBrass),
+      tonePitchDecay_(processor.parameters, params::kTonePitchDecay, "Sweep time", theme::kAccentBrass),
+      metalSpread_(processor.parameters, params::kMetalSpread, "Spread", theme::kAccentBrass),
+      metalDampingSlope_(processor.parameters, params::kMetalDampingSlope, "Damping", theme::kAccentBrass),
+      metalStereoSpread_(processor.parameters, params::kMetalStereoSpread, "Stereo", theme::kAccentBrass),
+      toneLevel_(processor.parameters, params::kToneLevel, "Level", theme::kAccentBrass),
+      noiseType_(processor.parameters, params::kNoiseType, "Air texture", theme::kAccentAqua),
+      noiseAttack_(processor.parameters, params::kNoiseAttack, "Attack", theme::kAccentAqua),
+      noiseHold_(processor.parameters, params::kNoiseHold, "Hold", theme::kAccentAqua),
+      noiseDecay_(processor.parameters, params::kNoiseDecay, "Decay", theme::kAccentAqua),
+      noiseCurve_(processor.parameters, params::kNoiseCurve, "Curve", theme::kAccentAqua),
+      noiseHPF_(processor.parameters, params::kNoiseHPF, "High-pass", theme::kAccentAqua),
+      noiseLPF_(processor.parameters, params::kNoiseLPF, "Low-pass", theme::kAccentAqua),
+      noiseWidth_(processor.parameters, params::kNoiseStereoWidth, "Width", theme::kAccentAqua),
+      noiseLevel_(processor.parameters, params::kNoiseLevel, "Level", theme::kAccentAqua),
+      preBursts_(processor.parameters, params::kPreBursts, "Strikes", theme::kAccentCoral),
+      preSpread_(processor.parameters, params::kPreSpread, "Spread", theme::kAccentCoral),
+      preDecay_(processor.parameters, params::kPreDecay, "Decay", theme::kAccentCoral),
+      preJitter_(processor.parameters, params::kPreJitter, "Humanize", theme::kAccentCoral),
+      flamSpread_(processor.parameters, params::kFlamSpread, "Pan", theme::kAccentCoral),
+      preLevel_(processor.parameters, params::kPreLevel, "Bounce level", theme::kAccentCoral),
+      clickType_(processor.parameters, params::kClickType, "Contact", theme::kAccentCoral),
+      clickLevel_(processor.parameters, params::kClickLevel, "Strike level", theme::kAccentCoral),
+      clickFreq_(processor.parameters, params::kClickFreq, "Frequency", theme::kAccentCoral),
       articulationLock_("Articulation", theme::kAccentCoral,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::articulation); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::articulation, on); }),
-      cymbalLock_("Metal", theme::kAccentBrass,
+      cymbalLock_("metal and envelope", theme::kAccentBrass,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::cymbalAndTuning); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::cymbalAndTuning, on); }),
       airLock_("Air", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::air); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, on); }) {
-    fullAdsr_.setTooltip("Hold MIDI notes until a matching note-off. Release extends to 20 seconds.");
     metalSpread_.setTooltip("Move upper metal partials outward or inward by up to two octaves.");
     metalDampingSlope_.setTooltip("Adjust upper-mode decay relative to the lowest resonator.");
     metalStereoSpread_.setTooltip("Scale stereo dispersion across the upper metal partials.");
-    for (juce::Component* component : std::array<juce::Component*, 35>{
+    for (juce::Component* child : std::initializer_list<juce::Component*>{
              &toneMode_, &toneFreq_, &toneQ_, &toneDecay_, &tonePitchEnv_, &tonePitchDecay_,
-             &metalSpread_, &metalDampingSlope_, &metalStereoSpread_, &toneLevel_,
-             &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &noiseLevel_,
-             &preBursts_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_,
-             &fullAdsr_, &ampAttack_, &ampDecay_, &ampSustain_, &ampRelease_, &clickType_, &clickLevel_, &clickFreq_, &articulationLock_, &cymbalLock_})
-        addAndMakeVisible(component);
-    addAndMakeVisible(airLock_);
+             &metalSpread_, &metalDampingSlope_, &metalStereoSpread_, &toneLevel_, &noiseType_, &noiseAttack_,
+             &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &noiseLevel_,
+             &preBursts_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_, &clickType_,
+             &clickLevel_, &clickFreq_, &articulationLock_, &cymbalLock_, &airLock_ })
+        addAndMakeVisible(child);
+    setAdvancedMode(false);
+}
+
+void HatSynthPanel::setAdvancedMode(bool advanced) {
+    advanced_ = advanced;
+    for (auto* knob : { &toneQ_, &tonePitchEnv_, &tonePitchDecay_, &metalSpread_, &metalDampingSlope_,
+                        &metalStereoSpread_, &noiseAttack_, &noiseHold_, &noiseCurve_, &noiseHPF_, &noiseWidth_,
+                        &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_ })
+        knob->setVisible(advanced);
+    resized();
 }
 
 void HatSynthPanel::paint(juce::Graphics& g) {
-    drawPanel(g, getLocalBounds(), "SOUND DESIGN", theme::kAccentBrass);
-    drawSection(g, sectionBounds_[0], "METAL RESONATOR", theme::kAccentBrass);
-    drawSection(g, sectionBounds_[1], "AIR TAIL", theme::kAccentAqua);
-    drawSection(g, sectionBounds_[2], "BOUNCE / GROOVE", theme::kAccentCoral);
-    drawSection(g, sectionBounds_[3], "ENVELOPE / CHICK", theme::kAccentBrass);
+    drawSection(g, sectionBounds_[0], "Metal body", theme::kAccentBrass);
+    drawSection(g, sectionBounds_[1], "Air tail", theme::kAccentAqua);
+    drawSection(g, sectionBounds_[2], "Stick & bounce", theme::kAccentCoral);
 }
 
 void HatSynthPanel::resized() {
-    auto area = getLocalBounds().reduced(10, 29);
-    constexpr int gap = 7;
-    const int width = (area.getWidth() - gap * 3) / 4;
-    for (size_t i = 0; i < sectionBounds_.size(); ++i) {
-        sectionBounds_[i] = { area.getX() + static_cast<int>(i) * (width + gap), area.getY(), width, area.getHeight() };
+    const int width = (getWidth() - 20) / 3;
+    for (int i = 0; i < 3; ++i)
+        sectionBounds_[static_cast<size_t>(i)] = { i * (width + 10), 0, width, getHeight() };
+    auto metal = sectionBounds_[0].reduced(11, 9);
+    auto air = sectionBounds_[1].reduced(11, 9);
+    auto stick = sectionBounds_[2].reduced(11, 9);
+    for (auto [area, lock] : { std::pair{ &metal, &cymbalLock_ }, { &air, &airLock_ }, { &stick, &articulationLock_ } })
+        lock->setBounds(area->removeFromTop(36).removeFromRight(56));
+    for (auto [area, choice] : { std::pair{ &metal, &toneMode_ }, { &air, &noiseType_ }, { &stick, &clickType_ } })
+        choice->setBounds(area->removeFromTop(advanced_ ? 68 : 83));
+
+    const int rowHeight = advanced_ ? metal.getHeight() / 3 : metal.getHeight();
+    layoutRow(metal.removeFromTop(rowHeight), { &toneDecay_, &toneFreq_, &toneLevel_ });
+    layoutRow(air.removeFromTop(rowHeight), { &noiseDecay_, &noiseLPF_, &noiseLevel_ });
+    layoutRow(stick.removeFromTop(rowHeight), { &preBursts_, &clickFreq_, &clickLevel_ });
+    if (advanced_) {
+        layoutRows(metal, { { &toneQ_, &tonePitchEnv_, &tonePitchDecay_ }, { &metalSpread_, &metalDampingSlope_, &metalStereoSpread_ } });
+        layoutRows(air, { { &noiseAttack_, &noiseHold_, &noiseCurve_ }, { &noiseHPF_, &noiseWidth_, nullptr } });
+        layoutRows(stick, { { &preSpread_, &preDecay_, &preLevel_ }, { &preJitter_, &flamSpread_, nullptr } });
     }
+}
 
-    cymbalLock_.setBounds(sectionBounds_[0].getRight() - 152, sectionBounds_[0].getY() + 3, 144, 36);
-    airLock_.setBounds(sectionBounds_[1].getRight() - 152, sectionBounds_[1].getY() + 3, 144, 36);
-    articulationLock_.setBounds(sectionBounds_[2].getRight() - 152, sectionBounds_[2].getY() + 3, 144, 36);
+EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
+    : attack_(processor.parameters, params::kAmpAttack, "Attack", theme::kAccentBrass),
+      decay_(processor.parameters, params::kAmpDecay, "Decay", theme::kAccentBrass),
+      sustain_(processor.parameters, params::kAmpSustain, "Sustain", theme::kAccentAqua),
+      release_(processor.parameters, params::kAmpRelease, "Release", theme::kAccentCoral),
+      gateAttachment_(*processor.parameters.getParameter(params::kAmpEnabled), [this](float value) {
+          holdNotes_.setToggleState(value > .5f, juce::dontSendNotification);
+          oneShot_.setToggleState(value <= .5f, juce::dontSendNotification);
+          repaint();
+      }) {
+    oneShot_.setTooltip("Let each hit play its full metal and air tails, even after key up.");
+    holdNotes_.setTooltip("Sustain until a matching note-off on the original MIDI channel.");
+    for (auto* button : { &oneShot_, &holdNotes_ }) {
+        button->setToggleable(true);
+        button->setColour(juce::TextButton::buttonOnColourId, theme::kAccentAqua);
+        addAndMakeVisible(button);
+    }
+    oneShot_.onClick = [this] { gateAttachment_.setValueAsCompleteGesture(0.0f); };
+    holdNotes_.onClick = [this] { gateAttachment_.setValueAsCompleteGesture(1.0f); };
+    for (auto* knob : { &attack_, &decay_, &sustain_, &release_ }) {
+        addAndMakeVisible(knob);
+        knob->slider().onValueChange = [this] { repaint(); };
+    }
+    gateAttachment_.sendInitialUpdate();
+}
 
-    auto metal = sectionBounds_[0].reduced(6, 10).withTrimmedTop(36);
-    layoutRows(metal, {
-        { &toneMode_, &toneFreq_, nullptr },
-        { &toneQ_, &toneDecay_, &toneLevel_ },
-        { &tonePitchEnv_, &tonePitchDecay_, nullptr },
-        { &metalSpread_, &metalDampingSlope_, &metalStereoSpread_ }
-    });
+void EnvelopePanel::paint(juce::Graphics& g) {
+    drawSection(g, getLocalBounds(), "Amplitude envelope", theme::kAccentBrass);
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(16.0f));
+    const bool held = holdNotes_.getToggleState();
+    g.drawText(held ? "Sustain the metal and air until the matching MIDI note ends."
+                    : "Play each strike to the end of its metal and air tails.",
+               22, 53, getWidth() - 290, 33, juce::Justification::left);
+    auto plot = getLocalBounds().reduced(40, 0).withTrimmedTop(114).withTrimmedBottom(200).toFloat();
+    const float base = plot.getBottom(), top = plot.getY();
+    const auto relative = [](Knob& knob) { return static_cast<float>(knob.slider().valueToProportionOfLength(knob.slider().getValue())); };
+    const float attackX = plot.getX() + plot.getWidth() * (.04f + .20f * relative(attack_));
+    const float decayX = attackX + plot.getWidth() * (.10f + .20f * relative(decay_));
+    const float releaseX = plot.getRight() - plot.getWidth() * (.08f + .20f * relative(release_));
+    const float sustainY = base - plot.getHeight() * relative(sustain_);
+    g.setColour(theme::kPanelEdge.withAlpha(.5f));
+    for (int i = 0; i <= 4; ++i)
+        g.drawHorizontalLine(juce::roundToInt(top + plot.getHeight() * static_cast<float>(i) / 4), plot.getX(), plot.getRight());
+    juce::Path line;
+    line.startNewSubPath(plot.getX(), base);
+    line.lineTo(attackX, top);
+    line.lineTo(decayX, sustainY);
+    line.lineTo(releaseX, sustainY);
+    line.lineTo(plot.getRight(), base);
+    auto fill = line;
+    fill.closeSubPath();
+    g.setGradientFill(juce::ColourGradient(theme::kAccentAqua.withAlpha(.25f), 0, top,
+                                            theme::kAccentAqua.withAlpha(.015f), 0, base, false));
+    g.fillPath(fill);
+    g.setColour(theme::kAccentAqua);
+    g.strokePath(line, juce::PathStrokeType(2.6f));
+    for (auto point : { juce::Point<float>{attackX, top}, {decayX, sustainY}, {releaseX, sustainY} })
+        g.fillEllipse(juce::Rectangle<float>(7, 7).withCentre(point));
+    g.setFont(juce::FontOptions(13.0f));
+    g.drawText(held ? "Key down" : "Strike", juce::Rectangle<float>(plot.getX(), base + 8, 100, 20), juce::Justification::left);
+    g.drawText(held ? "Key up" : "Tail fade", juce::Rectangle<float>(releaseX - 45, base + 8, 90, 20), juce::Justification::centred);
+}
 
-    auto air = sectionBounds_[1].reduced(6, 10).withTrimmedTop(36);
-    layoutRows(air, {
-        { &noiseType_, &noiseAttack_, &noiseHold_ },
-        { &noiseDecay_, &noiseCurve_, &noiseHPF_ },
-        { &noiseLPF_, &noiseWidth_, &noiseLevel_ }
-    });
-
-    auto articulation = sectionBounds_[2].reduced(6, 10).withTrimmedTop(36);
-    layoutRows(articulation, {
-        { &preBursts_, &preSpread_ },
-        { &preDecay_, &preJitter_ },
-        { &flamSpread_, &preLevel_ }
-    });
-
-    auto envelope = sectionBounds_[3].reduced(5, 10).withTrimmedTop(36);
-    layoutRows(envelope, {
-        { &fullAdsr_ },
-        { &ampAttack_, &ampDecay_ },
-        { &ampSustain_, &ampRelease_ },
-        { &clickType_, &clickLevel_ },
-        { &clickFreq_, nullptr }
-    });
+void EnvelopePanel::resized() {
+    oneShot_.setBounds(getWidth() - 252, 46, 110, 38);
+    holdNotes_.setBounds(getWidth() - 138, 46, 114, 38);
+    layoutRow(getLocalBounds().reduced(24, 0).removeFromBottom(161), { &attack_, &decay_, &sustain_, &release_ });
 }
 
 PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
-    : velocityMetal_(processor.parameters, params::kVelocityMetal, "METAL VEL", theme::kAccentBrass),
-      velocityAir_(processor.parameters, params::kVelocityAir, "AIR VEL", theme::kAccentAqua),
-      velocityChick_(processor.parameters, params::kVelocityChick, "CHICK VEL", theme::kAccentCoral),
-      velocityReverb_(processor.parameters, params::kVelocityReverb, "REVERB VEL", theme::kAccentAqua),
-      chokeNote_(processor.parameters, params::kMidiChokeNote, "CHOKE NOTE", theme::kAccentCoral),
-      chokeCc_(processor.parameters, params::kMidiChokeCc, "CHOKE CC", theme::kAccentCoral),
-      rollEnabled_(processor.parameters, params::kRollEnabled, "ENABLE HOST ROLL", theme::kAccentBrass),
-      rollDivision_(processor.parameters, params::kRollDivision, "DIVISION", theme::kAccentBrass),
-      rollSwing_(processor.parameters, params::kRollSwing, "SWING", theme::kAccentBrass),
-      rollAccent_(processor.parameters, params::kRollAccent, "ACCENT", theme::kAccentBrass) {
+    : velocityMetal_(processor.parameters, params::kVelocityMetal, "Metal", theme::kAccentBrass),
+      velocityAir_(processor.parameters, params::kVelocityAir, "Air", theme::kAccentAqua),
+      velocityChick_(processor.parameters, params::kVelocityChick, "Stick", theme::kAccentCoral),
+      velocityReverb_(processor.parameters, params::kVelocityReverb, "Reverb", theme::kAccentAqua),
+      chokeNote_(processor.parameters, params::kMidiChokeNote, "Choke note", theme::kAccentCoral),
+      chokeCc_(processor.parameters, params::kMidiChokeCc, "Choke CC", theme::kAccentCoral),
+      rollEnabled_(processor.parameters, params::kRollEnabled, "Roll off", "Roll on", theme::kAccentBrass),
+      rollDivision_(processor.parameters, params::kRollDivision, "Division", theme::kAccentBrass),
+      rollSwing_(processor.parameters, params::kRollSwing, "Swing", theme::kAccentBrass),
+      rollAccent_(processor.parameters, params::kRollAccent, "Accent", theme::kAccentBrass) {
     for (juce::Component* component : std::array<juce::Component*, 10>{
              &velocityMetal_, &velocityAir_, &velocityChick_, &velocityReverb_, &chokeNote_, &chokeCc_,
              &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_})
@@ -264,12 +313,12 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
         auto& controls = resonators_[static_cast<size_t>(resonator - 1)];
         const auto prefix = "resonator_" + juce::String(resonator);
         controls.tune = std::make_unique<Knob>(processor.parameters, prefix + "_tune",
-                                               "R" + juce::String(resonator) + " TUNE", theme::kAccentBrass);
-        controls.enabled = std::make_unique<Toggle>(processor.parameters, prefix + "_enabled", "ENABLED", theme::kAccentAqua);
-        controls.solo = std::make_unique<Toggle>(processor.parameters, prefix + "_solo", "SOLO", theme::kAccentCoral);
+                                               "R" + juce::String(resonator) + " tune", theme::kAccentBrass);
+        controls.enabled = std::make_unique<Toggle>(processor.parameters, prefix + "_enabled", "Muted", "Active", theme::kAccentAqua);
+        controls.solo = std::make_unique<Toggle>(processor.parameters, prefix + "_solo", "Solo", "Soloed", theme::kAccentCoral);
         controls.tune->setTooltip("Tune this metallic resonator by up to two octaves.");
-        controls.enabled->setTooltip("Mute or enable this resonator component.");
-        controls.solo->setTooltip("Solo this resonator. Multiple solo buttons can be active together.");
+        controls.enabled->setTooltip("Mute or enable resonator " + juce::String(resonator) + ".");
+        controls.solo->setTooltip("Solo resonator " + juce::String(resonator) + ". You can solo several together.");
         addAndMakeVisible(controls.tune.get());
         addAndMakeVisible(controls.enabled.get());
         addAndMakeVisible(controls.solo.get());
@@ -277,23 +326,23 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
 }
 
 void PerformancePanel::paint(juce::Graphics& g) {
-    drawPanel(g, getLocalBounds(), "PERFORMANCE / LAYERS", theme::kAccentBrass);
-    drawSection(g, sequencerBounds_, "VELOCITY / MIDI / HOST ROLL", theme::kAccentAqua);
-    drawSection(g, resonatorBounds_, "SIX-PART METAL RESONATOR BANK", theme::kAccentBrass);
+    drawSection(g, velocityBounds_, "Velocity response", theme::kAccentAqua);
+    drawSection(g, rollBounds_, "Host roll & MIDI choke", theme::kAccentCoral);
+    drawSection(g, resonatorBounds_, "Resonator tuning", theme::kAccentBrass);
 }
 
 void PerformancePanel::resized() {
-    auto area = getLocalBounds().reduced(10, 29);
-    sequencerBounds_ = area.removeFromTop(180);
-    area.removeFromTop(8);
-    resonatorBounds_ = area;
-
-    layoutRows(sequencerBounds_.reduced(6, 26), {
-        { &velocityMetal_, &velocityAir_, &velocityChick_, &velocityReverb_, &chokeNote_, &chokeCc_ },
-        { &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_, nullptr, nullptr }
-    });
-
-    auto grid = resonatorBounds_.reduced(7, 27);
+    auto body = getLocalBounds();
+    auto top = body.removeFromTop(229);
+    velocityBounds_ = top.removeFromLeft(397);
+    rollBounds_ = top.withTrimmedLeft(10);
+    resonatorBounds_ = body.withTrimmedTop(10);
+    layoutRow(velocityBounds_.reduced(10, 9).withTrimmedTop(40), { &velocityMetal_, &velocityAir_, &velocityChick_, &velocityReverb_ });
+    auto roll = rollBounds_.reduced(11, 9).withTrimmedTop(34);
+    auto modes = roll.removeFromLeft(144);
+    layoutRows(modes, { { &rollEnabled_ }, { &rollDivision_ } });
+    layoutRow(roll, { &rollSwing_, &rollAccent_, &chokeNote_, &chokeCc_ });
+    auto grid = resonatorBounds_.reduced(13, 15).withTrimmedTop(28);
     const int columnWidth = grid.getWidth() / static_cast<int>(resonators_.size());
     for (size_t i = 0; i < resonators_.size(); ++i) {
         auto cell = juce::Rectangle<int>(grid.getX() + static_cast<int>(i) * columnWidth,
@@ -309,28 +358,28 @@ void PerformancePanel::resized() {
 }
 
 EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
-    : distType_(processor.parameters, params::kDistType, "MODE", theme::kAccentCoral),
-      distDrive_(processor.parameters, params::kDistDrive, "DRIVE", theme::kAccentCoral),
-      distTone_(processor.parameters, params::kDistTone, "SHEEN", theme::kAccentCoral),
-      distMix_(processor.parameters, params::kDistMix, "MIX", theme::kAccentCoral),
-      compThresh_(processor.parameters, params::kCompThresh, "THRESHOLD", theme::kAccentBrass),
-      compRatio_(processor.parameters, params::kCompRatio, "RATIO", theme::kAccentBrass),
-      compAttack_(processor.parameters, params::kCompAttack, "ATTACK", theme::kAccentBrass),
-      compRelease_(processor.parameters, params::kCompRelease, "RELEASE", theme::kAccentBrass),
-      compMakeup_(processor.parameters, params::kCompMakeup, "MAKEUP", theme::kAccentBrass),
-      compMix_(processor.parameters, params::kCompMix, "MIX", theme::kAccentBrass),
-      limiterCeiling_(processor.parameters, params::kLimiterCeiling, "CEILING", theme::kAccentBrass),
-      limiterRelease_(processor.parameters, params::kLimiterRelease, "LIMIT RELEASE", theme::kAccentBrass),
-      limiterEnabled_(processor.parameters, params::kLimiterEnabled, "ENABLE LIMITER", theme::kAccentBrass),
-      reverbSize_(processor.parameters, params::kReverbSize, "SIZE", theme::kAccentAqua),
-      reverbDecay_(processor.parameters, params::kReverbDecay, "DECAY", theme::kAccentAqua),
-      reverbDamp_(processor.parameters, params::kReverbDamp, "DAMPING", theme::kAccentAqua),
-      reverbGate_(processor.parameters, params::kReverbGate, "CHOKE", theme::kAccentAqua),
-      reverbMix_(processor.parameters, params::kReverbMix, "MIX", theme::kAccentAqua),
-      reverseMode_(processor.parameters, params::kReverseMode, "REVERSE SYNC", theme::kAccentAqua),
-      reverseMix_(processor.parameters, params::kReverseMix, "REVERSE MIX", theme::kAccentAqua),
-      masterWidth_(processor.parameters, params::kStereoWidth, "WIDTH", theme::kAccentAqua),
-      outputGain_(processor.parameters, params::kOutputGain, "OUTPUT", theme::kAccentAqua),
+    : distType_(processor.parameters, params::kDistType, "Exciter type", theme::kAccentCoral),
+      distDrive_(processor.parameters, params::kDistDrive, "Drive", theme::kAccentCoral),
+      distTone_(processor.parameters, params::kDistTone, "Sheen", theme::kAccentCoral),
+      distMix_(processor.parameters, params::kDistMix, "Mix", theme::kAccentCoral),
+      compThresh_(processor.parameters, params::kCompThresh, "Threshold", theme::kAccentBrass),
+      compRatio_(processor.parameters, params::kCompRatio, "Ratio", theme::kAccentBrass),
+      compAttack_(processor.parameters, params::kCompAttack, "Attack", theme::kAccentBrass),
+      compRelease_(processor.parameters, params::kCompRelease, "Release", theme::kAccentBrass),
+      compMakeup_(processor.parameters, params::kCompMakeup, "Makeup", theme::kAccentBrass),
+      compMix_(processor.parameters, params::kCompMix, "Mix", theme::kAccentBrass),
+      limiterCeiling_(processor.parameters, params::kLimiterCeiling, "Ceiling", theme::kAccentBrass),
+      limiterRelease_(processor.parameters, params::kLimiterRelease, "Limit release", theme::kAccentBrass),
+      limiterEnabled_(processor.parameters, params::kLimiterEnabled, "Limiter off", "Limiter on", theme::kAccentBrass),
+      reverbSize_(processor.parameters, params::kReverbSize, "Size", theme::kAccentAqua),
+      reverbDecay_(processor.parameters, params::kReverbDecay, "Decay", theme::kAccentAqua),
+      reverbDamp_(processor.parameters, params::kReverbDamp, "Damping", theme::kAccentAqua),
+      reverbGate_(processor.parameters, params::kReverbGate, "Choke", theme::kAccentAqua),
+      reverbMix_(processor.parameters, params::kReverbMix, "Mix", theme::kAccentAqua),
+      reverseMode_(processor.parameters, params::kReverseMode, "Reverse sync", theme::kAccentAqua),
+      reverseMix_(processor.parameters, params::kReverseMix, "Reverse mix", theme::kAccentAqua),
+      masterWidth_(processor.parameters, params::kStereoWidth, "Width", theme::kAccentAqua),
+      outputGain_(processor.parameters, params::kOutputGain, "Output", theme::kAccentAqua),
       exciterLock_("Exciter", theme::kAccentCoral,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::exciter); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::exciter, on); }),
@@ -340,6 +389,7 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
       spaceLock_("Space & Output", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput, on); }) {
+    limiterEnabled_.setTooltip("Switch output peak limiting on or off.");
     for (juce::Component* component : std::array<juce::Component*, 26>{
              &distType_, &distDrive_, &distTone_, &distMix_, &compThresh_, &compRatio_, &compAttack_, &compRelease_,
              &compMakeup_, &compMix_, &limiterCeiling_, &limiterRelease_, &limiterEnabled_, &reverbSize_, &reverbDecay_,
@@ -349,22 +399,18 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
 }
 
 void EffectsPanel::paint(juce::Graphics& g) {
-    drawPanel(g, getLocalBounds(), "FINISH", theme::kAccentCoral);
-    drawSection(g, sectionBounds_[0], "EXCITER", theme::kAccentCoral);
-    drawSection(g, sectionBounds_[1], "DYNAMICS", theme::kAccentBrass);
-    drawSection(g, sectionBounds_[2], "SPACE / OUTPUT", theme::kAccentAqua);
+    drawSection(g, sectionBounds_[0], "Exciter", theme::kAccentCoral);
+    drawSection(g, sectionBounds_[1], "Dynamics", theme::kAccentBrass);
+    drawSection(g, sectionBounds_[2], "Space & output", theme::kAccentAqua);
 }
 
 void EffectsPanel::resized() {
-    auto area = getLocalBounds().reduced(10, 29);
-    constexpr int gap = 8;
-    const int width = (area.getWidth() - gap * 2) / 3;
+    constexpr int gap = 10;
+    const int width = (getWidth() - gap * 2) / 3;
     for (size_t i = 0; i < sectionBounds_.size(); ++i)
-        sectionBounds_[i] = { area.getX() + static_cast<int>(i) * (width + gap), area.getY(), width, area.getHeight() };
-
-    exciterLock_.setBounds(sectionBounds_[0].getRight() - 152, sectionBounds_[0].getY() + 3, 144, 36);
-    dynamicsLock_.setBounds(sectionBounds_[1].getRight() - 152, sectionBounds_[1].getY() + 3, 144, 36);
-    spaceLock_.setBounds(sectionBounds_[2].getRight() - 152, sectionBounds_[2].getY() + 3, 144, 36);
+        sectionBounds_[i] = { static_cast<int>(i) * (width + gap), 0, width, getHeight() };
+    for (auto [index, lock] : { std::pair{ 0, &exciterLock_ }, { 1, &dynamicsLock_ }, { 2, &spaceLock_ } })
+        lock->setBounds(sectionBounds_[static_cast<size_t>(index)].getRight() - 67, 7, 56, 36);
 
     layoutRows(sectionBounds_[0].reduced(8, 10).withTrimmedTop(36), {
         { &distType_, &distDrive_ },
@@ -377,8 +423,9 @@ void EffectsPanel::resized() {
     });
     layoutRows(sectionBounds_[2].reduced(7, 10).withTrimmedTop(36), {
         { &reverbSize_, &reverbDecay_, &reverbDamp_ },
-        { &reverbGate_, &reverbMix_, &reverseMode_ },
-        { &reverseMix_, &masterWidth_, &outputGain_ }
+        { &reverbGate_, &reverbMix_ },
+        { &reverseMode_, &reverseMix_ },
+        { &masterWidth_, &outputGain_ }
     });
 }
 

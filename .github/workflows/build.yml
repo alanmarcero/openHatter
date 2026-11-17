@@ -149,3 +149,7 @@ jobs:
         with:
           files: openHatter-*.zip
           generate_release_notes: true
+          body: |
+            48 new trance hats, a redesigned dark editor and a pitch-tracked, band-limited strike.
+
+            ![openHatter native editor](https://raw.githubusercontent.com/alanmarcero/openHatter/${{ github.ref_name }}/assets/openHatter-hat.png)

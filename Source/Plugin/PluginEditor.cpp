@@ -1,146 +1,142 @@
 #include "PluginEditor.h"
 #include "Presets.h"
 #include "Theme.h"
-#include <algorithm>
 
-namespace {
 namespace theme = openhatter::theme;
 
-void styleHeaderButton(juce::TextButton& button, juce::Colour accent) {
-    button.setColour(juce::TextButton::buttonColourId, theme::kKnobBody);
-    button.setColour(juce::TextButton::buttonOnColourId, accent);
-    button.setColour(juce::TextButton::textColourOffId, accent);
-    button.setColour(juce::TextButton::textColourOnId, accent.brighter(0.2f));
-}
-} // namespace
-
 OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
-    : AudioProcessorEditor(&processorToEdit),
-      processor_(processorToEdit),
-      midiPanel_(processorToEdit),
-      synthPanel_(processorToEdit),
-      performancePanel_(processorToEdit),
-      effectsPanel_(processorToEdit),
-      tooltipWindow_(this, 500) {
-    juce::LookAndFeel::setDefaultLookAndFeel(&lookAndFeel_);
-
+    : AudioProcessorEditor(&processorToEdit), processor_(processorToEdit),
+      midiPanel_(processorToEdit), synthPanel_(processorToEdit), envelopePanel_(processorToEdit),
+      performancePanel_(processorToEdit), effectsPanel_(processorToEdit), tooltipWindow_(this, 500) {
+    setLookAndFeel(&lookAndFeel_);
     const auto& presets = openhatter::presets::factoryPresets();
-    for (size_t i = 0; i < presets.size(); ++i)
-        presetBox_.addItem(presets[i].name, static_cast<int>(i + 1));
-    presetBox_.setTooltip("Browse 48 presets in six styles. MIDI input always sets the played pitch and octave.");
+    juce::String family;
+    juce::PopupMenu sounds;
+    for (size_t i = 0; i < presets.size(); ++i) {
+        const juce::String name(presets[i].name);
+        const auto nextFamily = name.upToFirstOccurrenceOf(" | ", false, false);
+        if (nextFamily != family && sounds.getNumItems() > 0) {
+            presetBox_.getRootMenu()->addSubMenu(family, sounds);
+            sounds.clear();
+        }
+        family = nextFamily;
+        sounds.addItem(static_cast<int>(i + 1), name);
+    }
+    presetBox_.getRootMenu()->addSubMenu(family, sounds);
+    presetBox_.setName("Factory preset");
+    presetBox_.setTooltip("Choose one of eight hats in each of six trance styles.");
+    prevPresetBtn_.setTooltip("Load the previous factory hat.");
+    nextPresetBtn_.setTooltip("Load the next factory hat.");
+    hatTab_.setTooltip("Shape the pitched metal, air tail and stick strike.");
+    envelopeTab_.setTooltip("Choose one-shot or held notes and shape the amplitude envelope.");
+    performanceTab_.setTooltip("Edit velocity, MIDI choke, rolls and the six resonators.");
+    effectsTab_.setTooltip("Edit the exciter, dynamics, space and output.");
+    detailBtn_.setTooltip("Show or hide the resonator, air filter and bounce settings.");
+    presetBox_.setTextWhenNothingSelected("Custom sound");
     presetBox_.onChange = [this] {
-        const int selected = presetBox_.getSelectedId() - 1;
-        if (selected >= 0 && selected < processor_.getNumPrograms())
-            processor_.setCurrentProgram(selected);
+        if (presetBox_.getSelectedId() > 0)
+            processor_.setCurrentProgram(presetBox_.getSelectedId() - 1);
     };
-    addAndMakeVisible(presetBox_);
-
-    prevPresetBtn_.setTooltip("Previous factory preset");
     prevPresetBtn_.onClick = [this] {
         const int count = processor_.getNumPrograms();
-        processor_.setCurrentProgram((processor_.getCurrentProgram() - 1 + count) % count);
+        const int current = processor_.hasLegacySound() ? 0 : processor_.getCurrentProgram();
+        processor_.setCurrentProgram((current + count - 1) % count);
         syncPresetBox();
     };
-    addAndMakeVisible(prevPresetBtn_);
-
-    nextPresetBtn_.setTooltip("Next factory preset");
     nextPresetBtn_.onClick = [this] {
-        const int count = processor_.getNumPrograms();
-        processor_.setCurrentProgram((processor_.getCurrentProgram() + 1) % count);
+        const int next = processor_.hasLegacySound() ? 0 : (processor_.getCurrentProgram() + 1) % processor_.getNumPrograms();
+        processor_.setCurrentProgram(next);
         syncPresetBox();
     };
-    addAndMakeVisible(nextPresetBtn_);
-
-    styleHeaderButton(auditionBtn_, theme::kAccentBrass);
-    auditionBtn_.setTooltip("Play a short preview using the last MIDI note received, or middle C if no note has arrived.");
+    auditionBtn_.setTooltip("Play a one-shot on the last MIDI pitch, or middle C before the first note.");
+    auditionBtn_.setColour(juce::TextButton::buttonColourId, theme::kAccentBrass);
+    auditionBtn_.setColour(juce::TextButton::textColourOffId, theme::kBackground);
     auditionBtn_.onClick = [this] { processor_.triggerAudition(); };
-    addAndMakeVisible(auditionBtn_);
 
-    styleHeaderButton(pageToggleBtn_, theme::kAccentAqua);
-    pageToggleBtn_.setTooltip("Switch between sound design and performance controls.");
-    pageToggleBtn_.onClick = [this] { setPage(1 - page_); };
-    addAndMakeVisible(pageToggleBtn_);
-
-    addAndMakeVisible(midiPanel_);
-    addAndMakeVisible(synthPanel_);
-    addAndMakeVisible(performancePanel_);
-    addAndMakeVisible(effectsPanel_);
-    setPage(0);
+    hatTab_.onClick = [this] { setPage(Page::hat); };
+    envelopeTab_.onClick = [this] { setPage(Page::envelope); };
+    performanceTab_.onClick = [this] { setPage(Page::performance); };
+    effectsTab_.onClick = [this] { setPage(Page::effects); };
+    detailBtn_.setClickingTogglesState(true);
+    detailBtn_.onClick = [this] {
+        synthPanel_.setAdvancedMode(detailBtn_.getToggleState());
+        setPage(page_);
+    };
+    for (auto* button : { &hatTab_, &envelopeTab_, &performanceTab_, &effectsTab_, &detailBtn_ }) {
+        button->setToggleable(true);
+        button->setColour(juce::TextButton::buttonOnColourId, theme::kAccentAqua);
+    }
+    for (juce::Component* child : std::initializer_list<juce::Component*>{
+             &presetBox_, &prevPresetBtn_, &nextPresetBtn_, &auditionBtn_, &hatTab_, &envelopeTab_,
+             &performanceTab_, &effectsTab_, &detailBtn_, &midiPanel_, &synthPanel_, &envelopePanel_,
+             &performancePanel_, &effectsPanel_ })
+        addAndMakeVisible(child);
+    setPage(Page::hat);
     syncPresetBox();
-    setSize(1360, 972);
-    setResizable(false, false);
+    setSize(1060, 672);
     startTimerHz(15);
 }
 
 OpenHatterEditor::~OpenHatterEditor() {
     stopTimer();
-    juce::LookAndFeel::setDefaultLookAndFeel(nullptr);
+    setLookAndFeel(nullptr);
 }
 
 void OpenHatterEditor::syncPresetBox() {
-    presetBox_.setSelectedId(processor_.getCurrentProgram() + 1, juce::dontSendNotification);
+    presetBox_.setSelectedId(processor_.hasLegacySound() ? 0 : processor_.getCurrentProgram() + 1,
+                             juce::dontSendNotification);
 }
 
-void OpenHatterEditor::setPage(int page) {
-    page_ = std::clamp(page, 0, 1);
-    const bool soundPage = page_ == 0;
-    midiPanel_.setVisible(soundPage);
-    synthPanel_.setVisible(soundPage);
-    effectsPanel_.setVisible(soundPage);
-    performancePanel_.setVisible(!soundPage);
-    pageToggleBtn_.setButtonText(soundPage ? "PERFORMANCE CONTROLS" : "SOUND DESIGN CONTROLS");
+void OpenHatterEditor::setPage(Page page) {
+    page_ = page;
+    const bool hat = page == Page::hat;
+    for (auto [tab, selected] : { std::pair{ &hatTab_, hat }, { &envelopeTab_, page == Page::envelope },
+                                  { &performanceTab_, page == Page::performance }, { &effectsTab_, page == Page::effects } })
+        tab->setToggleState(selected, juce::dontSendNotification);
+    detailBtn_.setVisible(hat);
+    midiPanel_.setVisible(hat && !detailBtn_.getToggleState());
+    synthPanel_.setVisible(hat);
+    envelopePanel_.setVisible(page == Page::envelope);
+    performancePanel_.setVisible(page == Page::performance);
+    effectsPanel_.setVisible(page == Page::effects);
     resized();
-    repaint();
 }
 
-void OpenHatterEditor::timerCallback() {
-    if (presetBox_.getSelectedId() != processor_.getCurrentProgram() + 1)
-        syncPresetBox();
-}
+void OpenHatterEditor::timerCallback() { syncPresetBox(); }
 
 void OpenHatterEditor::paint(juce::Graphics& g) {
     g.fillAll(theme::kBackground);
-    const auto header = getLocalBounds().removeFromTop(50);
-    g.setGradientFill(juce::ColourGradient(theme::kPanel.brighter(0.08f), 0.0f, 0.0f,
-                                           theme::kBackground, 0.0f, static_cast<float>(header.getHeight()), false));
-    g.fillRect(header);
-    g.setColour(theme::kPanelEdge);
-    g.drawHorizontalLine(header.getBottom() - 1, 0.0f, static_cast<float>(getWidth()));
-    g.setColour(theme::kAccentBrass);
-    g.fillRect(0, header.getBottom() - 2, 192, 2);
-
-    g.setColour(theme::kText);
-    g.setFont(juce::FontOptions(24.0f, juce::Font::bold));
-    g.drawText("openHatter", 18, 4, 174, 28, juce::Justification::left, true);
-    g.setColour(theme::kAccentSteel);
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText("MIDI-TRACKED CYMBAL SYNTH", 20, 32, 280, 14, juce::Justification::left, true);
-    g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-    g.drawText("V" JucePlugin_VersionString "  /  48 FACTORY PRESETS", getWidth() - 300, 16, 282, 18,
-               juce::Justification::right, true);
-
-    const auto presetBar = juce::Rectangle<int>(12, 52, getWidth() - 24, 46).toFloat();
     g.setColour(theme::kPanel);
-    g.fillRoundedRectangle(presetBar, 6.0f);
-    g.setColour(theme::kPanelEdge);
-    g.drawRoundedRectangle(presetBar.reduced(0.5f), 6.0f, 1.0f);
+    g.fillRect(0, 0, getWidth(), 86);
+    g.setColour(theme::kAccentBrass);
+    for (int i = 0; i < 3; ++i)
+        g.drawEllipse(22.0f, 27.0f + static_cast<float>(i) * 6.0f, 39.0f, 14.0f, 1.8f);
+    g.setColour(theme::kText);
+    g.setFont(juce::FontOptions(31.0f, juce::Font::bold));
+    g.drawText("openHatter", 72, 13, 200, 38, juce::Justification::left);
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(14.0f));
+    g.drawText("Pitched hi-hat synthesizer", 74, 49, 200, 22, juce::Justification::left);
+    g.drawText("Factory preset", 309, 8, 220, 19, juce::Justification::left);
 }
 
 void OpenHatterEditor::resized() {
-    constexpr int margin = 12;
-    const int rowY = 56;
-    prevPresetBtn_.setBounds(20, rowY, 148, 38);
-    presetBox_.setBounds(178, rowY, 630, 38);
-    nextPresetBtn_.setBounds(818, rowY, 142, 38);
-    pageToggleBtn_.setBounds(970, rowY, 222, 38);
-    auditionBtn_.setBounds(getWidth() - 180, rowY, 160, 38);
-
-    if (page_ == 0) {
-        midiPanel_.setBounds(margin, 100, getWidth() - margin * 2, 148);
-        synthPanel_.setBounds(margin, 258, getWidth() - margin * 2, 390);
-        effectsPanel_.setBounds(margin, 658, getWidth() - margin * 2, getHeight() - 670);
-    } else {
-        performancePanel_.setBounds(margin, 100, getWidth() - margin * 2, getHeight() - 112);
+    presetBox_.setBounds(308, 33, 350, 38);
+    prevPresetBtn_.setBounds(667, 33, 82, 38);
+    nextPresetBtn_.setBounds(753, 33, 65, 38);
+    auditionBtn_.setBounds(getWidth() - 155, 25, 133, 43);
+    hatTab_.setBounds(22, 98, 83, 38);
+    envelopeTab_.setBounds(109, 98, 112, 38);
+    performanceTab_.setBounds(225, 98, 130, 38);
+    effectsTab_.setBounds(359, 98, 92, 38);
+    detailBtn_.setBounds(getWidth() - 177, 98, 155, 38);
+    auto body = getLocalBounds().reduced(22, 0).withTrimmedTop(150).withTrimmedBottom(18);
+    envelopePanel_.setBounds(body);
+    effectsPanel_.setBounds(body);
+    performancePanel_.setBounds(body);
+    if (!detailBtn_.getToggleState()) {
+        midiPanel_.setBounds(body.removeFromTop(164));
+        body.removeFromTop(12);
     }
+    synthPanel_.setBounds(body);
 }

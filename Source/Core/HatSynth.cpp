@@ -408,29 +408,37 @@ float HatSynth::generateNoiseSample(NoiseType type) noexcept {
 float HatSynth::generateChickSample(ChickType type, float freqHz, int ageSamples, float level) noexcept {
     if (ageSamples < 0) return 0.0f;
     const float t = static_cast<float>(ageSamples) / static_cast<float>(sampleRate_);
-    const float nyquist = static_cast<float>(sampleRate_) * 0.45f;
-    const float clampedFreq = std::clamp(freqHz, 100.0f, nyquist);
+    const float sampleRate = static_cast<float>(sampleRate_);
+    // Fade each partial across the top tenth of the band before it can fold back.
+    const auto bandGain = [sampleRate](float hz) {
+        return std::clamp((0.5f - hz / sampleRate) * 20.0f, 0.0f, 1.0f);
+    };
+    const auto partial = [&](float ratio) {
+        const float hz = freqHz * ratio;
+        const float gain = bandGain(hz);
+        return gain > 0.0f ? gain * std::sin(2.0f * pi() * hz * t) : 0.0f;
+    };
     switch (type) {
         case ChickType::CrispStick: {
             if (t > 0.008f) return 0.0f;
             const float env = std::exp(-t / 0.0012f);
-            const float click = ageSamples < 8 ? static_cast<float>(8 - ageSamples) * 0.125f : 0.0f;
-            const float p1 = 2.0f * pi() * clampedFreq * t;
-            const float p2 = 2.0f * pi() * clampedFreq * 1.62f * t;
-            return (click * 0.6f + (std::sin(p1) * 0.6f + std::sin(p2) * 0.4f) * env) * level;
+            const float click = std::max(0.0f, 1.0f - t * 6000.0f);
+            return (click * 0.6f + (partial(1.0f) * 0.6f + partial(1.62f) * 0.4f) * env) * level;
         }
         case ChickType::PedalFoot: {
             if (t > 0.018f) return 0.0f;
             const float env = std::exp(-t / 0.0028f);
-            const float p1 = 2.0f * pi() * clampedFreq * 0.6f * t;
-            const float p2 = 2.0f * pi() * clampedFreq * 1.25f * t;
-            return (std::sin(p1) * 0.65f + std::sin(p2) * 0.35f) * env * level * 1.2f;
+            return (partial(0.6f) * 0.65f + partial(1.25f) * 0.35f) * env * level * 1.2f;
         }
         case ChickType::LaserTick: {
             if (t > 0.010f) return 0.0f;
-            const float env = std::exp(-t / 0.0015f);
-            const float sweepHz = clampedFreq * (1.0f + 2.8f * env);
-            return std::sin(2.0f * pi() * sweepHz * t) * env * level * 1.25f;
+            constexpr float sweepTime = 0.0015f;
+            const float env = std::exp(-t / sweepTime);
+            const float gain = bandGain(freqHz * (1.0f + 2.8f * env));
+            if (gain <= 0.0f) return 0.0f;
+            // Integrate the exponential frequency sweep to keep its pitch above the landing note.
+            const float cycles = freqHz * (t + 2.8f * sweepTime * (1.0f - env));
+            return std::sin(2.0f * pi() * cycles) * gain * env * level * 1.25f;
         }
     }
     return 0.0f;

@@ -12,6 +12,7 @@ OpenHatterProcessor::OpenHatterProcessor()
           .withOutput("Reverb", juce::AudioChannelSet::stereo(), false)),
       parameters(*this, nullptr, "PARAMETERS", openhatter::params::createParameterLayout()) {
     for (auto& lock : sectionLocks_) lock.store(false, std::memory_order_relaxed);
+    setCurrentProgram(0);
 }
 
 void OpenHatterProcessor::prepareToPlay(double sampleRate, int) {
@@ -61,7 +62,8 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
                 transport.beatsPerBar = static_cast<double>(posOpt->getTimeSignature()->numerator);
                 displayBeatsPerBar.store(static_cast<float>(transport.beatsPerBar));
             }
-            transport.isPlaying = posOpt->getIsPlaying();
+            transport.isPlaying = posOpt->getIsPlaying()
+                || (wrapperType == wrapperType_Standalone && !posOpt->getPpqPosition());
         }
     }
 
@@ -199,6 +201,7 @@ void OpenHatterProcessor::setCurrentProgram(int index) {
     const auto& presets = openhatter::presets::factoryPresets();
     if (index >= 0 && index < static_cast<int>(presets.size())) {
         currentProgram_ = index;
+        legacySound_.store(false);
         std::array<bool, static_cast<size_t>(PresetSection::count)> locks{};
         for (size_t i = 0; i < locks.size(); ++i)
             locks[i] = sectionLocks_[i].load(std::memory_order_relaxed);
@@ -211,7 +214,8 @@ void OpenHatterProcessor::setCurrentProgram(int index) {
 
 void OpenHatterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = parameters.copyState();
-    state.setProperty("preset_catalog_version", 3, nullptr);
+    state.setProperty("preset_catalog_version", 4, nullptr);
+    state.setProperty("legacy_sound", hasLegacySound(), nullptr);
     for (size_t i = 0; i < sectionLocks_.size(); ++i)
         state.setProperty("section_lock_" + juce::String(i), sectionLocks_[i].load(std::memory_order_relaxed), nullptr);
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
@@ -224,10 +228,11 @@ void OpenHatterProcessor::setStateInformation(const void* data, int sizeInBytes)
         auto state = juce::ValueTree::fromXml(*xmlState);
         state.removeProperty("locked_wav", nullptr);
         parameters.replaceState(state);
-        const bool hasV2Catalog = static_cast<int>(state.getProperty("preset_catalog_version", 0)) >= 2;
+        const int catalog = static_cast<int>(state.getProperty("preset_catalog_version", 0));
+        legacySound_.store(catalog != 4 || static_cast<bool>(state.getProperty("legacy_sound", false)));
         for (size_t i = 0; i < sectionLocks_.size(); ++i) {
             const auto property = "section_lock_" + juce::String(i);
-            sectionLocks_[i].store(hasV2Catalog && static_cast<bool>(state.getProperty(property, false)),
+            sectionLocks_[i].store(catalog >= 2 && static_cast<bool>(state.getProperty(property, false)),
                                    std::memory_order_relaxed);
         }
         if (auto* presetParam = parameters.getRawParameterValue(openhatter::params::kPreset))

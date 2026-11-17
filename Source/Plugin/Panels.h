@@ -19,8 +19,13 @@ public:
 private:
     void timerCallback() override;
     OpenHatterProcessor& processor_;
+    std::unique_ptr<juce::Drawable> cymbals_;
+    juce::Component* upperPlate_ = nullptr;
+    const double openedAt_ = juce::Time::getMillisecondCounterHiRes();
+    float beatPhase_ = 0;
     int lastNote_ = -1;
     float lastVelocity_ = 0.0f;
+    float metalMs_ = 0, airMs_ = 0;
 };
 
 class HatSynthPanel : public juce::Component {
@@ -28,9 +33,7 @@ public:
     explicit HatSynthPanel(OpenHatterProcessor& processor);
     void paint(juce::Graphics& g) override;
     void resized() override;
-    void setAdvancedMode(bool) {}
-    void setPage(int) {}
-    [[nodiscard]] bool isAdvancedMode() const noexcept { return false; }
+    void setAdvancedMode(bool advanced);
 
 private:
     // Metallic resonator
@@ -56,18 +59,13 @@ private:
     Knob noiseWidth_;
     Knob noiseLevel_;
 
-    // Articulation and one-shot envelope
+    // Stick articulation
     Knob preBursts_;
     Knob preSpread_;
     Knob preDecay_;
     Knob preJitter_;
     Knob flamSpread_;
     Knob preLevel_;
-    Toggle fullAdsr_;
-    Knob ampAttack_;
-    Knob ampDecay_;
-    Knob ampSustain_;
-    Knob ampRelease_;
     Choice clickType_;
     Knob clickLevel_;
     Knob clickFreq_;
@@ -75,7 +73,20 @@ private:
     SectionLockButton articulationLock_;
     SectionLockButton cymbalLock_;
     SectionLockButton airLock_;
-    std::array<juce::Rectangle<int>, 4> sectionBounds_{};
+    std::array<juce::Rectangle<int>, 3> sectionBounds_{};
+    bool advanced_ = false;
+};
+
+class EnvelopePanel : public juce::Component {
+public:
+    explicit EnvelopePanel(OpenHatterProcessor& processor);
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+
+private:
+    juce::TextButton oneShot_{ "One-shot" }, holdNotes_{ "Hold notes" };
+    Knob attack_, decay_, sustain_, release_;
+    juce::ParameterAttachment gateAttachment_;
 };
 
 class PerformancePanel : public juce::Component {
@@ -102,7 +113,7 @@ private:
     Knob rollSwing_;
     Knob rollAccent_;
     std::array<ResonatorControls, 6> resonators_;
-    juce::Rectangle<int> sequencerBounds_;
+    juce::Rectangle<int> velocityBounds_, rollBounds_;
     juce::Rectangle<int> resonatorBounds_;
 };
 
@@ -111,8 +122,6 @@ public:
     explicit EffectsPanel(OpenHatterProcessor& processor);
     void paint(juce::Graphics& g) override;
     void resized() override;
-    void setAdvancedMode(bool) {}
-    [[nodiscard]] bool isAdvancedMode() const noexcept { return false; }
 
 private:
     Choice distType_;
