@@ -1,11 +1,11 @@
-# openHatter v4.0
+# openHatter v4.0.1
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-openHatter is a MIDI-tracked open hi-hat synthesizer. Play any MIDI note and the synth follows its pitch and octave directly. The editor shows the received note, MIDI number, velocity, and calculated frequency. The v4 synth rebuild brings the air and transient layers forward while keeping tuned metal restrained. Its wider black-metal and brass interface uses larger controls and plain action labels.
+openHatter is a MIDI-tracked open hi-hat synthesizer. Play any MIDI note and the synth follows its pitch and octave directly. The editor shows the received note, MIDI number, velocity, and calculated frequency. The v4 synth rebuild brings the air and transient layers forward while keeping tuned metal restrained. Its graphite surfaces use the suite's mint and amber accents, with larger section locks and performance switches.
 
-![openHatter v4 Sound Design page](assets/openHatter-v4.png)
-![openHatter v4 Performance page](assets/openHatter-v4-performance.png)
+![openHatter v4.0.1 Sound Design page with larger section locks](assets/openHatter-v4.png)
+![openHatter v4.0.1 Performance page with larger switches](assets/openHatter-v4-performance.png)
 
 The optional MIDI-tracked ADSR has release up to 20 seconds. The engine matches note-offs by MIDI note and channel, keeps note timing sample-accurate, and leaves the default one-shot behavior unchanged. Factory presets keep tuned metal restrained while maintaining a strong broadband air layer and clear attack. The 48 presets span Progressive, Uplifting, Classic, Tech, Psy, and Club styles. The sound combines an inharmonic modal cymbal bank, shaped noise, stick bounces, transient controls, exciter, dynamics, gated space, and reverse swells.
 

@@ -20,7 +20,7 @@ void drawSection(juce::Graphics& g, juce::Rectangle<int> bounds,
     g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
     const auto titleArea = bounds.reduced(9, 0)
                                .withY(bounds.getY() + 6)
-                               .withWidth(std::max(0, bounds.getWidth() - 126))
+                               .withWidth(std::max(0, bounds.getWidth() - 160))
                                .withHeight(18);
     g.drawText(title, titleArea, juce::Justification::centredLeft, true);
 }
@@ -197,11 +197,11 @@ void HatSynthPanel::resized() {
         sectionBounds_[i] = { area.getX() + static_cast<int>(i) * (width + gap), area.getY(), width, area.getHeight() };
     }
 
-    cymbalLock_.setBounds(sectionBounds_[0].getRight() - 120, sectionBounds_[0].getY() + 5, 110, 26);
-    airLock_.setBounds(sectionBounds_[1].getRight() - 120, sectionBounds_[1].getY() + 5, 110, 26);
-    articulationLock_.setBounds(sectionBounds_[2].getRight() - 120, sectionBounds_[2].getY() + 5, 110, 26);
+    cymbalLock_.setBounds(sectionBounds_[0].getRight() - 152, sectionBounds_[0].getY() + 3, 144, 36);
+    airLock_.setBounds(sectionBounds_[1].getRight() - 152, sectionBounds_[1].getY() + 3, 144, 36);
+    articulationLock_.setBounds(sectionBounds_[2].getRight() - 152, sectionBounds_[2].getY() + 3, 144, 36);
 
-    auto metal = sectionBounds_[0].reduced(6, 27);
+    auto metal = sectionBounds_[0].reduced(6, 10).withTrimmedTop(36);
     layoutRows(metal, {
         { &toneMode_, &toneFreq_, nullptr },
         { &toneQ_, &toneDecay_, &toneLevel_ },
@@ -209,21 +209,21 @@ void HatSynthPanel::resized() {
         { &metalSpread_, &metalDampingSlope_, &metalStereoSpread_ }
     });
 
-    auto air = sectionBounds_[1].reduced(6, 27);
+    auto air = sectionBounds_[1].reduced(6, 10).withTrimmedTop(36);
     layoutRows(air, {
         { &noiseType_, &noiseAttack_, &noiseHold_ },
         { &noiseDecay_, &noiseCurve_, &noiseHPF_ },
         { &noiseLPF_, &noiseWidth_, &noiseLevel_ }
     });
 
-    auto articulation = sectionBounds_[2].reduced(6, 27);
+    auto articulation = sectionBounds_[2].reduced(6, 10).withTrimmedTop(36);
     layoutRows(articulation, {
         { &preBursts_, &preSpread_ },
         { &preDecay_, &preJitter_ },
         { &flamSpread_, &preLevel_ }
     });
 
-    auto envelope = sectionBounds_[3].reduced(5, 27);
+    auto envelope = sectionBounds_[3].reduced(5, 10).withTrimmedTop(36);
     layoutRows(envelope, {
         { &fullAdsr_ },
         { &ampAttack_, &ampDecay_ },
@@ -362,20 +362,20 @@ void EffectsPanel::resized() {
     for (size_t i = 0; i < sectionBounds_.size(); ++i)
         sectionBounds_[i] = { area.getX() + static_cast<int>(i) * (width + gap), area.getY(), width, area.getHeight() };
 
-    exciterLock_.setBounds(sectionBounds_[0].getRight() - 120, sectionBounds_[0].getY() + 5, 110, 26);
-    dynamicsLock_.setBounds(sectionBounds_[1].getRight() - 120, sectionBounds_[1].getY() + 5, 110, 26);
-    spaceLock_.setBounds(sectionBounds_[2].getRight() - 120, sectionBounds_[2].getY() + 5, 110, 26);
+    exciterLock_.setBounds(sectionBounds_[0].getRight() - 152, sectionBounds_[0].getY() + 3, 144, 36);
+    dynamicsLock_.setBounds(sectionBounds_[1].getRight() - 152, sectionBounds_[1].getY() + 3, 144, 36);
+    spaceLock_.setBounds(sectionBounds_[2].getRight() - 152, sectionBounds_[2].getY() + 3, 144, 36);
 
-    layoutRows(sectionBounds_[0].reduced(8, 29), {
+    layoutRows(sectionBounds_[0].reduced(8, 10).withTrimmedTop(36), {
         { &distType_, &distDrive_ },
         { &distTone_, &distMix_ }
     });
-    layoutRows(sectionBounds_[1].reduced(7, 29), {
+    layoutRows(sectionBounds_[1].reduced(7, 10).withTrimmedTop(36), {
         { &compThresh_, &compRatio_, &compAttack_ },
         { &compRelease_, &compMakeup_, &compMix_ },
         { &limiterCeiling_, &limiterRelease_, &limiterEnabled_ }
     });
-    layoutRows(sectionBounds_[2].reduced(7, 29), {
+    layoutRows(sectionBounds_[2].reduced(7, 10).withTrimmedTop(36), {
         { &reverbSize_, &reverbDecay_, &reverbDamp_ },
         { &reverbGate_, &reverbMix_, &reverseMode_ },
         { &reverseMix_, &masterWidth_, &outputGain_ }
