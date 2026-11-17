@@ -512,6 +512,8 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
 
     const float rawNoiseL = generateNoiseSample(settings.noiseType);
     const float rawNoiseR = generateNoiseSample(settings.noiseType);
+    const float attackNoiseL = generateNoiseSample(NoiseType::CrispWhite);
+    const float attackNoiseR = generateNoiseSample(NoiseType::CrispWhite);
     float metalL = 0.0f;
     float metalR = 0.0f;
     const bool hasSoloedResonator = std::any_of(settings.resonatorSolo.begin(), settings.resonatorSolo.end(),
@@ -588,6 +590,10 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
         metalR = unscaledMetalR * metalVelocity;
     }
 
+    const float attackEnvelope = mainAge >= 0.0f
+        ? std::exp(-mainAge / std::max(1.0f, static_cast<float>(sampleRate_) * 0.0025f))
+        : 0.0f;
+    const float attackLevel = std::clamp(settings.chickLevel, 0.0f, 1.0f) * 1.8f;
     const float noiseSwellL = rawNoiseL * preChickGainL * 0.4f + rawNoiseL * noiseEnvelope * settings.noiseLevel;
     const float noiseSwellR = rawNoiseR * preChickGainR * 0.4f + rawNoiseR * noiseEnvelope * settings.noiseLevel;
     const float midiNoiseHPF = settings.noiseHPF * midiPitchRatio_;
@@ -651,8 +657,8 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
             / std::max(1.0f, dryDuration - releaseStart);
     }
 
-    const float unscaledChickL = chick + preChickTickL;
-    const float unscaledChickR = chick + preChickTickR;
+    const float unscaledChickL = chick + preChickTickL + attackNoiseL * attackEnvelope * attackLevel;
+    const float unscaledChickR = chick + preChickTickR + attackNoiseR * attackEnvelope * attackLevel;
     const float chickL = unscaledChickL * chickVelocity;
     const float chickR = unscaledChickR * chickVelocity;
     const float dryL = (airL + metalL + chickL) * amplitudeEnvelope;

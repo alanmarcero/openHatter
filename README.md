@@ -1,12 +1,13 @@
-# openHatter v3.3
+# openHatter v4.0
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-openHatter is a MIDI-tracked open hi-hat synthesizer. Play any MIDI note and the synth follows its pitch and octave directly. The editor shows the received note, MIDI number, velocity, and calculated frequency. There are no pitch or octave selectors. Version 3.3 adds automatable metal partial spread, upper-mode damping slope, and stereo spread controls.
+openHatter is a MIDI-tracked open hi-hat synthesizer. Play any MIDI note and the synth follows its pitch and octave directly. The editor shows the received note, MIDI number, velocity, and calculated frequency. The v4 synth rebuild brings the air and transient layers forward while keeping tuned metal restrained. Its wider black-metal and brass interface uses larger controls and plain action labels.
 
-![openHatter v3.3 editor](assets/openHatter-v3.png)
+![openHatter v4 Sound Design page](assets/openHatter-v4.png)
+![openHatter v4 Performance page](assets/openHatter-v4-performance.png)
 
-Version 3.2 adds an optional MIDI-tracked Full ADSR envelope with release up to 20 seconds. The engine matches note-offs by MIDI note and channel, keeps note timing sample-accurate, and leaves the default one-shot behavior unchanged. Version 3.1 trims the tuned metallic level by 12 dB across all 48 factory presets and the fresh-instance default. Presets span Progressive, Uplifting, Classic, Tech, Psy, and Club styles. The sound combines an inharmonic modal cymbal bank, shaped noise, stick bounces, transient controls, exciter, dynamics, gated space, and reverse swells.
+The optional MIDI-tracked ADSR has release up to 20 seconds. The engine matches note-offs by MIDI note and channel, keeps note timing sample-accurate, and leaves the default one-shot behavior unchanged. Factory presets keep tuned metal restrained while maintaining a strong broadband air layer and clear attack. The 48 presets span Progressive, Uplifting, Classic, Tech, Psy, and Club styles. The sound combines an inharmonic modal cymbal bank, shaped noise, stick bounces, transient controls, exciter, dynamics, gated space, and reverse swells.
 
 Available as VST3, AU, LV2, and Standalone on macOS, Windows, and Linux.
 
@@ -18,9 +19,9 @@ Every MIDI note-on triggers the sound at the note's equal-tempered frequency:
 frequency = 440 × 2 ^ ((MIDI note − 69) / 12)
 ```
 
-The first modal partial follows that frequency. Upper partials use the selected cymbal mode's inharmonic ratios, and partials above Nyquist are omitted. Chick pitch and the air filter cutoffs follow the incoming note while the noise remains broadband. By default, MIDI note-offs leave the one-shot hat tail unchanged. Turn on **Full ADSR** in Envelope / Chick to hold the metal and air layers through sustain and release them from the matching note and MIDI channel. Release reaches 20 seconds. The configurable choke note (default 42) closes the hat; the configurable choke CC (default 4) does the same at values of 64 or higher. Velocity scales each hit.
+The first modal partial follows that frequency. Upper partials use the selected cymbal mode's inharmonic ratios, and partials above Nyquist are omitted. Chick pitch and the air filter cutoffs follow the incoming note while the noise remains broadband. By default, MIDI note-offs leave the one-shot hat tail unchanged. Turn on **Hold MIDI Notes (ADSR)** in Envelope / Chick to hold the metal and air layers through sustain and release them from the matching note and MIDI channel. Release reaches 20 seconds. The configurable choke note (default 42) closes the hat; the configurable choke CC (default 4) does the same at values of 64 or higher. Velocity scales each hit.
 
-The note monitor reports the most recent incoming note. **Audition** plays that note, or MIDI note 60 (C4) before any MIDI note arrives. MIDI CC 7 controls output volume and CC 74 controls air brightness.
+The note monitor reports the most recent incoming note. **Preview Hat** plays that note, or MIDI note 60 (C4) before any MIDI note arrives. MIDI CC 7 controls output volume and CC 74 controls air brightness.
 
 The **Performance** page has independent velocity curves for metal, air, chick, and reverb, plus six resonator tuning, mute, and solo controls. Enable **Roll** to repeat the most recent MIDI hit on host-synced eighth, sixteenth, or thirty-second notes. Swing delays alternating steps and accent raises every fourth hit. Rolls pause while the host transport is stopped and stop when the configured choke note or CC is received.
 
@@ -35,7 +36,7 @@ Four optional stereo outputs expose the metal, air, chick, and reverb stems. The
 | Metal Resonator | Cymbal mode, bell focus, resonance, decay, upper-mode sweep and time, partial spread, damping slope, stereo spread, level |
 | Air Tail | Texture, attack, hold, decay, curve, high-pass, low-pass, stereo width, level |
 | Bounce / Groove | Bounce count, spread, decay, humanize, pan, level |
-| Envelope / Chick | Optional Full ADSR; attack, decay, sustain, release up to 20 seconds; chick type, level, frequency |
+| Envelope / Chick | Optional Hold MIDI Notes (ADSR); attack, decay, sustain, release up to 20 seconds; chick type, level, frequency |
 | Exciter | Mode, drive, sheen, mix |
 | Dynamics | Compressor threshold, ratio, attack, release, makeup, mix; limiter ceiling, release, enable |
 | Space / Output | Reverb size, decay, damping, choke, mix; reverse sync and mix; stereo width and output |

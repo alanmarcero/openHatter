@@ -529,6 +529,17 @@ TEST_CASE("OpenHatter factory presets attenuate the tuned metal layer", "[plugin
     }
 }
 
+TEST_CASE("OpenHatter factory presets retain a clear broadband air layer", "[plugin][presets]") {
+    OpenHatterProcessor processor;
+    for (int i = 0; i < processor.getNumPrograms(); ++i) {
+        processor.setCurrentProgram(i);
+        INFO(processor.getProgramName(i).toStdString());
+        const float level = processor.parameters.getRawParameterValue(openhatter::params::kNoiseLevel)->load();
+        REQUIRE(level >= 0.70f);
+        REQUIRE(level <= 1.0f);
+    }
+}
+
 TEST_CASE("OpenHatterProcessor renders audio upon MIDI note-on", "[plugin]") {
     OpenHatterProcessor processor;
     processor.prepareToPlay(48000.0, 512);
@@ -600,7 +611,7 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     REQUIRE(editor != nullptr);
-    REQUIRE(editor->getWidth() == 1100);
+    REQUIRE(editor->getWidth() == 1360);
     REQUIRE(editor->getHeight() == 972);
     auto* hatterEditor = dynamic_cast<OpenHatterEditor*>(editor.get());
     REQUIRE(hatterEditor != nullptr);
@@ -612,7 +623,7 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
             REQUIRE(hatterEditor->getPage() == page);
             const auto snapshot = editor->createComponentSnapshot(editor->getLocalBounds());
             REQUIRE(snapshot.isValid());
-            REQUIRE(snapshot.getWidth() == 1100);
+            REQUIRE(snapshot.getWidth() == 1360);
             REQUIRE(snapshot.getHeight() == 972);
 
             const char* capturePath = nullptr;
@@ -635,7 +646,7 @@ TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin]
     }
 }
 
-TEST_CASE("Legacy pitch lock does not override v3 preset modal controls", "[plugin][pitch_lock]") {
+TEST_CASE("Legacy pitch lock does not override factory preset modal controls", "[plugin][pitch_lock]") {
     OpenHatterProcessor processor;
     processor.prepareToPlay(48000.0, 512);
 
@@ -724,16 +735,20 @@ TEST_CASE("All 48 factory presets render high-fidelity, balanced, clean audio", 
 
                 const float peak = std::max(std::abs(sL), std::abs(sR));
                 maxPeak = std::max(maxPeak, peak);
-                sumSquare += sL * sL + sR * sR;
-                totalFrames += 2;
+                if (block < 12) {
+                    sumSquare += sL * sL + sR * sR;
+                    totalFrames += 2;
+                }
             }
         }
 
         const float rms = std::sqrt(sumSquare / static_cast<float>(totalFrames));
 
-        // Each preset must produce healthy, club-ready audio levels without clipping or silence
-        REQUIRE(maxPeak >= 0.15f);
+        // Measure loudness during the hit, while peak still covers the full tail.
+        INFO(processor.getProgramName(p).toStdString());
+        INFO("peak=" << maxPeak << ", active rms=" << rms);
+        CHECK(maxPeak >= 0.35f);
         REQUIRE(maxPeak <= 1.5f);
-        REQUIRE(rms >= 0.01f);
+        CHECK(rms >= 0.06f);
     }
 }
