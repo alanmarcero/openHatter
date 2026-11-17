@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150" viewBox="0 0 300 150">
+  <defs>
+    <linearGradient id="bronze" x2="1" y2="0.12"><stop stop-color="#b88650"/><stop offset=".44" stop-color="#e6b77f"/><stop offset=".68" stop-color="#8f6945"/><stop offset="1" stop-color="#523d31"/></linearGradient>
+    <linearGradient id="steel" x2="1" y2="0.12"><stop stop-color="#426579"/><stop offset=".5" stop-color="#668d99"/><stop offset="1" stop-color="#263d4b"/></linearGradient>
+  </defs>
+  <g id="lower-plate">
+    <g transform="translate(150 97) rotate(-6)">
+      <path d="M-125 0 C-102 -6 -55 -15 -28 -19 C-16 -21 -18 -32 0 -32 C17 -32 16 -21 28 -19 C57 -14 109 -5 125 0 C96 17 -87 20 -125 0Z" fill="url(#steel)" stroke="#81b1bf" stroke-width="1.4"/>
+      <g fill="none" stroke="#81b1bf" stroke-width=".9" opacity=".56">
+        <path d="M-29.7 -16.6 C-21.4 -15.4 21.4 -15.4 29.7 -16.6"/>
+        <path d="M-37.4 -15.2 C-26.9 -12.8 26.9 -12.8 37.4 -15.2"/>
+        <path d="M-45.1 -13.8 C-32.5 -10.2 32.5 -10.2 45.1 -13.8"/>
+        <path d="M-52.8 -12.5 C-38.0 -7.5 38.0 -7.5 52.8 -12.5"/>
+        <path d="M-60.5 -11.1 C-43.5 -4.9 43.5 -4.9 60.5 -11.1"/>
+        <path d="M-68.2 -9.7 C-49.1 -2.3 49.1 -2.3 68.2 -9.7"/>
+        <path d="M-75.8 -8.3 C-54.6 0.3 54.6 0.3 75.8 -8.3"/>
+        <path d="M-83.5 -6.9 C-60.1 2.9 60.1 2.9 83.5 -6.9"/>
+        <path d="M-91.2 -5.5 C-65.7 5.5 65.7 5.5 91.2 -5.5"/>
+        <path d="M-98.9 -4.2 C-71.2 8.2 71.2 8.2 98.9 -4.2"/>
+        <path d="M-106.6 -2.8 C-76.8 10.8 76.8 10.8 106.6 -2.8"/>
+        <path d="M-114.3 -1.4 C-82.3 13.4 82.3 13.4 114.3 -1.4"/>
+        <path d="M-122.0 0.0 C-87.8 16.0 87.8 16.0 122.0 0.0"/>
+      </g>
+    </g>
+  </g>
+  <g id="upper-plate">
+    <g transform="translate(150 83) rotate(-6)">
+      <path d="M-125 0 C-102 -6 -55 -15 -28 -19 C-16 -21 -18 -32 0 -32 C17 -32 16 -21 28 -19 C57 -14 109 -5 125 0 C96 17 -87 20 -125 0Z" fill="url(#bronze)" stroke="#f1bd80" stroke-width="1.4"/>
+      <g fill="none" stroke="#f1bd80" stroke-width=".9" opacity=".56">
+        <path d="M-29.7 -16.6 C-21.4 -15.4 21.4 -15.4 29.7 -16.6"/>
+        <path d="M-37.4 -15.2 C-26.9 -12.8 26.9 -12.8 37.4 -15.2"/>
+        <path d="M-45.1 -13.8 C-32.5 -10.2 32.5 -10.2 45.1 -13.8"/>
+        <path d="M-52.8 -12.5 C-38.0 -7.5 38.0 -7.5 52.8 -12.5"/>
+        <path d="M-60.5 -11.1 C-43.5 -4.9 43.5 -4.9 60.5 -11.1"/>
+        <path d="M-68.2 -9.7 C-49.1 -2.3 49.1 -2.3 68.2 -9.7"/>
+        <path d="M-75.8 -8.3 C-54.6 0.3 54.6 0.3 75.8 -8.3"/>
+        <path d="M-83.5 -6.9 C-60.1 2.9 60.1 2.9 83.5 -6.9"/>
+        <path d="M-91.2 -5.5 C-65.7 5.5 65.7 5.5 91.2 -5.5"/>
+        <path d="M-98.9 -4.2 C-71.2 8.2 71.2 8.2 98.9 -4.2"/>
+        <path d="M-106.6 -2.8 C-76.8 10.8 76.8 10.8 106.6 -2.8"/>
+        <path d="M-114.3 -1.4 C-82.3 13.4 82.3 13.4 114.3 -1.4"/>
+        <path d="M-122.0 0.0 C-87.8 16.0 87.8 16.0 122.0 0.0"/>
+      </g>
+      <path d="M0 -47v16" stroke="#e3e4df" stroke-width="2"/>
+      <ellipse cx="0" cy="-32" rx="5" ry="2" fill="#e3e4df"/>
+    </g>
+  </g>
+</svg>

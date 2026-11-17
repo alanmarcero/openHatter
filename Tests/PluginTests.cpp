@@ -15,15 +15,32 @@ namespace {
 std::atomic<uint64_t> pluginCallbackAllocations { 0 };
 thread_local bool countPluginCallbackAllocations = false;
 
-void checkVisibleButtonTargets(juce::Component& component) {
+void checkVisibleControls(juce::Component& component, juce::Component& editor,
+                          std::vector<juce::Rectangle<int>>& targets) {
     for (auto* child : component.getChildren()) {
         if (!child->isVisible()) continue;
         if (auto* button = dynamic_cast<juce::TextButton*>(child)) {
             INFO(button->getButtonText());
+            CHECK(button->getWidth() >= 44);
             CHECK(button->getHeight() >= 36);
-            CHECK(button->getLookAndFeel().getTextButtonFont(*button, button->getHeight()).getHeight() >= 14.0f);
+            CHECK(button->getTooltip().isNotEmpty());
+            const auto font = button->getLookAndFeel().getTextButtonFont(*button, button->getHeight());
+            CHECK(font.getHeight() >= 14.0f);
+            CHECK(juce::GlyphArrangement::getStringWidthInt(font, button->getButtonText()) <= button->getWidth() - 8);
+        } else if (auto* box = dynamic_cast<juce::ComboBox*>(child)) {
+            INFO(box->getName());
+            CHECK(box->getHeight() >= 36);
+            const auto font = box->getLookAndFeel().getComboBoxFont(*box);
+            for (int item = 0; item < box->getNumItems(); ++item)
+                CHECK(juce::GlyphArrangement::getStringWidthInt(font, box->getItemText(item)) <= box->getWidth() - 32);
+        } else if (!dynamic_cast<juce::Slider*>(child)) {
+            checkVisibleControls(*child, editor, targets);
+            continue;
         }
-        checkVisibleButtonTargets(*child);
+        const auto bounds = editor.getLocalArea(child, child->getLocalBounds());
+        REQUIRE(editor.getLocalBounds().contains(bounds));
+        CHECK(std::none_of(targets.begin(), targets.end(), [&](const auto& other) { return other.intersects(bounds); }));
+        targets.push_back(bounds);
     }
 }
 }
@@ -576,7 +593,7 @@ TEST_CASE("OpenHatterProcessor renders audio upon MIDI note-on", "[plugin]") {
 
 TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]") {
     OpenHatterProcessor proc1;
-    proc1.setCurrentProgram(12); // Lucent Rise
+    proc1.setCurrentProgram(12);
     const auto setValue = [&proc1](const char* id, float value) {
         auto* parameter = proc1.parameters.getParameter(id);
         REQUIRE(parameter != nullptr);
@@ -605,58 +622,163 @@ TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]"
     REQUIRE(std::abs(proc2.parameters.getRawParameterValue(openhatter::params::kAmpRelease)->load() - 20000.0f) < 0.1f);
 }
 
-TEST_CASE("OpenHatterEditor renders every page in both control modes", "[plugin][gui]") {
+TEST_CASE("Earlier banks keep their saved sound across a second save", "[plugin][presets]") {
     OpenHatterProcessor processor;
-    processor.prepareToPlay(48000.0, 512);
-
-    if (std::getenv("OPENHATTER_PERFORMANCE_CAPTURE") != nullptr) {
-        const auto setCaptureValue = [&processor](const char* id, float value) {
-            auto* parameter = processor.parameters.getParameter(id);
-            REQUIRE(parameter != nullptr);
-            parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
-        };
-        setCaptureValue(openhatter::params::kRollEnabled, 1.0f);
-        setCaptureValue(openhatter::params::kRollDivision, 2.0f);
-        setCaptureValue(openhatter::params::kRollSwing, 0.12f);
-        setCaptureValue(openhatter::params::kRollAccent, 0.5f);
+    auto legacy = processor.parameters.copyState();
+    legacy.setProperty("preset_catalog_version", 3, nullptr);
+    legacy.setProperty("section_lock_1", true, nullptr);
+    for (auto child : legacy) {
+        if (child.getProperty("id") == openhatter::params::kToneDecay)
+            child.setProperty("value", 419.0f, nullptr);
+        if (child.getProperty("id") == openhatter::params::kAmpEnabled)
+            child.setProperty("value", 1.0f, nullptr);
     }
+    juce::MemoryBlock bytes;
+    juce::AudioProcessor::copyXmlToBinary(*legacy.createXml(), bytes);
+    processor.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+    CHECK(processor.hasLegacySound());
+    processor.getStateInformation(bytes);
+    OpenHatterProcessor restored;
+    restored.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
+    CHECK(restored.hasLegacySound());
+    CHECK(restored.isSectionLocked(OpenHatterProcessor::PresetSection::cymbalAndTuning));
+    CHECK(std::abs(restored.parameters.getRawParameterValue(openhatter::params::kToneDecay)->load() - 419.0f) < .01f);
+    CHECK(restored.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() > .5f);
+    restored.setCurrentProgram(0);
+    CHECK_FALSE(restored.hasLegacySound());
+}
 
-    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
-    REQUIRE(editor != nullptr);
-    REQUIRE(editor->getWidth() == 1360);
-    REQUIRE(editor->getHeight() == 972);
-    auto* hatterEditor = dynamic_cast<OpenHatterEditor*>(editor.get());
-    REQUIRE(hatterEditor != nullptr);
-
-    for (int mode = 0; mode < 2; ++mode) {
-        hatterEditor->setAdvancedView(mode == 1);
-        for (int page = 0; page < 2; ++page) {
-            hatterEditor->setPage(page);
-            REQUIRE(hatterEditor->getPage() == page);
-            checkVisibleButtonTargets(*hatterEditor);
-            const auto snapshot = editor->createComponentSnapshot(editor->getLocalBounds());
-            REQUIRE(snapshot.isValid());
-            REQUIRE(snapshot.getWidth() == 1360);
-            REQUIRE(snapshot.getHeight() == 972);
-
-            const char* capturePath = nullptr;
-            if (mode == 1 && page == 0)
-                capturePath = std::getenv("OPENHATTER_SOUND_CAPTURE");
-            if (mode == 1 && page == 1)
-                capturePath = std::getenv("OPENHATTER_PERFORMANCE_CAPTURE");
-            if (capturePath != nullptr) {
-                juce::File outputFile(capturePath);
-                REQUIRE(outputFile.getParentDirectory().createDirectory().wasOk());
-                if (outputFile.exists())
-                    REQUIRE(outputFile.deleteFile());
-                auto output = outputFile.createOutputStream();
-                REQUIRE(output != nullptr);
-                juce::PNGImageFormat png;
-                REQUIRE(png.writeImageToStream(snapshot, *output));
-                output->flush();
-            }
+TEST_CASE("The cymbal SVG follows playback, seeks, stop and the internal beat", "[plugin][gui][beat]") {
+    struct Host : juce::AudioPlayHead {
+        PositionInfo position;
+        juce::Optional<PositionInfo> getPosition() const override { return position; }
+    } host;
+    OpenHatterProcessor processor;
+    processor.prepareToPlay(48000, 480);
+    processor.setPlayHead(&host);
+    juce::AudioBuffer<float> audio(2, 480);
+    juce::MidiBuffer midi;
+    const auto frame = [&](double ppq, double bpm, bool playing, float expected) {
+        host.position.setPpqPosition(ppq);
+        host.position.setBpm(bpm);
+        host.position.setIsPlaying(playing);
+        processor.processBlock(audio, midi);
+        CHECK(std::abs(processor.displayBeatPhase.load() - expected) < .0001f);
+        std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+        return editor->createComponentSnapshot({ 28, 160, 295, 146 });
+    };
+    const auto raised = frame(-2.52, 120.0, true, .50f);
+    const auto closed = frame(14.24, 60.0, true, .25f);
+    const auto stopped = frame(14.44, 90.0, false, 0.0f);
+    const auto stoppedAfterSeek = frame(-5.72, 150.0, false, 0.0f);
+    int changedPixels = 0, stoppedDifference = 0;
+    for (int y = 0; y < raised.getHeight(); ++y) {
+        for (int x = 0; x < raised.getWidth(); ++x) {
+            changedPixels += raised.getPixelAt(x, y) != closed.getPixelAt(x, y);
+            stoppedDifference += stopped.getPixelAt(x, y) != stoppedAfterSeek.getPixelAt(x, y);
         }
     }
+    CHECK(changedPixels > 700);
+    CHECK(stoppedDifference == 0);
+
+    processor.setPlayHead(nullptr);
+    OpenHatterProcessor unhosted;
+    unhosted.prepareToPlay(48000, 480);
+    unhosted.processBlock(audio, midi);
+    CHECK(std::abs(unhosted.displayBeatPhase.load() - .023f) < .0001f);
+}
+
+TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[plugin][gui]") {
+    OpenHatterProcessor processor;
+    processor.prepareToPlay(48000.0, 512);
+    juce::AudioBuffer<float> audio(2, 512);
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 66, static_cast<juce::uint8>(104)), 0);
+    processor.processBlock(audio, midi);
+    midi.clear();
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto find = [&](auto&& self, juce::Component& parent, const juce::String& name) -> juce::Component* {
+        for (auto* child : parent.getChildren()) {
+            if (!child->isVisible()) continue;
+            if (auto* button = dynamic_cast<juce::TextButton*>(child); button && button->getButtonText() == name) return child;
+            if (child->getName() == name || child->getComponentID() == name) return child;
+            if (auto* found = self(self, *child, name)) return found;
+        }
+        return nullptr;
+    };
+    const auto click = [&](const char* name) {
+        auto* target = find(find, *editor, name);
+        INFO(name);
+        REQUIRE(dynamic_cast<juce::TextButton*>(target) != nullptr);
+        const auto pos = target->getLocalBounds().getCentre().toFloat();
+        const auto now = juce::Time::getCurrentTime();
+        const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), pos,
+            juce::ModifierKeys::leftButtonModifier, 1, 0, 0, 0, 0, target, target, now, pos, now, 1, false);
+        target->mouseDown(event);
+        target->mouseUp(event);
+    };
+    const auto capture = [&](const char* page) {
+        std::vector<juce::Rectangle<int>> targets;
+        checkVisibleControls(*editor, *editor, targets);
+        const auto image = editor->createComponentSnapshot(editor->getLocalBounds());
+        REQUIRE(image.isValid());
+        if (const auto* directory = std::getenv("OPENHATTER_CAPTURE_DIR")) {
+            auto file = juce::File(directory).getChildFile(juce::String("openHatter-") + page + ".png");
+            REQUIRE(file.deleteFile());
+            auto stream = file.createOutputStream();
+            REQUIRE(stream != nullptr);
+            REQUIRE(juce::PNGImageFormat{}.writeImageToStream(image, *stream));
+        }
+    };
+
+    capture("hat");
+    auto* presets = dynamic_cast<juce::ComboBox*>(find(find, *editor, "Factory preset"));
+    REQUIRE(presets != nullptr);
+    CHECK(presets->getRootMenu()->getNumItems() == 6);
+    presets->setSelectedId(48, juce::sendNotificationSync);
+    CHECK(processor.getCurrentProgram() == 47);
+    click("Next");
+    CHECK(processor.getCurrentProgram() == 0);
+    click("Next");
+    CHECK(processor.getCurrentProgram() == 1);
+    click("Previous");
+    CHECK(processor.getCurrentProgram() == 0);
+    click("Preview hat");
+    processor.processBlock(audio, midi);
+    CHECK(audio.getMagnitude(0, 512) > .05f);
+    CHECK(processor.displayTriggerCount.load() == 2);
+    CHECK(find(find, *editor, openhatter::params::kMetalSpread) == nullptr);
+    click("Detailed controls");
+    CHECK(find(find, *editor, openhatter::params::kMetalSpread) != nullptr);
+    capture("detail");
+    click("Envelope");
+    click("Hold notes");
+    REQUIRE(processor.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() > .5f);
+    for (auto [id, value] : { std::pair{ openhatter::params::kAmpAttack, 9.0f },
+                              { openhatter::params::kAmpDecay, 160.0f }, { openhatter::params::kAmpSustain, .65f },
+                              { openhatter::params::kAmpRelease, 20000.0f } }) {
+        auto* slider = dynamic_cast<juce::Slider*>(find(find, *editor, id));
+        REQUIRE(slider != nullptr);
+        slider->setValue(value, juce::sendNotificationSync);
+        CHECK(std::abs(processor.parameters.getRawParameterValue(id)->load() - value) < .01f);
+    }
+    capture("envelope");
+    click("One-shot");
+    CHECK(processor.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() < .5f);
+    click("Performance");
+    click("Roll off");
+    click("Active");
+    click("Solo");
+    REQUIRE(find(find, *editor, "Muted") != nullptr);
+    REQUIRE(find(find, *editor, "Soloed") != nullptr);
+    click("Muted");
+    click("Soloed");
+    CHECK(processor.parameters.getRawParameterValue(openhatter::params::kRollEnabled)->load() > .5f);
+    capture("performance");
+    click("Effects");
+    click("Lock");
+    CHECK(processor.isSectionLocked(OpenHatterProcessor::PresetSection::exciter));
+    capture("effects");
 }
 
 TEST_CASE("Legacy pitch lock does not override factory preset modal controls", "[plugin][pitch_lock]") {
@@ -695,7 +817,7 @@ TEST_CASE("Legacy pitch lock does not override factory preset modal controls", "
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - presetValue(1, openhatter::params::kToneNote)) < 0.05f);
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFine)->load() - presetValue(1, openhatter::params::kToneFine)) < 0.5f);
 
-    processor.setCurrentProgram(10); // Uplifting | Climb Marker has octave 7 default
+    processor.setCurrentProgram(10);
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - presetValue(10, openhatter::params::kToneOctave)) < 0.05f);
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFreq)->load() - presetValue(10, openhatter::params::kToneFreq)) < 5.0f);
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - presetValue(10, openhatter::params::kToneNote)) < 0.05f);
@@ -718,50 +840,37 @@ TEST_CASE("Cymbal Octave supports high octaves up to 8", "[plugin][octave]") {
     REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 6.0f) < 0.05f);
 }
 
-TEST_CASE("All 48 factory presets render high-fidelity, balanced, clean audio", "[plugin][presets_audio]") {
-    OpenHatterProcessor processor;
-    processor.prepareToPlay(48000.0, 512);
-
-    for (int p = 0; p < 48; ++p) {
-        processor.setCurrentProgram(p);
-
+TEST_CASE("All factory hats speak promptly and leave space after the offbeat", "[plugin][presets_audio]") {
+    for (int program = 0; program < 48; ++program) {
+        OpenHatterProcessor processor;
+        processor.setCurrentProgram(program);
+        processor.prepareToPlay(48000.0, 512);
         juce::AudioBuffer<float> buffer(2, 512);
         juce::MidiBuffer midi;
-        midi.addEvent(juce::MidiMessage::noteOn(1, 66, (juce::uint8)100), 0);
-
-        float maxPeak = 0.0f;
-        float sumSquare = 0.0f;
-        int totalFrames = 0;
-
-        for (int block = 0; block < 40; ++block) { // ~426ms
-            if (block > 0) midi.clear();
-            buffer.clear();
+        midi.addEvent(juce::MidiMessage::noteOn(1, 66, static_cast<juce::uint8>(100)), 0);
+        float peak = 0, attackPeak = 0, tailPeak = 0;
+        double activeEnergy = 0;
+        for (int block = 0; block < 40; ++block) {
             processor.processBlock(buffer, midi);
-
-            for (int i = 0; i < 512; ++i) {
-                const float sL = buffer.getSample(0, i);
-                const float sR = buffer.getSample(1, i);
-                REQUIRE_FALSE(std::isnan(sL));
-                REQUIRE_FALSE(std::isnan(sR));
-                REQUIRE_FALSE(std::isinf(sL));
-                REQUIRE_FALSE(std::isinf(sR));
-
-                const float peak = std::max(std::abs(sL), std::abs(sR));
-                maxPeak = std::max(maxPeak, peak);
-                if (block < 12) {
-                    sumSquare += sL * sL + sR * sR;
-                    totalFrames += 2;
+            midi.clear();
+            for (int ch = 0; ch < 2; ++ch) {
+                for (int i = 0; i < 512; ++i) {
+                    const float value = buffer.getSample(ch, i);
+                    REQUIRE(std::isfinite(value));
+                    peak = std::max(peak, std::abs(value));
+                    if (block == 0) attackPeak = std::max(attackPeak, std::abs(value));
+                    if (block < 12) activeEnergy += value * value;
+                    if (block >= 28) tailPeak = std::max(tailPeak, std::abs(value));
                 }
             }
         }
-
-        const float rms = std::sqrt(sumSquare / static_cast<float>(totalFrames));
-
-        // Measure loudness during the hit, while peak still covers the full tail.
-        INFO(processor.getProgramName(p).toStdString());
-        INFO("peak=" << maxPeak << ", active rms=" << rms);
-        CHECK(maxPeak >= 0.35f);
-        REQUIRE(maxPeak <= 1.5f);
-        CHECK(rms >= 0.06f);
+        const double rms = std::sqrt(activeEnergy / (2 * 12 * 512));
+        INFO(processor.getProgramName(program).toStdString());
+        CAPTURE(peak, attackPeak, rms, tailPeak);
+        CHECK(attackPeak >= .30f);
+        CHECK(peak >= .35f);
+        CHECK(peak <= 1.0f);
+        CHECK(rms >= .06);
+        CHECK(tailPeak < .005f);
     }
 }

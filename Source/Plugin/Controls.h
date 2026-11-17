@@ -38,7 +38,7 @@ private:
 
 class Toggle : public juce::Component {
 public:
-    Toggle(Apvts& state, const juce::String& parameterId, const juce::String& text, juce::Colour accent);
+    Toggle(Apvts& state, const juce::String& parameterId, const juce::String& offText, const juce::String& onText, juce::Colour accent);
     void resized() override;
     void setTooltip(const juce::String& text);
     [[nodiscard]] juce::TextButton& button() noexcept { return button_; }
@@ -48,7 +48,7 @@ private:
     Apvts::ButtonAttachment attachment_;
 };
 
-class SectionLockButton : public juce::Component {
+class SectionLockButton : public juce::Component, private juce::Timer {
 public:
     SectionLockButton(const juce::String& sectionName, juce::Colour accent,
                       std::function<bool()> isLocked, std::function<void(bool)> setLocked);
@@ -56,15 +56,13 @@ public:
     void refresh();
 
 private:
-    juce::TextButton button_ { "LOCK" };
-    juce::Colour accent_;
+    void timerCallback() override;
+    juce::TextButton button_;
+    juce::String section_;
     std::function<bool()> isLocked_;
     std::function<void(bool)> setLocked_;
 };
 
 void layoutRow(juce::Rectangle<int> area, std::initializer_list<juce::Component*> components);
-void drawPanel(juce::Graphics& g, juce::Rectangle<int> area, const juce::String& title, juce::Colour accent);
-void drawCaption(juce::Graphics& g, juce::Rectangle<int> area, const juce::String& text);
-void drawGlow(juce::Graphics& g, juce::Rectangle<float> area, juce::Colour colour);
 
 } // namespace openhatter::ui

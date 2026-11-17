@@ -484,7 +484,7 @@ void HatEngine::process(
 
     fallbackPpq_ = ppq;
     currentPeak_ = blockPeak;
-    currentBeatPhase_ = static_cast<float>(std::fmod(ppq, 1.0));
+    currentBeatPhase_ = transport.isPlaying ? static_cast<float>(ppq - std::floor(ppq)) : 0.0f;
 }
 
 } // namespace openhatter::core

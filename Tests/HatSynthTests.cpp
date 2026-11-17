@@ -379,3 +379,69 @@ TEST_CASE("HatSynth metal stereo spread scales upper-mode width", "[core][synth]
 
     REQUIRE(sideEnergy(0.0f) < sideEnergy(2.0f));
 }
+
+TEST_CASE("Strike partials above Nyquist leave only the broadband contact", "[core][synth][strike]") {
+    for (const double rate : { 32000.0, 44100.0, 48000.0, 96000.0 }) {
+        for (const bool held : { false, true }) {
+            for (const auto type : { ChickType::CrispStick, ChickType::PedalFoot, ChickType::LaserTick }) {
+                HatSynthSettings settings;
+                settings.chickType = type;
+                settings.chickFreqHz = 10000;
+                settings.preChickJitter = 0;
+                settings.fullAdsrEnabled = held;
+                HatSynth lower, upper;
+                lower.prepare(rate);
+                upper.prepare(rate);
+                lower.triggerMidi(settings, 1, 108);
+                auto reference = settings;
+                reference.chickType = type == ChickType::LaserTick ? ChickType::PedalFoot : ChickType::LaserTick;
+                upper.triggerMidi(reference, 1, 120);
+                float difference = 0, contactPeak = 0;
+                for (int i = 0; i < static_cast<int>(rate * .020); ++i) {
+                    const float a = lower.processSampleLayers(settings).chick.left;
+                    const float b = upper.processSampleLayers(reference).chick.left;
+                    if (i > static_cast<int>(rate * .0002))
+                        difference = std::max(difference, std::abs(a - b));
+                    contactPeak = std::max(contactPeak, std::abs(a));
+                }
+                CAPTURE(rate, held, static_cast<int>(type));
+                CHECK(difference < 1.0e-6f);
+                CHECK(contactPeak > .05f);
+            }
+        }
+    }
+}
+
+TEST_CASE("Laser strike glides down to the played pitch from above", "[core][synth][strike]") {
+    for (const double rate : { 32000.0, 48000.0, 96000.0 }) {
+        for (const int note : { 48, 60 }) {
+            for (const bool held : { false, true }) {
+                HatSynthSettings settings;
+                settings.chickType = ChickType::LaserTick;
+                settings.chickFreqHz = 6800.0f;
+                settings.preChickJitter = 0;
+                settings.fullAdsrEnabled = held;
+                HatSynth played, ultrasonic;
+                played.prepare(rate);
+                ultrasonic.prepare(rate);
+                played.triggerMidi(settings, 1, note);
+                ultrasonic.triggerMidi(settings, 1, 127);
+                int crossings = 0;
+                float previous = 0;
+                for (int i = 0; i < static_cast<int>(rate * .006); ++i) {
+                    // Both stems share the same broadband strike. The reference tone is above Nyquist.
+                    const float tonal = played.processSampleLayers(settings).chick.left
+                        - ultrasonic.processSampleLayers(settings).chick.left;
+                    if (i >= static_cast<int>(rate * .003) && previous < 0 && tonal >= 0)
+                        ++crossings;
+                    previous = tonal;
+                }
+                const float baseHz = settings.chickFreqHz * midiNoteToHz(note) / midiNoteToHz(60);
+                const float observed = static_cast<float>(crossings) / .003f;
+                CAPTURE(rate, note, held, observed);
+                CHECK(observed >= baseHz);
+                CHECK(observed <= baseHz * 1.30f);
+            }
+        }
+    }
+}
