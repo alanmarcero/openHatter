@@ -24,9 +24,9 @@ private:
     OpenHatterProcessor& processor_;
     openhatter::ui::EdmLookAndFeel lookAndFeel_;
     juce::ComboBox presetBox_;
-    juce::TextButton prevPresetBtn_{ "<" };
-    juce::TextButton nextPresetBtn_{ ">" };
-    juce::TextButton auditionBtn_{ "AUDITION" };
+    juce::TextButton prevPresetBtn_{ "PREVIOUS PRESET" };
+    juce::TextButton nextPresetBtn_{ "NEXT PRESET" };
+    juce::TextButton auditionBtn_{ "PREVIEW HAT" };
     juce::TextButton pageToggleBtn_{ "PERFORMANCE" };
     openhatter::ui::MidiMonitorPanel midiPanel_;
     openhatter::ui::HatSynthPanel synthPanel_;

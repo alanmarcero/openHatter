@@ -1,10 +1,10 @@
-# openHatter v3 audio notes
+# openHatter v4 audio notes
 
 ## MIDI-tracked modal voice
 
 Each MIDI note-on maps to the equal-tempered frequency `440 × 2^((note - 69) / 12)`. This frequency drives the first partial of a six-mode metallic resonator. The remaining partials use inharmonic ratios selected by the cymbal mode. Their relative level and damping shape the metallic character; partials above Nyquist are omitted to avoid aliasing. The metal decay and upper-mode sweep shape each hit without changing its MIDI-selected base pitch.
 
-An independently shaped noise layer supplies the air tail. It supports white, pink silk, velvet shimmer, and low-fi textures with attack, hold, decay, curve, serial high-pass and low-pass filters, stereo width, and level. Stick bounces can precede the main hit with timing variation and alternating pan. A chick transient adds stick, pedal, or laser contact. The one-shot ADSR shapes the dry hit; the reverb tail continues separately.
+An independently shaped noise layer supplies the air tail. It supports white, pink silk, velvet shimmer, and low-fi textures with attack, hold, decay, curve, serial high-pass and low-pass filters, stereo width, and level. Every factory program maintains a clear air layer, while the factory tuned metal stays 12 dB below its authored level. Stick bounces can precede the main hit with timing variation and alternating pan. A chick transient adds stick, pedal, or laser contact. The one-shot ADSR shapes the dry hit; the reverb tail continues separately.
 
 ## Effects path
 

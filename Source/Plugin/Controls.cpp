@@ -5,12 +5,12 @@ namespace openhatter::ui {
 
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     slider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    slider_.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 56, 16);
+    slider_.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 68, 20);
     slider_.setColour(juce::Slider::rotarySliderFillColourId, accent);
     addAndMakeVisible(slider_);
 
     title_.setText(title, juce::dontSendNotification);
-    title_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    title_.setFont(juce::FontOptions(12.5f, juce::Font::bold));
     title_.setJustificationType(juce::Justification::centred);
     title_.setColour(juce::Label::textColourId, theme::kTextDim);
     addAndMakeVisible(title_);
@@ -27,7 +27,7 @@ void Knob::bind(Apvts& state, const juce::String& parameterId) {
 
 void Knob::resized() {
     auto area = getLocalBounds();
-    title_.setBounds(area.removeFromTop(16));
+    title_.setBounds(area.removeFromTop(19));
     slider_.setBounds(area);
 }
 
@@ -43,7 +43,7 @@ Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String
     addAndMakeVisible(box_);
 
     title_.setText(title, juce::dontSendNotification);
-    title_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    title_.setFont(juce::FontOptions(12.5f, juce::Font::bold));
     title_.setJustificationType(juce::Justification::centred);
     title_.setColour(juce::Label::textColourId, theme::kTextDim);
     addAndMakeVisible(title_);
@@ -62,7 +62,7 @@ void Choice::bind(Apvts& state, const juce::String& parameterId) {
 
 void Choice::resized() {
     auto area = getLocalBounds();
-    title_.setBounds(area.removeFromTop(16));
+    title_.setBounds(area.removeFromTop(19));
     box_.setBounds(area.reduced(2, 4));
 }
 
@@ -80,7 +80,7 @@ Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String
 }
 
 void Toggle::resized() {
-    button_.setBounds(getLocalBounds().reduced(2));
+    button_.setBounds(getLocalBounds().reduced(2, 3));
 }
 
 void Toggle::setTooltip(const juce::String& text) {
@@ -105,7 +105,7 @@ void SectionLockButton::resized() {
 
 void SectionLockButton::refresh() {
     const bool locked = isLocked_();
-    button_.setButtonText(locked ? "LOCKED" : "LOCK");
+    button_.setButtonText(locked ? "LOCKED" : "LOCK SECTION");
     button_.setColour(juce::TextButton::buttonColourId, locked ? accent_ : theme::kKnobBody);
     button_.setColour(juce::TextButton::textColourOffId, locked ? theme::kBackground : accent_);
     button_.setTooltip(locked ? "This section stays unchanged when you select another preset. Controls remain editable."

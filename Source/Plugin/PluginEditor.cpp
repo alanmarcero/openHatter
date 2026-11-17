@@ -67,7 +67,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     addAndMakeVisible(effectsPanel_);
     setPage(0);
     syncPresetBox();
-    setSize(1100, 972);
+    setSize(1360, 972);
     setResizable(false, false);
     startTimerHz(15);
 }
@@ -88,7 +88,7 @@ void OpenHatterEditor::setPage(int page) {
     synthPanel_.setVisible(soundPage);
     effectsPanel_.setVisible(soundPage);
     performancePanel_.setVisible(!soundPage);
-    pageToggleBtn_.setButtonText(soundPage ? "PERFORMANCE" : "SOUND DESIGN");
+    pageToggleBtn_.setButtonText(soundPage ? "PERFORMANCE CONTROLS" : "SOUND DESIGN CONTROLS");
     resized();
     repaint();
 }
@@ -100,7 +100,7 @@ void OpenHatterEditor::timerCallback() {
 
 void OpenHatterEditor::paint(juce::Graphics& g) {
     g.fillAll(theme::kBackground);
-    const auto header = getLocalBounds().removeFromTop(46);
+    const auto header = getLocalBounds().removeFromTop(50);
     g.setGradientFill(juce::ColourGradient(theme::kPanel.brighter(0.08f), 0.0f, 0.0f,
                                            theme::kBackground, 0.0f, static_cast<float>(header.getHeight()), false));
     g.fillRect(header);
@@ -110,17 +110,17 @@ void OpenHatterEditor::paint(juce::Graphics& g) {
     g.fillRect(0, header.getBottom() - 2, 192, 2);
 
     g.setColour(theme::kText);
-    g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
-    g.drawText("openHatter", 16, 5, 158, 26, juce::Justification::left, true);
-    g.setColour(theme::kAccentAqua);
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-    g.drawText("MIDI-TRACKED CYMBAL SYNTH", 18, 29, 260, 13, juce::Justification::left, true);
-    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(24.0f, juce::Font::bold));
+    g.drawText("openHatter", 18, 4, 174, 28, juce::Justification::left, true);
+    g.setColour(theme::kAccentSteel);
     g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText("V" JucePlugin_VersionString "  /  48 FACTORY PRESETS", getWidth() - 250, 15, 232, 16,
+    g.drawText("MIDI-TRACKED CYMBAL SYNTH", 20, 32, 280, 14, juce::Justification::left, true);
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.drawText("V" JucePlugin_VersionString "  /  48 FACTORY PRESETS", getWidth() - 300, 16, 282, 18,
                juce::Justification::right, true);
 
-    const auto presetBar = juce::Rectangle<int>(12, 51, getWidth() - 24, 39).toFloat();
+    const auto presetBar = juce::Rectangle<int>(12, 52, getWidth() - 24, 46).toFloat();
     g.setColour(theme::kPanel);
     g.fillRoundedRectangle(presetBar, 6.0f);
     g.setColour(theme::kPanelEdge);
@@ -129,12 +129,12 @@ void OpenHatterEditor::paint(juce::Graphics& g) {
 
 void OpenHatterEditor::resized() {
     constexpr int margin = 12;
-    const int rowY = 54;
-    prevPresetBtn_.setBounds(24, rowY, 34, 32);
-    presetBox_.setBounds(64, rowY + 2, 560, 28);
-    nextPresetBtn_.setBounds(630, rowY, 34, 32);
-    pageToggleBtn_.setBounds(676, rowY, 150, 32);
-    auditionBtn_.setBounds(getWidth() - 162, rowY, 138, 32);
+    const int rowY = 56;
+    prevPresetBtn_.setBounds(20, rowY, 148, 38);
+    presetBox_.setBounds(178, rowY, 630, 38);
+    nextPresetBtn_.setBounds(818, rowY, 142, 38);
+    pageToggleBtn_.setBounds(970, rowY, 222, 38);
+    auditionBtn_.setBounds(getWidth() - 180, rowY, 160, 38);
 
     if (page_ == 0) {
         midiPanel_.setBounds(margin, 100, getWidth() - margin * 2, 148);

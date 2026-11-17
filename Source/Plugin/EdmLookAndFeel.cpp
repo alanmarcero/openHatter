@@ -7,7 +7,7 @@ namespace {
 
 constexpr float kArcThickness = 3.5f;
 constexpr float kCornerRadius = 4.5f;
-constexpr float kControlFontSize = 12.0f;
+constexpr float kControlFontSize = 14.0f;
 
 } // namespace
 
@@ -195,7 +195,7 @@ juce::Font EdmLookAndFeel::getPopupMenuFont() {
 
 juce::Label* EdmLookAndFeel::createSliderTextBox(juce::Slider& slider) {
     auto* l = LookAndFeel_V4::createSliderTextBox(slider);
-    l->setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    l->setFont(juce::FontOptions(12.0f, juce::Font::bold));
     l->setJustificationType(juce::Justification::centred);
     l->setColour(juce::Label::backgroundColourId, theme::kBackground);
     l->setColour(juce::Label::outlineColourId, theme::kPanelEdge);

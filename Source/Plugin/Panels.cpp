@@ -17,9 +17,12 @@ void drawSection(juce::Graphics& g, juce::Rectangle<int> bounds,
     g.setColour(accent.withAlpha(0.8f));
     g.fillRoundedRectangle(area.removeFromTop(2.0f).reduced(9.0f, 0.0f), 1.0f);
     g.setColour(accent);
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-    g.drawText(title, bounds.reduced(9, 0).withY(bounds.getY() + 6).withHeight(18),
-               juce::Justification::centredLeft, true);
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    const auto titleArea = bounds.reduced(9, 0)
+                               .withY(bounds.getY() + 6)
+                               .withWidth(std::max(0, bounds.getWidth() - 126))
+                               .withHeight(18);
+    g.drawText(title, titleArea, juce::Justification::centredLeft, true);
 }
 
 void layoutRows(juce::Rectangle<int> area,
@@ -44,13 +47,13 @@ void drawMetric(juce::Graphics& g, juce::Rectangle<int> bounds,
     g.drawRoundedRectangle(bounds.toFloat().reduced(0.5f), 7.0f, 1.0f);
     auto area = bounds.reduced(12, 8);
     g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     g.drawText(label, area.removeFromTop(16), juce::Justification::left, true);
     g.setColour(accent);
     g.setFont(juce::FontOptions(25.0f, juce::Font::bold));
     g.drawText(value, area.removeFromTop(38), juce::Justification::left, true);
     g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(10.0f));
+    g.setFont(juce::FontOptions(11.0f));
     g.drawText(unit, area.removeFromTop(15), juce::Justification::left, true);
 }
 
@@ -104,13 +107,13 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
     g.drawRoundedRectangle(lead.toFloat().reduced(0.5f), 7.0f, 1.0f);
     auto noteArea = lead.reduced(16, 10);
     g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
     g.drawText(received ? "LAST NOTE" : "NO NOTE RECEIVED", noteArea.removeFromTop(16), juce::Justification::left, true);
     g.setColour(received ? theme::kAccentBrass : theme::kTextDim);
-    g.setFont(juce::FontOptions(received ? 39.0f : 22.0f, juce::Font::bold));
-    g.drawText(noteLabel, noteArea.removeFromTop(received ? 48 : 36), juce::Justification::left, true);
+    g.setFont(juce::FontOptions(received ? 42.0f : 23.0f, juce::Font::bold));
+    g.drawText(noteLabel, noteArea.removeFromTop(received ? 50 : 38), juce::Justification::left, true);
     g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(11.0f));
+    g.setFont(juce::FontOptions(12.0f));
     g.drawText(received ? "Pitch follows every incoming note-on" : "Send MIDI to track pitch and octave",
                noteArea, juce::Justification::left, true);
 
@@ -147,7 +150,7 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       preJitter_(processor.parameters, params::kPreJitter, "HUMANIZE", theme::kAccentCoral),
       flamSpread_(processor.parameters, params::kFlamSpread, "PAN", theme::kAccentCoral),
       preLevel_(processor.parameters, params::kPreLevel, "LEVEL", theme::kAccentCoral),
-      fullAdsr_(processor.parameters, params::kAmpEnabled, "FULL ADSR", theme::kAccentBrass),
+      fullAdsr_(processor.parameters, params::kAmpEnabled, "HOLD MIDI NOTES (ADSR)", theme::kAccentBrass),
       ampAttack_(processor.parameters, params::kAmpAttack, "ATTACK", theme::kAccentBrass),
       ampDecay_(processor.parameters, params::kAmpDecay, "DECAY", theme::kAccentBrass),
       ampSustain_(processor.parameters, params::kAmpSustain, "SUSTAIN", theme::kAccentBrass),
@@ -194,9 +197,9 @@ void HatSynthPanel::resized() {
         sectionBounds_[i] = { area.getX() + static_cast<int>(i) * (width + gap), area.getY(), width, area.getHeight() };
     }
 
-    cymbalLock_.setBounds(sectionBounds_[0].getRight() - 68, sectionBounds_[0].getY() + 5, 58, 18);
-    airLock_.setBounds(sectionBounds_[1].getRight() - 68, sectionBounds_[1].getY() + 5, 58, 18);
-    articulationLock_.setBounds(sectionBounds_[2].getRight() - 68, sectionBounds_[2].getY() + 5, 58, 18);
+    cymbalLock_.setBounds(sectionBounds_[0].getRight() - 120, sectionBounds_[0].getY() + 5, 110, 26);
+    airLock_.setBounds(sectionBounds_[1].getRight() - 120, sectionBounds_[1].getY() + 5, 110, 26);
+    articulationLock_.setBounds(sectionBounds_[2].getRight() - 120, sectionBounds_[2].getY() + 5, 110, 26);
 
     auto metal = sectionBounds_[0].reduced(6, 27);
     layoutRows(metal, {
@@ -237,7 +240,7 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
       velocityReverb_(processor.parameters, params::kVelocityReverb, "REVERB VEL", theme::kAccentAqua),
       chokeNote_(processor.parameters, params::kMidiChokeNote, "CHOKE NOTE", theme::kAccentCoral),
       chokeCc_(processor.parameters, params::kMidiChokeCc, "CHOKE CC", theme::kAccentCoral),
-      rollEnabled_(processor.parameters, params::kRollEnabled, "ROLL", theme::kAccentBrass),
+      rollEnabled_(processor.parameters, params::kRollEnabled, "ENABLE HOST ROLL", theme::kAccentBrass),
       rollDivision_(processor.parameters, params::kRollDivision, "DIVISION", theme::kAccentBrass),
       rollSwing_(processor.parameters, params::kRollSwing, "SWING", theme::kAccentBrass),
       rollAccent_(processor.parameters, params::kRollAccent, "ACCENT", theme::kAccentBrass) {
@@ -262,7 +265,7 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
         const auto prefix = "resonator_" + juce::String(resonator);
         controls.tune = std::make_unique<Knob>(processor.parameters, prefix + "_tune",
                                                "R" + juce::String(resonator) + " TUNE", theme::kAccentBrass);
-        controls.enabled = std::make_unique<Toggle>(processor.parameters, prefix + "_enabled", "ON", theme::kAccentAqua);
+        controls.enabled = std::make_unique<Toggle>(processor.parameters, prefix + "_enabled", "ENABLED", theme::kAccentAqua);
         controls.solo = std::make_unique<Toggle>(processor.parameters, prefix + "_solo", "SOLO", theme::kAccentCoral);
         controls.tune->setTooltip("Tune this metallic resonator by up to two octaves.");
         controls.enabled->setTooltip("Mute or enable this resonator component.");
@@ -295,7 +298,7 @@ void PerformancePanel::resized() {
     for (size_t i = 0; i < resonators_.size(); ++i) {
         auto cell = juce::Rectangle<int>(grid.getX() + static_cast<int>(i) * columnWidth,
                                         grid.getY(), columnWidth, grid.getHeight()).reduced(3, 0);
-        const int toggleHeight = 30;
+        const int toggleHeight = 38;
         auto toggles = cell.removeFromBottom(toggleHeight);
         resonators_[i].tune->setBounds(cell);
         const int toggleWidth = (toggles.getWidth() - 4) / 2;
@@ -318,7 +321,7 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
       compMix_(processor.parameters, params::kCompMix, "MIX", theme::kAccentBrass),
       limiterCeiling_(processor.parameters, params::kLimiterCeiling, "CEILING", theme::kAccentBrass),
       limiterRelease_(processor.parameters, params::kLimiterRelease, "LIMIT RELEASE", theme::kAccentBrass),
-      limiterEnabled_(processor.parameters, params::kLimiterEnabled, "LIMITER", theme::kAccentBrass),
+      limiterEnabled_(processor.parameters, params::kLimiterEnabled, "ENABLE LIMITER", theme::kAccentBrass),
       reverbSize_(processor.parameters, params::kReverbSize, "SIZE", theme::kAccentAqua),
       reverbDecay_(processor.parameters, params::kReverbDecay, "DECAY", theme::kAccentAqua),
       reverbDamp_(processor.parameters, params::kReverbDamp, "DAMPING", theme::kAccentAqua),
@@ -359,9 +362,9 @@ void EffectsPanel::resized() {
     for (size_t i = 0; i < sectionBounds_.size(); ++i)
         sectionBounds_[i] = { area.getX() + static_cast<int>(i) * (width + gap), area.getY(), width, area.getHeight() };
 
-    exciterLock_.setBounds(sectionBounds_[0].getRight() - 68, sectionBounds_[0].getY() + 5, 58, 18);
-    dynamicsLock_.setBounds(sectionBounds_[1].getRight() - 68, sectionBounds_[1].getY() + 5, 58, 18);
-    spaceLock_.setBounds(sectionBounds_[2].getRight() - 68, sectionBounds_[2].getY() + 5, 58, 18);
+    exciterLock_.setBounds(sectionBounds_[0].getRight() - 120, sectionBounds_[0].getY() + 5, 110, 26);
+    dynamicsLock_.setBounds(sectionBounds_[1].getRight() - 120, sectionBounds_[1].getY() + 5, 110, 26);
+    spaceLock_.setBounds(sectionBounds_[2].getRight() - 120, sectionBounds_[2].getY() + 5, 110, 26);
 
     layoutRows(sectionBounds_[0].reduced(8, 29), {
         { &distType_, &distDrive_ },
