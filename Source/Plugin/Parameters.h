@@ -22,7 +22,7 @@ inline constexpr const char* kAmpDecay = "amp_decay";
 inline constexpr const char* kAmpSustain = "amp_sustain";
 inline constexpr const char* kAmpRelease = "amp_release";
 
-// Air Sizzle & Shimmer Noise
+// Air Sizzle & Shimmer Hiss
 inline constexpr const char* kNoiseType = "noise_type";
 inline constexpr const char* kNoiseAttack = "noise_attack";
 inline constexpr const char* kNoiseHold = "noise_hold";
@@ -33,6 +33,14 @@ inline constexpr const char* kNoiseLPF = "noise_lpf";
 inline constexpr const char* kNoiseStereoWidth = "noise_stereo_width";
 inline constexpr const char* kNoiseLevel = "noise_level";
 inline constexpr const char* kVelocityAir = "velocity_air";
+inline constexpr const char* kHissColor = "hiss_color";
+inline constexpr const char* kHissDensity = "hiss_density";
+inline constexpr const char* kHissDrive = "hiss_drive";
+
+// Spun Bronze Cymbal Body
+inline constexpr const char* kBodyLevel = "body_level";
+inline constexpr const char* kBodyTone = "body_tone";
+inline constexpr const char* kBodyDecay = "body_decay";
 
 // Stick Chick / Transient
 inline constexpr const char* kClickType = "click_type";

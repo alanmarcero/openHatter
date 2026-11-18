@@ -2,6 +2,8 @@
 #include "Parameters.h"
 #include "PluginEditor.h"
 #include "Presets.h"
+#include <ranges>
+#include <string_view>
 
 OpenHatterProcessor::OpenHatterProcessor()
     : AudioProcessor(BusesProperties()
@@ -160,8 +162,13 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
 
 double OpenHatterProcessor::getTailLengthSeconds() const {
     const auto settings = openhatter::params::readSettings(parameters);
-    const float dryTailMs = settings.synth.noiseAttackMs + settings.synth.noiseHoldMs
-        + settings.synth.noiseDecayMs * std::clamp(settings.synth.decayScale, 0.25f, 2.0f);
+    const float scale = std::clamp(settings.synth.decayScale, 0.25f, 2.0f);
+    const float airMs = settings.synth.noiseAttackMs + settings.synth.noiseHoldMs
+        + settings.synth.noiseDecayMs * scale;
+    const float bodyMs = settings.synth.bodyLevel > 0.001f
+        ? settings.synth.noiseAttackMs + settings.synth.bodyDecayMs * scale
+        : 0.0f;
+    const float dryTailMs = std::max(airMs, bodyMs);
     const float synthTailMs = std::max({ dryTailMs, settings.synth.reverbDecayMs, settings.synth.reverbGateMs });
     const float releaseMs = settings.synth.fullAdsrEnabled
         ? std::clamp(settings.synth.ampReleaseMs, 0.0f, 20000.0f)
@@ -208,31 +215,45 @@ void OpenHatterProcessor::setCurrentProgram(int index) {
 
 void OpenHatterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = parameters.copyState();
-    state.setProperty("preset_catalog_version", 5, nullptr);
+    state.setProperty("preset_catalog_version", 6, nullptr);
     state.setProperty("legacy_sound", hasLegacySound(), nullptr);
-    for (size_t i = 0; i < sectionLocks_.size(); ++i)
+    std::ranges::for_each(std::views::iota(size_t{0}, sectionLocks_.size()), [&](size_t i) {
         state.setProperty("section_lock_" + juce::String(i), sectionLocks_[i].load(std::memory_order_relaxed), nullptr);
+    });
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
 
 void OpenHatterProcessor::setStateInformation(const void* data, int sizeInBytes) {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
-    if (xmlState != nullptr && xmlState->hasTagName(parameters.state.getType())) {
-        auto state = juce::ValueTree::fromXml(*xmlState);
-        state.removeProperty("locked_wav", nullptr);
-        parameters.replaceState(state);
-        const int catalog = static_cast<int>(state.getProperty("preset_catalog_version", 0));
-        legacySound_.store(catalog != 5 || static_cast<bool>(state.getProperty("legacy_sound", false)));
-        for (size_t i = 0; i < sectionLocks_.size(); ++i) {
-            const auto property = "section_lock_" + juce::String(i);
-            sectionLocks_[i].store(catalog >= 2 && static_cast<bool>(state.getProperty(property, false)),
-                                   std::memory_order_relaxed);
-        }
-        if (auto* presetParam = parameters.getRawParameterValue(openhatter::params::kPreset))
-            currentProgram_ = std::clamp(static_cast<int>(*presetParam), 0, getNumPrograms() - 1);
-        displayLockedIn.store(false, std::memory_order_relaxed);
+    if (xmlState == nullptr || !xmlState->hasTagName(parameters.state.getType())) return;
+    auto state = juce::ValueTree::fromXml(*xmlState);
+    state.removeProperty("locked_wav", nullptr);
+    parameters.replaceState(state);
+    const int catalog = static_cast<int>(state.getProperty("preset_catalog_version", 0));
+    if (catalog < 6) {
+        // Older v4.4 and earlier sessions had no bronze body or hiss macro params; default them neutral if absent.
+        constexpr std::array<const char*, 6> kNewEngineParams{{
+            openhatter::params::kHissColor, openhatter::params::kHissDensity, openhatter::params::kHissDrive,
+            openhatter::params::kBodyLevel, openhatter::params::kBodyTone, openhatter::params::kBodyDecay
+        }};
+        std::ranges::for_each(kNewEngineParams, [&](const char* paramId) {
+            if (state.getChildWithProperty("id", paramId).isValid()) return;
+            if (auto* param = parameters.getParameter(paramId)) {
+                const float neutral = std::string_view(paramId) == openhatter::params::kBodyDecay ? 150.0f : 0.0f;
+                param->setValueNotifyingHost(param->convertTo0to1(neutral));
+            }
+        });
     }
+    legacySound_.store(catalog != 6 || static_cast<bool>(state.getProperty("legacy_sound", false)));
+    std::ranges::for_each(std::views::iota(size_t{0}, sectionLocks_.size()), [&](size_t i) {
+        const auto property = "section_lock_" + juce::String(i);
+        sectionLocks_[i].store(catalog >= 2 && static_cast<bool>(state.getProperty(property, false)),
+                               std::memory_order_relaxed);
+    });
+    if (auto* presetParam = parameters.getRawParameterValue(openhatter::params::kPreset))
+        currentProgram_ = std::clamp(static_cast<int>(*presetParam), 0, getNumPrograms() - 1);
+    displayLockedIn.store(false, std::memory_order_relaxed);
 }
 
 bool OpenHatterProcessor::isSectionLocked(PresetSection section) const noexcept {

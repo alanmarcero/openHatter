@@ -1,6 +1,9 @@
 #include "HatSynth.h"
+#include <algorithm>
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <ranges>
 #include <tuple>
 #include <utility>
 
@@ -87,11 +90,16 @@ TEST_CASE("HatSynth renders across all NoiseTypes and ChickTypes without errors"
     HatSynth synth;
     synth.prepare(48000.0);
 
-    const NoiseType noises[] = { NoiseType::CrispWhite, NoiseType::PinkSilk, NoiseType::VelvetShimmer, NoiseType::LoFiCrunch };
-    const ChickType chicks[] = { ChickType::CrispStick, ChickType::PedalFoot, ChickType::LaserTick };
+    const std::array<NoiseType, 8> noises {{
+        NoiseType::CrispWhite, NoiseType::PinkSilk, NoiseType::VelvetShimmer, NoiseType::LoFiCrunch,
+        NoiseType::AnalogMetal, NoiseType::BronzeCymbal, NoiseType::SupersawSizzle, NoiseType::CombWash
+    }};
+    const std::array<ChickType, 3> chicks {{
+        ChickType::CrispStick, ChickType::PedalFoot, ChickType::LaserTick
+    }};
 
-    for (auto noise : noises) {
-        for (auto chick : chicks) {
+    std::ranges::for_each(noises, [&](NoiseType noise) {
+        std::ranges::for_each(chicks, [&](ChickType chick) {
             HatSynthSettings settings;
             settings.noiseType = noise;
             settings.chickType = chick;
@@ -103,15 +111,49 @@ TEST_CASE("HatSynth renders across all NoiseTypes and ChickTypes without errors"
             REQUIRE(!left.empty());
             REQUIRE(left.size() == right.size());
 
-            float peak = 0.0f;
-            for (size_t i = 0; i < left.size(); ++i) {
+            float maxPeak = 0.0f;
+            std::ranges::for_each(std::views::iota(size_t{0}, left.size()), [&](size_t i) {
                 REQUIRE_FALSE(std::isnan(left[i]));
                 REQUIRE_FALSE(std::isnan(right[i]));
-                peak = std::max(peak, std::max(std::abs(left[i]), std::abs(right[i])));
-            }
-            REQUIRE(peak > 0.05f);
-        }
-    }
+                maxPeak = std::max(maxPeak, std::max(std::abs(left[i]), std::abs(right[i])));
+            });
+            REQUIRE(maxPeak > 0.05f);
+        });
+    });
+}
+
+TEST_CASE("Bronze body and hiss saturation add low-mid body weight and sustained tails", "[core][synth][body]") {
+    const auto renderAir = [](float bodyLevel, float hissDrive, float decayMs) {
+        HatSynth synth;
+        synth.prepare(48000.0);
+        HatSynthSettings settings;
+        settings.noiseType = NoiseType::BronzeCymbal;
+        settings.noiseHPF = 360.0f;
+        settings.noiseDecayMs = decayMs;
+        settings.bodyLevel = bodyLevel;
+        settings.bodyTone = 0.45f;
+        settings.bodyDecayMs = 240.0f;
+        settings.hissDrive = hissDrive;
+        settings.chickLevel = 0.0f;
+        settings.preChickLevel = 0.0f;
+        settings.reverbMix = 0.0f;
+        synth.trigger(settings, 1.0f);
+        std::vector<float> out;
+        while (synth.isPlaying())
+            out.push_back(synth.processSampleLayers(settings).air.left);
+        return out;
+    };
+
+    const auto thin = renderAir(0.0f, 0.0f, 500.0f);
+    const auto thick = renderAir(0.75f, 0.45f, 900.0f);
+    double thinEnergy = 0.0;
+    double thickEnergy = 0.0;
+    std::ranges::for_each(std::views::iota(size_t{0}, std::min(thin.size(), thick.size())), [&](size_t i) {
+        thinEnergy += static_cast<double>(thin[i]) * thin[i];
+        thickEnergy += static_cast<double>(thick[i]) * thick[i];
+    });
+    REQUIRE(thick.size() > 40000);
+    REQUIRE(thickEnergy > thinEnergy * 1.4);
 }
 
 TEST_CASE("HatSynth air layer is unpitched, so every MIDI note gets the same bright tail", "[core][synth][air]") {

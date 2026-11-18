@@ -1,6 +1,6 @@
 # Native openHatter editor
 
-The 1060 × 672 captures come from the JUCE editor. The Hat page shows a MIDI F♯4 at velocity 104. Its layered cymbal is a bundled SVG animated from the musical clock. The Envelope capture shows a held voice with a 20-second release.
+The 1060 × 866 captures come from the JUCE editor. The Hat page shows a MIDI F♯4 at velocity 104. Its layered cymbal is a bundled SVG animated from the musical clock. The Envelope capture shows a held voice with a 20-second release.
 
 ![Hat page](../assets/openHatter-hat.png)
 

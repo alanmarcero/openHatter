@@ -1,29 +1,29 @@
-# openHatter v4.4.0
+# openHatter v4.5.0
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
-openHatter is a hi-hat synthesizer built from filtered air and a stick or pedal strike. Use one-shots for sequenced offbeats, or hold a key to sustain the hat as a synth voice.
+openHatter is a spun-bronze and air hi-hat synthesizer built for trance and club drums. Pair an eight-mode hiss engine and bronzed modal shell resonators with a pitch-tracking stick strike, one-shot open tails up to 2.4 seconds, or held synth notes.
 
-![Native openHatter editor showing the selected hat, air decay, MIDI note and controls for the air and stick layers](assets/openHatter-hat.png)
+![Native openHatter editor showing the selected hat, hiss and body decay bars, MIDI monitor and controls for hiss, bronze body and stick layers](assets/openHatter-hat.png)
 
 ## Find a hat
 
-Choose a **Factory preset** or step through the bank with **Previous** and **Next**. **Preview hat** plays a one-shot at the last incoming pitch, or C4 before the first note. The 56 factory sounds span six dance styles: 16 Uplifting and eight each of Rolling, Progressive, Psy, Tech, and Classic.
+Choose a **Factory preset** or step through the bank with **Previous** and **Next**. **Preview hat** plays a one-shot at the last incoming pitch, or C4 before the first note. The 56 redone factory sounds span six dance styles led by **24 Uplifting Trance** presets alongside 8 Rolling, 8 Progressive, 6 Psy, 5 Tech, and 5 Classic hats.
 
 | Style | Try | What to listen for |
 | --- | --- | --- |
-| Uplifting | Long Arc | Bright, open air between kick hits |
-| Rolling | Main Floor | An even offbeat with a firm leading edge |
-| Progressive | Silk Offbeat | A soft, wide air tail |
-| Psy | Twin Pulses | Two close strikes with a pitched laser tick |
-| Tech | Dry Contact | A narrow, short hat with a defined attack |
-| Classic | Pressed Bronze | A stick strike and rounded 909-style air |
+| Uplifting | Euphoria Open / Skyward Wash | Full-bodied 138 BPM offbeats and long shimmering trance rides |
+| Rolling | Heavy Floor Open | Solid club pocket with warm bronze shell weight |
+| Progressive | Silk Offbeat | Smooth wide air tail and gentle stick attack |
+| Psy | Spectral Orbit | Modulated comb shimmer and pitched laser transient |
+| Tech | Industrial Bronze | Tight, saturated mid-bronze punch |
+| Classic | 909 Full Bronze | Thick analog-machine open cymbals with long ring |
 
 ## Shape the hit
 
-On **Hat**, set **Air tail** decay, low-pass cutoff and level for the length, brightness and weight of the hat. The air filters follow the knobs, not the played note, so every MIDI note keeps the same bright tail. **Stick & bounce** sets the contact type, strike count, frequency and level. **Detailed controls** opens air attack and hold, curve, high-pass, width and decay morph, plus bounce timing. **Output** puts the dual-layer 3-band EQ (±12 dB inner cap, smoothly gliding outer frequency collar), stereo width, output gain, and brickwall limiter directly on the main page.
+On **Hat**, **Hiss & air tail** selects from **8 Hiss Types** (*909 Crisp*, *Anjuna Silk*, *Velvet Shimmer*, *Lo-Fi Crunch*, *808 Analog Metal*, *Bronze Shimmer*, *Trance Sizzle*, and *Spectral Wash*) along with **Decay** (20–2400 ms), **Low-pass**, **Hiss level**, **Hiss color** tilt, **Density**, and pre-envelope analog **Saturation**. **Bronze body & stick** adds spun-bronze shell resonators (**Body level**, **Body tone**, **Body decay**) beneath the contact strike (**Strikes**, **Frequency**, **Strike level**). **Detailed controls** reveals air attack and hold (up to 120 ms), tail curve, high-pass, stereo width, decay morph, and bounce timing. **Output** puts the dual-layer 3-band EQ (±12 dB inner cap, smoothly gliding outer frequency collar), stereo width, output gain, and brickwall limiter directly on the main page.
 
-The animated cymbal opens on the offbeat and follows the host through tempo changes and seeks. It rests when transport stops and uses a 138 BPM clock in Standalone. The decay bar shows the current air decay in milliseconds. The MIDI monitor shows the last played note, frequency and velocity. The factory hats use 113–242 ms air decay. Each section's **Lock** keeps its settings when browsing. The Envelope page has its own lock for the amplitude envelope. You can edit a locked control and save the lock state with your project.
+The animated cymbal opens on the offbeat and follows the host through tempo changes and seeks. It rests when transport stops and uses a 138 BPM clock in Standalone. The dual decay bars show live **Hiss** and **Body** decay times in milliseconds. The MIDI monitor shows the last played note, frequency and velocity. Factory hats span **195–1120 ms** open decay with rich bronze body and longer gated tails. Each section's **Lock** keeps its settings when browsing.
 
 ## Play sustained notes
 

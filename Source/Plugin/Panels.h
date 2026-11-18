@@ -26,6 +26,7 @@ private:
     int lastNote_ = -1;
     float lastVelocity_ = 0.0f;
     float airMs_ = 0;
+    float bodyMs_ = 0;
 };
 
 class HatSynthPanel : public juce::Component {
@@ -36,7 +37,7 @@ public:
     void setAdvancedMode(bool advanced);
 
 private:
-    // Noise tail
+    // Hiss & air tail
     Choice noiseType_;
     Knob noiseAttack_;
     Knob noiseHold_;
@@ -47,8 +48,14 @@ private:
     Knob noiseWidth_;
     Knob decayScale_;
     Knob noiseLevel_;
+    Knob hissColor_;
+    Knob hissDensity_;
+    Knob hissDrive_;
 
-    // Stick articulation
+    // Spun bronze body & stick articulation
+    Knob bodyLevel_;
+    Knob bodyTone_;
+    Knob bodyDecay_;
     Knob preBursts_;
     Knob preSpread_;
     Knob preDecay_;
@@ -70,12 +77,34 @@ public:
     explicit EnvelopePanel(OpenHatterProcessor& processor);
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void mouseMove(const juce::MouseEvent& event) override;
+    void mouseExit(const juce::MouseEvent& event) override;
+    void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
 
 private:
+    enum class DragHandle { none, attack, decaySustain, releaseSustain, sustainSegment };
+    struct EnvelopeGeometry {
+        juce::Rectangle<float> plot;
+        float attackX = 0.0f;
+        float decayX = 0.0f;
+        float releaseX = 0.0f;
+        float sustainY = 0.0f;
+    };
+
+    [[nodiscard]] EnvelopeGeometry computeGeometry() const noexcept;
+    [[nodiscard]] DragHandle hitTestHandle(juce::Point<float> pos) const noexcept;
+    void updateDrag(juce::Point<float> pos);
+    void setHandleGesture(DragHandle handle, bool begin);
+
+    OpenHatterProcessor& processor_;
     juce::TextButton oneShot_{ "One-shot" }, holdNotes_{ "Hold notes" };
     Knob attack_, decay_, sustain_, release_;
     SectionLockButton envelopeLock_;
     juce::ParameterAttachment gateAttachment_;
+    DragHandle hoverHandle_ = DragHandle::none;
+    DragHandle activeHandle_ = DragHandle::none;
 };
 
 class PerformancePanel : public juce::Component {

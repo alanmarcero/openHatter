@@ -150,6 +150,6 @@ jobs:
           files: openHatter-*.zip
           generate_release_notes: true
           body: |
-            48 new trance hats, a redesigned dark editor and a pitch-tracked, band-limited strike.
+            Spun-bronze cymbal body + 8-mode hiss sound engine, fuller open tails, and 56 redone presets led by 24 Uplifting Trance hats.
 
             ![openHatter native editor](https://raw.githubusercontent.com/alanmarcero/openHatter/${{ github.ref_name }}/assets/openHatter-hat.png)

@@ -41,23 +41,32 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kAmpRelease, 1 }, "Amp Release", juce::NormalisableRange<float>(0.0f, 20000.0f, 1.0f, 0.35f), 180.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
 
-    // Air Sizzle & Shimmer Noise
-    juce::StringArray noiseTypes{ "909 Crisp", "Anjuna Silk", "Velvet Shimmer", "Lo-Fi Crunch" };
+    // Air Sizzle & Shimmer Hiss
+    juce::StringArray noiseTypes{
+        "909 Crisp",
+        "Anjuna Silk",
+        "Velvet Shimmer",
+        "Lo-Fi Crunch",
+        "808 Analog Metal",
+        "Bronze Shimmer",
+        "Trance Sizzle",
+        "Spectral Wash"
+    };
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID{ kNoiseType, 1 }, "Air Texture", noiseTypes, 0));
+        juce::ParameterID{ kNoiseType, 1 }, "Hiss Type", noiseTypes, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kNoiseAttack, 1 }, "Off-Beat Swell", juce::NormalisableRange<float>(0.0f, 40.0f, 0.1f), 1.5f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kNoiseHold, 1 }, "Air Hold", juce::NormalisableRange<float>(0.0f, 30.0f, 0.1f), 3.0f,
+        juce::ParameterID{ kNoiseHold, 1 }, "Air Hold", juce::NormalisableRange<float>(0.0f, 120.0f, 0.1f), 12.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kNoiseDecay, 1 }, "Open Decay", juce::NormalisableRange<float>(20.0f, 1200.0f, 1.0f, 0.35f), 260.0f,
+        juce::ParameterID{ kNoiseDecay, 1 }, "Open Decay", juce::NormalisableRange<float>(20.0f, 2400.0f, 1.0f, 0.38f), 420.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kNoiseCurve, 1 }, "Tail Curve", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), -0.35f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kNoiseHPF, 1 }, "Air HPF", juce::NormalisableRange<float>(100.0f, 6000.0f, 1.0f, 0.35f), 1200.0f,
+        juce::ParameterID{ kNoiseHPF, 1 }, "Air HPF", juce::NormalisableRange<float>(60.0f, 6000.0f, 1.0f, 0.35f), 480.0f,
         juce::AudioParameterFloatAttributes().withLabel("Hz")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kNoiseLPF, 1 }, "Air LPF", juce::NormalisableRange<float>(1500.0f, 20000.0f, 1.0f, 0.35f), 16500.0f,
@@ -68,6 +77,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kNoiseLevel, 1 }, "Air Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.88f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kVelocityAir, 1 }, "Air Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kHissColor, 1 }, "Hiss Color", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kHissDensity, 1 }, "Hiss Density", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.35f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kHissDrive, 1 }, "Hiss Saturation", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f));
+
+    // Spun Bronze Cymbal Body
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kBodyLevel, 1 }, "Body Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.55f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kBodyTone, 1 }, "Body Tone", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.45f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kBodyDecay, 1 }, "Body Decay", juce::NormalisableRange<float>(25.0f, 900.0f, 1.0f, 0.40f), 150.0f,
+        juce::AudioParameterFloatAttributes().withLabel("ms")));
 
     // Stick Chick / Transient
     juce::StringArray clickTypes{ "Crisp Stick", "Pedal Foot", "Laser Tick" };
@@ -124,12 +148,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kReverbSize, 1 }, "Reverb Size", juce::NormalisableRange<float>(0.1f, 1.0f, 0.01f), 0.55f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kReverbDecay, 1 }, "Reverb Decay", juce::NormalisableRange<float>(50.0f, 2500.0f, 10.0f, 0.35f), 380.0f,
+        juce::ParameterID{ kReverbDecay, 1 }, "Reverb Decay", juce::NormalisableRange<float>(50.0f, 2500.0f, 10.0f, 0.35f), 620.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kReverbDamp, 1 }, "Reverb Damp", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kReverbGate, 1 }, "Choke Gate", juce::NormalisableRange<float>(0.0f, 600.0f, 5.0f), 180.0f,
+        juce::ParameterID{ kReverbGate, 1 }, "Choke Gate", juce::NormalisableRange<float>(0.0f, 1500.0f, 5.0f), 320.0f,
         juce::AudioParameterFloatAttributes().withLabel("ms")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kReverbMix, 1 }, "Reverb Mix", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.24f));
@@ -223,6 +247,12 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     s.synth.noiseStereoWidth = *apvts.getRawParameterValue(kNoiseStereoWidth);
     s.synth.noiseLevel = *apvts.getRawParameterValue(kNoiseLevel);
     s.synth.velocityAir = *apvts.getRawParameterValue(kVelocityAir);
+    if (const auto* pColor = apvts.getRawParameterValue(kHissColor)) s.synth.hissColor = *pColor;
+    if (const auto* pDensity = apvts.getRawParameterValue(kHissDensity)) s.synth.hissDensity = *pDensity;
+    if (const auto* pDrive = apvts.getRawParameterValue(kHissDrive)) s.synth.hissDrive = *pDrive;
+    if (const auto* pBodyLevel = apvts.getRawParameterValue(kBodyLevel)) s.synth.bodyLevel = *pBodyLevel;
+    if (const auto* pBodyTone = apvts.getRawParameterValue(kBodyTone)) s.synth.bodyTone = *pBodyTone;
+    if (const auto* pBodyDecay = apvts.getRawParameterValue(kBodyDecay)) s.synth.bodyDecayMs = *pBodyDecay;
 
     if (const auto* pClickType = apvts.getRawParameterValue(kClickType)) {
         s.synth.chickType = static_cast<openhatter::core::ChickType>(static_cast<int>(*pClickType));
