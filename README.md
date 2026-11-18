@@ -1,4 +1,4 @@
-# openHatter v4.3.0
+# openHatter v4.4.0
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
