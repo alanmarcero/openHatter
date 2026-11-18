@@ -8,7 +8,7 @@
 
 class OpenHatterProcessor : public juce::AudioProcessor {
 public:
-    enum class PresetSection : size_t { articulation, cymbalAndTuning, air, exciter, dynamics, spaceAndOutput, count };
+    enum class PresetSection : size_t { articulation, envelope, air, exciter, dynamics, spaceAndOutput, count };
 
     OpenHatterProcessor();
 

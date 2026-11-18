@@ -11,24 +11,11 @@
 
 namespace openhatter::core {
 
-inline constexpr int kNumNotes = 12;
-
-inline constexpr std::array<std::string_view, kNumNotes> kNoteNames = {
-    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
-};
-
 enum class NoiseType {
     CrispWhite = 0,
     PinkSilk = 1,
     VelvetShimmer = 2,
     LoFiCrunch = 3
-};
-
-enum class MetalMode {
-    Classic909 = 0,
-    AnjunaSilk = 1,
-    UpliftingFMBell = 2,
-    Analog808Crisp = 3
 };
 
 enum class ChickType {
@@ -38,11 +25,6 @@ enum class ChickType {
 };
 
 struct HatSynthSettings {
-    // Legacy tuning values are kept for offline render and state compatibility.
-    int note = 6;                 // 0..11 (F#), default F# (classic trance root)
-    int octave = 6;               // 1..8, default 6 (hi-hat fundamental register)
-    float fineCents = 0.0f;       // -50..+50 cents
-
     // Pre-Chick / Stick Bounce Articulation
     int preChickCount = 1;        // 1..5 micro-bounces before open ring
     float preChickSpreadMs = 8.0f;// 2..45 ms spacing between bounces
@@ -51,23 +33,7 @@ struct HatSynthSettings {
     float preChickFlamSpread = 0.35f; // 0..1 stereo micro-panning spread
     float preChickLevel = 0.65f;  // 0..1 volume of stick bounces
 
-    // Tunable Metallic Cymbal Matrix & Body
-    MetalMode metalMode = MetalMode::Classic909;
-    float toneFreqHz = 2800.0f;   // 300..8000 Hz metallic body center frequency
-    float toneQ = 3.0f;           // 0.5..12.0 resonance / bell focus
-    float toneDecayMs = 190.0f;   // 15..800 ms metallic body decay
-    float tonePitchEnv = 3.5f;    // -24..+24 semitone sweep across upper modal partials
-    float tonePitchDecayMs = 14.0f;// 3..80 ms upper-mode sweep decay
-    float metalSpread = 0.0f;     // -24..+24 semitone spread across upper modal partials
-    float metalDampingSlope = 0.0f; // -1..+1 adjusts upper-mode decay relative to the fundamental
-    float metalStereoSpread = 1.0f; // 0..2 scales stereo phase dispersion of upper modes
-    float ringMod = 0.0f;         // 0..1 cross-modulation between adjacent modal resonators
     float decayScale = 1.0f;      // 0.25..2.0 global open/closed decay morph macro
-    float toneLevel = 0.80f;      // 0..1 level of tuned metallic matrix
-    float velocityMetal = 1.0f;
-    std::array<bool, 6> resonatorEnabled { true, true, true, true, true, true };
-    std::array<bool, 6> resonatorSolo { false, false, false, false, false, false };
-    std::array<float, 6> resonatorTuneSemitones { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 
     bool fullAdsrEnabled = false;
     float ampAttackMs = 0.35f;
@@ -104,16 +70,6 @@ struct HatSynthSettings {
     bool operator==(const HatSynthSettings&) const noexcept = default;
 };
 
-// Computes base tuned frequency from note index, octave, and fine cents.
-[[nodiscard]] inline float noteToHz(int noteIndex, int octave, float fineCents = 0.0f) noexcept {
-    const int note = (noteIndex % kNumNotes + kNumNotes) % kNumNotes;
-    const int oct = std::clamp(octave, 1, 8);
-    // MIDI note: Octave 4 C is 60, Octave 4 A is 69 (440 Hz)
-    const int midiNote = 12 * (oct + 1) + note;
-    const float totalNotes = static_cast<float>(midiNote - 69) + (fineCents / 100.0f);
-    return 440.0f * std::pow(2.0f, totalNotes / 12.0f);
-}
-
 [[nodiscard]] inline float midiNoteToHz(int noteNumber) noexcept {
     const int midiNote = std::clamp(noteNumber, 0, 127);
     return 440.0f * std::pow(2.0f, static_cast<float>(midiNote - 69) / 12.0f);
@@ -138,7 +94,6 @@ struct StereoFrame {
 };
 
 struct HatSynthLayers {
-    StereoFrame metal;
     StereoFrame air;
     StereoFrame chick;
     StereoFrame reverb;
@@ -204,7 +159,7 @@ class HatSynth {
 public:
     void prepare(double sampleRate);
     void reset() noexcept;
-    void trigger(const HatSynthSettings& settings, float velocity = 1.0f, int semitoneOffset = 0) noexcept;
+    void trigger(const HatSynthSettings& settings, float velocity = 1.0f) noexcept;
     void triggerMidi(const HatSynthSettings& settings, float velocity, int midiNoteNumber, int midiChannel = 1) noexcept;
     void noteOff(int midiNoteNumber, int midiChannel, const HatSynthSettings& settings) noexcept;
     [[nodiscard]] StereoFrame processSample(const HatSynthSettings& settings) noexcept;
@@ -213,13 +168,12 @@ public:
     [[nodiscard]] bool isPlaying() const noexcept { return isPlaying_; }
     [[nodiscard]] float getEnvelopeProgress() const noexcept;
 
-    // Offline render helpers; the settings-based overload retains legacy root pitch.
+    // Offline render helpers.
     void renderBlock(
         std::vector<float>& leftOut,
         std::vector<float>& rightOut,
         const HatSynthSettings& settings,
-        float velocity = 1.0f,
-        int semitoneOffset = 0) noexcept;
+        float velocity = 1.0f) noexcept;
     void renderMidiBlock(
         std::vector<float>& leftOut,
         std::vector<float>& rightOut,
@@ -235,7 +189,7 @@ public:
     void copyRandomStateFrom(const HatSynth& source) noexcept { prngState_ = source.prngState_; }
 
 private:
-    void triggerAtFrequency(const HatSynthSettings& settings, float velocity, float baseFrequencyHz) noexcept;
+    void start(const HatSynthSettings& settings, float velocity) noexcept;
     [[nodiscard]] float fullAdsrEnvelopeAt(int sample, const HatSynthSettings& settings) const noexcept;
     [[nodiscard]] float generateNoiseSample(NoiseType type) noexcept;
     [[nodiscard]] float generateChickSample(ChickType type, float freqHz, int ageSamples, float level) noexcept;
@@ -243,8 +197,7 @@ private:
     double sampleRate_ = 48000.0;
     bool isPlaying_ = false;
     float velocity_ = 1.0f;
-    float baseFrequencyHz_ = 1850.0f;
-    float midiPitchRatio_ = 1.0f;
+    float midiPitchRatio_ = 1.0f; // the stick strike follows the played note; the air layer never does
     bool fullAdsrActive_ = false;
     int activeMidiNote_ = -1;
     int activeMidiChannel_ = 0;
@@ -265,11 +218,6 @@ private:
     std::array<float, 5> burstPans_{};
     int mainHitSample_ = 0;
 
-    // Independently damped modal frequencies excited by each MIDI note-on
-    std::array<float, 6> modalFrequencies_{};
-    std::array<float, 6> modalMaxDownwardSemitones_{};
-    std::array<float, 6> modalPhases_{};
-
     // Filter states for air sizzle noise (4-pole 24dB/oct cascaded filters)
     BiquadState noiseHPF1_L_{};
     BiquadState noiseHPF1_R_{};
@@ -288,11 +236,12 @@ private:
     float b0_nl1_ = 0.0f, b1_nl1_ = 0.0f, b2_nl1_ = 0.0f, a1_nl1_ = 0.0f, a2_nl1_ = 0.0f;
     float b0_nl2_ = 0.0f, b1_nl2_ = 0.0f, b2_nl2_ = 0.0f, a1_nl2_ = 0.0f, a2_nl2_ = 0.0f;
 
-    // PRNG and noise state
+    // PRNG and noise state (independent L/R filter/hold state for true stereo air)
     uint32_t prngState_ = 0x854378A1;
-    float pinkB0_ = 0.0f, pinkB1_ = 0.0f, pinkB2_ = 0.0f;
-    float lofiHeld_ = 0.0f;
-    int lofiCounter_ = 0;
+    float pinkB0_L_ = 0.0f, pinkB1_L_ = 0.0f, pinkB2_L_ = 0.0f;
+    float pinkB0_R_ = 0.0f, pinkB1_R_ = 0.0f, pinkB2_R_ = 0.0f;
+    float lofiHeld_L_ = 0.0f, lofiHeld_R_ = 0.0f;
+    int lofiCounter_L_ = 0, lofiCounter_R_ = 0;
 
     // Stereo phase diffuser for silk air decorrelation
     AllpassDiffuser noiseDiffL_{};

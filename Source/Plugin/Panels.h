@@ -25,7 +25,7 @@ private:
     float beatPhase_ = 0;
     int lastNote_ = -1;
     float lastVelocity_ = 0.0f;
-    float metalMs_ = 0, airMs_ = 0;
+    float airMs_ = 0;
 };
 
 class HatSynthPanel : public juce::Component {
@@ -36,19 +36,6 @@ public:
     void setAdvancedMode(bool advanced);
 
 private:
-    // Metallic resonator
-    Choice toneMode_;
-    Knob toneFreq_;
-    Knob toneQ_;
-    Knob toneDecay_;
-    Knob tonePitchEnv_;
-    Knob tonePitchDecay_;
-    Knob metalSpread_;
-    Knob metalDampingSlope_;
-    Knob metalStereoSpread_;
-    Knob ringMod_;
-    Knob toneLevel_;
-
     // Noise tail
     Choice noiseType_;
     Knob noiseAttack_;
@@ -73,9 +60,8 @@ private:
     Knob clickFreq_;
 
     SectionLockButton articulationLock_;
-    SectionLockButton cymbalLock_;
     SectionLockButton airLock_;
-    std::array<juce::Rectangle<int>, 3> sectionBounds_{};
+    std::array<juce::Rectangle<int>, 2> sectionBounds_{};
     bool advanced_ = false;
 };
 
@@ -88,6 +74,7 @@ public:
 private:
     juce::TextButton oneShot_{ "One-shot" }, holdNotes_{ "Hold notes" };
     Knob attack_, decay_, sustain_, release_;
+    SectionLockButton envelopeLock_;
     juce::ParameterAttachment gateAttachment_;
 };
 
@@ -98,13 +85,6 @@ public:
     void resized() override;
 
 private:
-    struct ResonatorControls {
-        std::unique_ptr<Knob> tune;
-        std::unique_ptr<Toggle> enabled;
-        std::unique_ptr<Toggle> solo;
-    };
-
-    Knob velocityMetal_;
     Knob velocityAir_;
     Knob velocityChick_;
     Knob velocityReverb_;
@@ -114,9 +94,7 @@ private:
     Choice rollDivision_;
     Knob rollSwing_;
     Knob rollAccent_;
-    std::array<ResonatorControls, 6> resonators_;
     juce::Rectangle<int> velocityBounds_, rollBounds_;
-    juce::Rectangle<int> resonatorBounds_;
 };
 
 class EffectsPanel : public juce::Component {

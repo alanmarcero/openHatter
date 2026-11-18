@@ -74,8 +74,6 @@ TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") 
 
     REQUIRE(processor.parameters.getParameter(openhatter::params::kPreBursts) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kFlamSpread) != nullptr);
-    REQUIRE(processor.parameters.getParameter(openhatter::params::kToneMode) != nullptr);
-    REQUIRE(processor.parameters.getParameter(openhatter::params::kToneFreq) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kClickType) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kNoiseType) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kDistDrive) != nullptr);
@@ -84,23 +82,20 @@ TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") 
     REQUIRE(processor.parameters.getParameter(openhatter::params::kReverbMix) != nullptr);
 }
 
-TEST_CASE("OpenHatter metal spread, damping, and width controls are automatable", "[plugin][parameters]") {
+TEST_CASE("OpenHatter decay morph and echo controls are automatable", "[plugin][parameters]") {
     OpenHatterProcessor processor;
-    for (const auto* id : { openhatter::params::kMetalSpread, openhatter::params::kMetalDampingSlope,
-                            openhatter::params::kMetalStereoSpread, openhatter::params::kRingMod,
-                            openhatter::params::kDecayScale, openhatter::params::kEchoMix }) {
+    for (const auto* id : { openhatter::params::kDecayScale, openhatter::params::kEchoMix }) {
         auto* parameter = processor.parameters.getParameter(id);
         REQUIRE(parameter != nullptr);
         CHECK(parameter->isAutomatable());
     }
 }
 
-TEST_CASE("OpenHatter ring mod, decay scale, and tempo-synced echo shape output", "[plugin][dsp]") {
+TEST_CASE("OpenHatter decay scale and tempo-synced echo shape output", "[plugin][dsp]") {
     OpenHatterProcessor dryProc, enhancedProc;
     dryProc.prepareToPlay(48000.0, 16000);
     enhancedProc.prepareToPlay(48000.0, 16000);
-    for (const auto& [id, val] : { std::pair{openhatter::params::kRingMod, 0.8f},
-                                   {openhatter::params::kDecayScale, 1.5f},
+    for (const auto& [id, val] : { std::pair{openhatter::params::kDecayScale, 1.5f},
                                    {openhatter::params::kEchoMix, 0.8f} }) {
         auto* param = enhancedProc.parameters.getParameter(id);
         REQUIRE(param != nullptr);
@@ -120,12 +115,11 @@ TEST_CASE("OpenHatter ring mod, decay scale, and tempo-synced echo shape output"
     REQUIRE(lateEnhanced > lateDry + 1.0f);
 }
 
-TEST_CASE("OpenHatter metal controls map to render settings", "[plugin][parameters]") {
+TEST_CASE("OpenHatter decay morph and echo map to render settings and survive state restore", "[plugin][parameters]") {
     OpenHatterProcessor processor;
-    const std::array<std::pair<const char*, float>, 3> values {{
-        { openhatter::params::kMetalSpread, 7.5f },
-        { openhatter::params::kMetalDampingSlope, -0.4f },
-        { openhatter::params::kMetalStereoSpread, 1.7f }
+    const std::array<std::pair<const char*, float>, 2> values {{
+        { openhatter::params::kDecayScale, 1.6f },
+        { openhatter::params::kEchoMix, 0.45f }
     }};
     for (const auto& [id, value] : values) {
         auto* parameter = processor.parameters.getParameter(id);
@@ -134,53 +128,41 @@ TEST_CASE("OpenHatter metal controls map to render settings", "[plugin][paramete
     }
 
     const auto settings = openhatter::params::readSettings(processor.parameters);
-    CHECK(std::abs(settings.synth.metalSpread - 7.5f) < 0.11f);
-    CHECK(std::abs(settings.synth.metalDampingSlope + 0.4f) < 0.011f);
-    CHECK(std::abs(settings.synth.metalStereoSpread - 1.7f) < 0.011f);
+    CHECK(std::abs(settings.synth.decayScale - 1.6f) < 0.011f);
+    CHECK(std::abs(settings.effects.echoMix - 0.45f) < 0.011f);
 
     juce::MemoryBlock state;
     processor.getStateInformation(state);
     OpenHatterProcessor restored;
     restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
     for (const auto& [id, value] : values)
-        CHECK(std::abs(restored.parameters.getRawParameterValue(id)->load() - value) < 0.11f);
+        CHECK(std::abs(restored.parameters.getRawParameterValue(id)->load() - value) < 0.011f);
 }
 
-TEST_CASE("OpenHatter presets reset metal controls unless the metal section is locked", "[plugin][presets][preset_lock]") {
+TEST_CASE("OpenHatter presets reset the envelope unless the envelope section is locked", "[plugin][presets][preset_lock]") {
     OpenHatterProcessor processor;
     const auto setValue = [&processor](const char* id, float value) {
         auto* parameter = processor.parameters.getParameter(id);
         REQUIRE(parameter != nullptr);
         parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
     };
-    setValue(openhatter::params::kMetalSpread, 14.0f);
-    setValue(openhatter::params::kMetalDampingSlope, 0.7f);
-    setValue(openhatter::params::kMetalStereoSpread, 1.8f);
+    setValue(openhatter::params::kAmpAttack, 14.0f);
     processor.setCurrentProgram(1);
-    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kMetalSpread)->load()) < 0.01f);
-    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kMetalDampingSlope)->load()) < 0.01f);
-    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kMetalStereoSpread)->load() - 1.0f) < 0.01f);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kAmpAttack)->load() - 0.15f) < 0.06f);
 
-    processor.setSectionLocked(OpenHatterProcessor::PresetSection::cymbalAndTuning, true);
-    setValue(openhatter::params::kMetalSpread, 7.0f);
+    processor.setSectionLocked(OpenHatterProcessor::PresetSection::envelope, true);
+    setValue(openhatter::params::kAmpAttack, 7.0f);
     processor.setCurrentProgram(2);
-    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kMetalSpread)->load() - 7.0f) < 0.1f);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kAmpAttack)->load() - 7.0f) < 0.1f);
 }
 
-TEST_CASE("OpenHatter exposes the approved velocity, resonator, choke, and roll controls", "[plugin][performance]") {
+TEST_CASE("OpenHatter exposes the approved velocity, choke, and roll controls", "[plugin][performance]") {
     OpenHatterProcessor processor;
-    const std::array<const char*, 4> velocityIds {
-        "velocity_metal", "velocity_air", "velocity_chick", "velocity_reverb"
+    const std::array<const char*, 3> velocityIds {
+        "velocity_air", "velocity_chick", "velocity_reverb"
     };
     for (const auto* id : velocityIds)
         REQUIRE(processor.parameters.getParameter(id) != nullptr);
-
-    for (int resonator = 1; resonator <= 6; ++resonator) {
-        const auto prefix = "resonator_" + juce::String(resonator);
-        REQUIRE(processor.parameters.getParameter(prefix + "_enabled") != nullptr);
-        REQUIRE(processor.parameters.getParameter(prefix + "_solo") != nullptr);
-        REQUIRE(processor.parameters.getParameter(prefix + "_tune") != nullptr);
-    }
 
     REQUIRE(processor.parameters.getParameter("midi_choke_note") != nullptr);
     REQUIRE(processor.parameters.getParameter("midi_choke_cc") != nullptr);
@@ -295,8 +277,8 @@ TEST_CASE("Full ADSR holds through sustain and completes a 20-second release", "
     setValue(openhatter::params::kAmpDecay, 1.0f);
     setValue(openhatter::params::kAmpSustain, 1.0f);
     setValue(openhatter::params::kAmpRelease, 20000.0f);
-    setValue(openhatter::params::kToneLevel, 1.0f);
-    setValue(openhatter::params::kNoiseLevel, 0.0f);
+    setValue(openhatter::params::kNoiseLevel, 1.0f);
+    setValue(openhatter::params::kNoiseHPF, 100.0f);
     setValue(openhatter::params::kClickLevel, 0.0f);
     setValue(openhatter::params::kPreLevel, 0.0f);
     setValue(openhatter::params::kReverbMix, 0.0f);
@@ -361,8 +343,7 @@ TEST_CASE("Full ADSR audition remains a bounded one-shot preview", "[plugin][mid
     setValue(openhatter::params::kAmpDecay, 1.0f);
     setValue(openhatter::params::kAmpSustain, 1.0f);
     setValue(openhatter::params::kAmpRelease, 20000.0f);
-    setValue(openhatter::params::kToneLevel, 1.0f);
-    setValue(openhatter::params::kNoiseLevel, 0.0f);
+    setValue(openhatter::params::kNoiseLevel, 1.0f);
     setValue(openhatter::params::kClickLevel, 0.0f);
     setValue(openhatter::params::kPreLevel, 0.0f);
     setValue(openhatter::params::kReverbMix, 0.0f);
@@ -423,11 +404,10 @@ TEST_CASE("MIDI note-off queueing adds no audio callback allocations", "[plugin]
 
 TEST_CASE("OpenHatter exposes independent stereo outputs for the sound layers", "[plugin][outputs]") {
     OpenHatterProcessor processor;
-    REQUIRE(processor.getBusCount(false) == 5);
-    REQUIRE(processor.getBus(false, 1)->getName() == "Metal");
-    REQUIRE(processor.getBus(false, 2)->getName() == "Air");
-    REQUIRE(processor.getBus(false, 3)->getName() == "Chick");
-    REQUIRE(processor.getBus(false, 4)->getName() == "Reverb");
+    REQUIRE(processor.getBusCount(false) == 4);
+    REQUIRE(processor.getBus(false, 1)->getName() == "Air");
+    REQUIRE(processor.getBus(false, 2)->getName() == "Chick");
+    REQUIRE(processor.getBus(false, 3)->getName() == "Reverb");
 }
 
 TEST_CASE("OpenHatter routes audio to enabled stereo layer buses", "[plugin][outputs]") {
@@ -436,7 +416,7 @@ TEST_CASE("OpenHatter routes audio to enabled stereo layer buses", "[plugin][out
     for (int bus = 1; bus < layout.outputBuses.size(); ++bus)
         layout.outputBuses.set(bus, juce::AudioChannelSet::stereo());
     REQUIRE(processor.setBusesLayout(layout));
-    REQUIRE(processor.getTotalNumOutputChannels() == 10);
+    REQUIRE(processor.getTotalNumOutputChannels() == 8);
     processor.prepareToPlay(48000.0, 2048);
 
     juce::AudioBuffer<float> buffer(processor.getTotalNumOutputChannels(), 2048);
@@ -444,7 +424,7 @@ TEST_CASE("OpenHatter routes audio to enabled stereo layer buses", "[plugin][out
     midi.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(110)), 0);
     processor.processBlock(buffer, midi);
 
-    for (int busIndex = 1; busIndex < 5; ++busIndex) {
+    for (int busIndex = 1; busIndex < 4; ++busIndex) {
         auto stem = processor.getBusBuffer(buffer, false, busIndex);
         float stemPeak = 0.0f;
         for (int channel = 0; channel < stem.getNumChannels(); ++channel)
@@ -455,7 +435,7 @@ TEST_CASE("OpenHatter routes audio to enabled stereo layer buses", "[plugin][out
     }
 }
 
-TEST_CASE("OpenHatter velocity curves change modal response independently of the MIDI note velocity", "[plugin][performance]") {
+TEST_CASE("OpenHatter air velocity curve shapes the response independently of the MIDI note velocity", "[plugin][performance]") {
     const auto renderPeak = [](float velocityCurve) {
         OpenHatterProcessor processor;
         const auto setValue = [&processor](const char* id, float value) {
@@ -463,9 +443,8 @@ TEST_CASE("OpenHatter velocity curves change modal response independently of the
             REQUIRE(parameter != nullptr);
             parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
         };
-        setValue("velocity_metal", velocityCurve);
-        setValue(openhatter::params::kToneLevel, 1.0f);
-        setValue(openhatter::params::kNoiseLevel, 0.0f);
+        setValue("velocity_air", velocityCurve);
+        setValue(openhatter::params::kNoiseLevel, 1.0f);
         setValue(openhatter::params::kClickLevel, 0.0f);
         setValue(openhatter::params::kPreLevel, 0.0f);
         setValue(openhatter::params::kReverbMix, 0.0f);
@@ -567,23 +546,6 @@ TEST_CASE("OpenHatterProcessor provides exactly 48 EDM and trance factory preset
     }
 }
 
-TEST_CASE("OpenHatter factory presets attenuate the tuned metal layer", "[plugin][presets]") {
-    OpenHatterProcessor processor;
-    auto* toneLevel = processor.parameters.getParameter(openhatter::params::kToneLevel);
-    REQUIRE(toneLevel != nullptr);
-    REQUIRE(std::abs(toneLevel->getNormalisableRange().start) < 0.001f);
-    REQUIRE(std::abs(toneLevel->getNormalisableRange().end - 1.0f) < 0.001f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneLevel)->load() - 0.20f) < 0.001f);
-
-    for (int i = 0; i < processor.getNumPrograms(); ++i) {
-        processor.setCurrentProgram(i);
-        INFO(processor.getProgramName(i).toStdString());
-        const float level = processor.parameters.getRawParameterValue(openhatter::params::kToneLevel)->load();
-        REQUIRE(level > 0.0f);
-        REQUIRE(level <= 0.24f);
-    }
-}
-
 TEST_CASE("OpenHatter factory presets retain a clear broadband air layer", "[plugin][presets]") {
     OpenHatterProcessor processor;
     for (int i = 0; i < processor.getNumPrograms(); ++i) {
@@ -626,7 +588,7 @@ TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]"
         parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
     };
     setValue("midi_choke_note", 49.0f);
-    setValue("resonator_3_tune", -7.5f);
+    setValue("decay_scale", 1.4f);
     setValue("roll_enabled", 1.0f);
     setValue(openhatter::params::kAmpEnabled, 1.0f);
     setValue(openhatter::params::kAmpRelease, 20000.0f);
@@ -642,7 +604,7 @@ TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]"
     const float p2 = proc2.parameters.getRawParameterValue(openhatter::params::kDistDrive)->load();
     REQUIRE(std::abs(p1 - p2) < 0.001f);
     REQUIRE(std::abs(proc2.parameters.getRawParameterValue("midi_choke_note")->load() - 49.0f) < 0.001f);
-    REQUIRE(std::abs(proc2.parameters.getRawParameterValue("resonator_3_tune")->load() + 7.5f) < 0.001f);
+    REQUIRE(std::abs(proc2.parameters.getRawParameterValue("decay_scale")->load() - 1.4f) < 0.011f);
     REQUIRE(proc2.parameters.getRawParameterValue("roll_enabled")->load() > 0.5f);
     REQUIRE(proc2.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() > 0.5f);
     REQUIRE(std::abs(proc2.parameters.getRawParameterValue(openhatter::params::kAmpRelease)->load() - 20000.0f) < 0.1f);
@@ -654,7 +616,7 @@ TEST_CASE("Earlier banks keep their saved sound across a second save", "[plugin]
     legacy.setProperty("preset_catalog_version", 3, nullptr);
     legacy.setProperty("section_lock_1", true, nullptr);
     for (auto child : legacy) {
-        if (child.getProperty("id") == openhatter::params::kToneDecay)
+        if (child.getProperty("id") == openhatter::params::kNoiseDecay)
             child.setProperty("value", 419.0f, nullptr);
         if (child.getProperty("id") == openhatter::params::kAmpEnabled)
             child.setProperty("value", 1.0f, nullptr);
@@ -667,8 +629,8 @@ TEST_CASE("Earlier banks keep their saved sound across a second save", "[plugin]
     OpenHatterProcessor restored;
     restored.setStateInformation(bytes.getData(), static_cast<int>(bytes.getSize()));
     CHECK(restored.hasLegacySound());
-    CHECK(restored.isSectionLocked(OpenHatterProcessor::PresetSection::cymbalAndTuning));
-    CHECK(std::abs(restored.parameters.getRawParameterValue(openhatter::params::kToneDecay)->load() - 419.0f) < .01f);
+    CHECK(restored.isSectionLocked(OpenHatterProcessor::PresetSection::envelope));
+    CHECK(std::abs(restored.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load() - 419.0f) < .01f);
     CHECK(restored.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() > .5f);
     restored.setCurrentProgram(0);
     CHECK_FALSE(restored.hasLegacySound());
@@ -773,9 +735,9 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
     processor.processBlock(audio, midi);
     CHECK(audio.getMagnitude(0, 512) > .05f);
     CHECK(processor.displayTriggerCount.load() == 2);
-    CHECK(find(find, *editor, openhatter::params::kMetalSpread) == nullptr);
+    CHECK(find(find, *editor, openhatter::params::kNoiseHold) == nullptr);
     click("Detailed controls");
-    CHECK(find(find, *editor, openhatter::params::kMetalSpread) != nullptr);
+    CHECK(find(find, *editor, openhatter::params::kNoiseHold) != nullptr);
     capture("detail");
     click("Envelope");
     click("Hold notes");
@@ -793,77 +755,12 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
     CHECK(processor.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() < .5f);
     click("Performance");
     click("Roll off");
-    click("Active");
-    click("Solo");
-    REQUIRE(find(find, *editor, "Muted") != nullptr);
-    REQUIRE(find(find, *editor, "Soloed") != nullptr);
-    click("Muted");
-    click("Soloed");
     CHECK(processor.parameters.getRawParameterValue(openhatter::params::kRollEnabled)->load() > .5f);
     capture("performance");
     click("Effects");
     click("Lock");
     CHECK(processor.isSectionLocked(OpenHatterProcessor::PresetSection::exciter));
     capture("effects");
-}
-
-TEST_CASE("Legacy pitch lock does not override factory preset modal controls", "[plugin][pitch_lock]") {
-    OpenHatterProcessor processor;
-    processor.prepareToPlay(48000.0, 512);
-
-    auto* lockParam = processor.parameters.getParameter(openhatter::params::kLockPitch);
-    REQUIRE(lockParam != nullptr);
-
-    auto* octaveParam = processor.parameters.getParameter(openhatter::params::kToneOctave);
-    auto* freqParam = processor.parameters.getParameter(openhatter::params::kToneFreq);
-    auto* noteParam = processor.parameters.getParameter(openhatter::params::kToneNote);
-    auto* fineParam = processor.parameters.getParameter(openhatter::params::kToneFine);
-    REQUIRE(octaveParam != nullptr);
-    REQUIRE(freqParam != nullptr);
-    REQUIRE(noteParam != nullptr);
-    REQUIRE(fineParam != nullptr);
-
-    const auto presetValue = [](int program, const juce::String& parameterId) {
-        for (const auto& [id, value] : openhatter::presets::factoryPresets()[static_cast<size_t>(program)].values)
-            if (id == parameterId)
-                return value;
-        return -1.0f;
-    };
-
-    octaveParam->setValueNotifyingHost(octaveParam->convertTo0to1(8.0f));
-    freqParam->setValueNotifyingHost(freqParam->convertTo0to1(3600.0f));
-    noteParam->setValueNotifyingHost(noteParam->convertTo0to1(4.0f));
-    fineParam->setValueNotifyingHost(fineParam->convertTo0to1(15.0f));
-
-    lockParam->setValueNotifyingHost(1.0f);
-
-    processor.setCurrentProgram(1);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - presetValue(1, openhatter::params::kToneOctave)) < 0.05f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFreq)->load() - presetValue(1, openhatter::params::kToneFreq)) < 5.0f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - presetValue(1, openhatter::params::kToneNote)) < 0.05f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFine)->load() - presetValue(1, openhatter::params::kToneFine)) < 0.5f);
-
-    processor.setCurrentProgram(10);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - presetValue(10, openhatter::params::kToneOctave)) < 0.05f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFreq)->load() - presetValue(10, openhatter::params::kToneFreq)) < 5.0f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneNote)->load() - presetValue(10, openhatter::params::kToneNote)) < 0.05f);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneFine)->load() - presetValue(10, openhatter::params::kToneFine)) < 0.5f);
-
-    lockParam->setValueNotifyingHost(0.0f);
-    processor.setCurrentProgram(10);
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - presetValue(10, openhatter::params::kToneOctave)) < 0.05f);
-}
-
-TEST_CASE("Cymbal Octave supports high octaves up to 8", "[plugin][octave]") {
-    OpenHatterProcessor processor;
-    auto* octaveParam = processor.parameters.getParameter(openhatter::params::kToneOctave);
-    REQUIRE(octaveParam != nullptr);
-
-    octaveParam->setValueNotifyingHost(octaveParam->convertTo0to1(8.0f));
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 8.0f) < 0.05f);
-
-    octaveParam->setValueNotifyingHost(octaveParam->convertTo0to1(6.0f));
-    REQUIRE(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kToneOctave)->load() - 6.0f) < 0.05f);
 }
 
 TEST_CASE("All factory hats speak promptly and leave space after the offbeat", "[plugin][presets_audio]") {

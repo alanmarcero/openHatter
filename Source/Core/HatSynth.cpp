@@ -190,37 +190,9 @@ StereoFrame GatedStereoReverb::process(
 
 namespace {
 
-constexpr std::array<std::array<float, 6>, 4> kModalRatios{{
-    {{1.0f, 1.48f, 1.80f, 2.24f, 2.73f, 3.33f}},
-    {{1.0f, 1.41f, 2.00f, 2.83f, 4.00f, 5.66f}},
-    {{1.0f, 1.50f, 2.25f, 3.00f, 4.50f, 6.75f}},
-    {{1.0f, 1.33f, 1.82f, 2.31f, 3.14f, 4.27f}}
-}};
-
-constexpr std::array<float, 6> kModalWeights{0.72f, 0.54f, 0.43f, 0.34f, 0.25f, 0.18f};
-constexpr std::array<float, 6> kModalDamping{1.00f, 0.72f, 0.56f, 0.42f, 0.31f, 0.24f};
-
-[[nodiscard]] size_t modeIndex(MetalMode mode) noexcept {
-    return std::min(static_cast<size_t>(mode), kModalRatios.size() - 1);
-}
-
-[[nodiscard]] float metalTailMs(const HatSynthSettings& settings) noexcept {
+[[nodiscard]] float airTailMs(const HatSynthSettings& settings) noexcept {
     const float scale = std::clamp(settings.decayScale, 0.25f, 2.0f);
-    const float decayMs = std::max(1.0f, settings.toneDecayMs * scale);
-    const float dampingSlope = std::clamp(settings.metalDampingSlope, -1.0f, 1.0f);
-    const float focus = std::clamp(settings.toneQ / 12.0f, 0.0f, 1.0f);
-    const bool hasSoloedResonator = std::any_of(settings.resonatorSolo.begin(), settings.resonatorSolo.end(),
-                                                [](bool solo) { return solo; });
-    float longestModeScale = 1.0f;
-    for (size_t i = 0; i < kModalDamping.size(); ++i) {
-        if (!settings.resonatorEnabled[i] || (hasSoloedResonator && !settings.resonatorSolo[i]))
-            continue;
-        const float partialPosition = static_cast<float>(i) / 5.0f;
-        const float dampingScale = std::exp2(dampingSlope * partialPosition * 2.0f);
-        longestModeScale = std::max(longestModeScale,
-            kModalDamping[i] * dampingScale * (0.72f + 0.55f * focus));
-    }
-    return decayMs * longestModeScale;
+    return settings.noiseAttackMs + settings.noiseHoldMs + settings.noiseDecayMs * scale;
 }
 
 } // namespace
@@ -247,9 +219,6 @@ void HatSynth::reset() noexcept {
     adsrReleaseStartSample_ = -1;
     adsrReleaseSamples_ = 0;
     adsrReleaseStartLevel_ = 0.0f;
-    modalFrequencies_.fill(0.0f);
-    modalMaxDownwardSemitones_.fill(0.0f);
-    modalPhases_.fill(0.0f);
 
     noiseHPF1_L_.reset();
     noiseHPF1_R_.reset();
@@ -262,23 +231,23 @@ void HatSynth::reset() noexcept {
 
     lastNoiseHPF_ = -1.0f;
     lastNoiseLPF_ = -1.0f;
-    pinkB0_ = pinkB1_ = pinkB2_ = 0.0f;
-    lofiHeld_ = 0.0f;
-    lofiCounter_ = 0;
+    pinkB0_L_ = pinkB1_L_ = pinkB2_L_ = 0.0f;
+    pinkB0_R_ = pinkB1_R_ = pinkB2_R_ = 0.0f;
+    lofiHeld_L_ = lofiHeld_R_ = 0.0f;
+    lofiCounter_L_ = lofiCounter_R_ = 0;
 
     noiseDiffL_.reset();
     noiseDiffR_.reset();
     reverb_.reset();
 }
 
-void HatSynth::trigger(const HatSynthSettings& settings, float velocity, int semitoneOffset) noexcept {
-    const float rootHz = noteToHz(settings.note, settings.octave, settings.fineCents);
-    triggerAtFrequency(settings, velocity, rootHz * std::pow(2.0f, static_cast<float>(semitoneOffset) / 12.0f));
+void HatSynth::trigger(const HatSynthSettings& settings, float velocity) noexcept {
+    start(settings, velocity);
 }
 
 void HatSynth::triggerMidi(const HatSynthSettings& settings, float velocity, int midiNoteNumber, int midiChannel) noexcept {
     const int note = std::clamp(midiNoteNumber, 0, 127);
-    triggerAtFrequency(settings, velocity, midiNoteToHz(note));
+    start(settings, velocity);
     midiPitchRatio_ = midiNoteToHz(note) / midiNoteToHz(60);
     activeMidiNote_ = note;
     activeMidiChannel_ = std::clamp(midiChannel, 1, 16);
@@ -323,34 +292,18 @@ void HatSynth::noteOff(int midiNoteNumber, int midiChannel, const HatSynthSettin
     adsrReleaseSamples_ = releaseMs <= 0.0f
         ? 0
         : std::max(1, static_cast<int>(releaseMs * 0.001f * static_cast<float>(sampleRate_)));
-    const float scale = std::clamp(settings.decayScale, 0.25f, 2.0f);
-    const float dryTailMs = std::max(settings.noiseAttackMs + settings.noiseHoldMs + settings.noiseDecayMs * scale,
-                                     metalTailMs(settings));
+    const float dryTailMs = airTailMs(settings);
     const float effectTailMs = std::max({ settings.reverbDecayMs, settings.reverbGateMs, dryTailMs });
     const int tailSamples = static_cast<int>((effectTailMs + 0.08f) * 0.001f * static_cast<float>(sampleRate_));
     totalDurationSamples_ = std::max(totalSamplesPlayed_ + 1,
         adsrReleaseStartSample_ + adsrReleaseSamples_ + tailSamples);
 }
 
-void HatSynth::triggerAtFrequency(const HatSynthSettings& settings, float velocity, float baseFrequencyHz) noexcept {
+void HatSynth::start(const HatSynthSettings& settings, float velocity) noexcept {
     reset();
     isPlaying_ = true;
     chokeStartSample_ = -1;
     velocity_ = std::clamp(velocity, 0.0f, 1.0f);
-    baseFrequencyHz_ = baseFrequencyHz;
-    for (auto& phase : modalPhases_)
-        phase = pi() * (nextRandomFloat(prngState_) + 1.0f);
-
-    const auto& ratios = kModalRatios[modeIndex(settings.metalMode)];
-    const float nyquist = static_cast<float>(sampleRate_) * 0.5f;
-    for (size_t i = 0; i < modalFrequencies_.size(); ++i) {
-        const float frequency = baseFrequencyHz_ * ratios[i];
-        if (frequency < nyquist) {
-            modalFrequencies_[i] = frequency;
-            modalMaxDownwardSemitones_[i] = std::max(0.0f,
-                12.0f * std::log2(ratios[i]) - 0.01f);
-        }
-    }
 
     preChickCount_ = std::clamp(settings.preChickCount, 1, 5);
     const float spreadSamples = std::max(0.0f, settings.preChickSpreadMs) * 0.001f * static_cast<float>(sampleRate_);
@@ -372,9 +325,7 @@ void HatSynth::triggerAtFrequency(const HatSynthSettings& settings, float veloci
         : 0;
 
     const float preRollMs = static_cast<float>(mainHitSample_) * 1000.0f / static_cast<float>(sampleRate_);
-    const float scale = std::clamp(settings.decayScale, 0.25f, 2.0f);
-    const float dryTailMs = std::max(settings.noiseAttackMs + settings.noiseHoldMs + settings.noiseDecayMs * scale,
-                                     metalTailMs(settings));
+    const float dryTailMs = airTailMs(settings);
     const float effectTailMs = std::max({settings.reverbDecayMs, settings.reverbGateMs, dryTailMs});
     dryDurationSamples_ = std::max(1, static_cast<int>((preRollMs + dryTailMs + 0.08f) * 0.001f * static_cast<float>(sampleRate_)));
     totalDurationSamples_ = std::max(dryDurationSamples_,
@@ -382,29 +333,26 @@ void HatSynth::triggerAtFrequency(const HatSynthSettings& settings, float veloci
 }
 
 float HatSynth::generateNoiseSample(NoiseType type) noexcept {
+    // Kept for single-channel callers; defaults to left channel state.
     const float white = nextRandomFloat(prngState_);
-
     if (type == NoiseType::PinkSilk) {
-        pinkB0_ = 0.99765f * pinkB0_ + white * 0.0990460f;
-        pinkB1_ = 0.96300f * pinkB1_ + white * 0.2965164f;
-        pinkB2_ = 0.57000f * pinkB2_ + white * 1.0526913f;
-        const float pink = (pinkB0_ + pinkB1_ + pinkB2_ + white * 0.1848f) * 0.35f;
+        pinkB0_L_ = 0.99765f * pinkB0_L_ + white * 0.0990460f;
+        pinkB1_L_ = 0.96300f * pinkB1_L_ + white * 0.2965164f;
+        pinkB2_L_ = 0.57000f * pinkB2_L_ + white * 1.0526913f;
+        const float pink = (pinkB0_L_ + pinkB1_L_ + pinkB2_L_ + white * 0.1848f) * 0.35f;
         return 0.5f * white + 0.5f * pink;
     }
-
     if (type == NoiseType::VelvetShimmer) {
         return std::abs(white) > 0.82f ? white * 4.0f : white * 0.22f;
     }
-
     if (type == NoiseType::LoFiCrunch) {
-        if (lofiCounter_ <= 0) {
-            lofiHeld_ = std::round(white * 31.0f) / 31.0f;
-            lofiCounter_ = 3;
+        if (lofiCounter_L_ <= 0) {
+            lofiHeld_L_ = std::round(white * 31.0f) / 31.0f;
+            lofiCounter_L_ = 3;
         }
-        --lofiCounter_;
-        return lofiHeld_;
+        --lofiCounter_L_;
+        return lofiHeld_L_;
     }
-
     return white;
 }
 
@@ -523,107 +471,43 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
     }
 
     const float rawNoiseL = generateNoiseSample(settings.noiseType);
-    const float rawNoiseR = generateNoiseSample(settings.noiseType);
+    const float whiteR = nextRandomFloat(prngState_);
+    float rawNoiseR = whiteR;
+    if (settings.noiseType == NoiseType::PinkSilk) {
+        pinkB0_R_ = 0.99765f * pinkB0_R_ + whiteR * 0.0990460f;
+        pinkB1_R_ = 0.96300f * pinkB1_R_ + whiteR * 0.2965164f;
+        pinkB2_R_ = 0.57000f * pinkB2_R_ + whiteR * 1.0526913f;
+        const float pinkR = (pinkB0_R_ + pinkB1_R_ + pinkB2_R_ + whiteR * 0.1848f) * 0.35f;
+        rawNoiseR = 0.5f * whiteR + 0.5f * pinkR;
+    } else if (settings.noiseType == NoiseType::VelvetShimmer) {
+        rawNoiseR = std::abs(whiteR) > 0.82f ? whiteR * 4.0f : whiteR * 0.22f;
+    } else if (settings.noiseType == NoiseType::LoFiCrunch) {
+        if (lofiCounter_R_ <= 0) {
+            lofiHeld_R_ = std::round(whiteR * 31.0f) / 31.0f;
+            lofiCounter_R_ = 3;
+        }
+        --lofiCounter_R_;
+        rawNoiseR = lofiHeld_R_;
+    }
     const float attackNoiseL = generateNoiseSample(NoiseType::CrispWhite);
     const float attackNoiseR = generateNoiseSample(NoiseType::CrispWhite);
-    float metalL = 0.0f;
-    float metalR = 0.0f;
-    const bool hasSoloedResonator = std::any_of(settings.resonatorSolo.begin(), settings.resonatorSolo.end(),
-                                                [](bool solo) { return solo; });
-    const float metalVelocity = std::pow(velocity_, std::clamp(settings.velocityMetal, 0.25f, 4.0f));
     const float airVelocity = std::pow(velocity_, std::clamp(settings.velocityAir, 0.25f, 4.0f));
     const float chickVelocity = std::pow(velocity_, std::clamp(settings.velocityChick, 0.25f, 4.0f));
     const float reverbVelocity = std::pow(velocity_, std::clamp(settings.velocityReverb, 0.25f, 4.0f));
-    float unscaledMetalL = 0.0f;
-    float unscaledMetalR = 0.0f;
-    if (mainAge >= 0.0f && settings.toneLevel > 0.001f) {
-        const float decaySamples = std::max(1.0f, settings.toneDecayMs * decayScale * 0.001f * static_cast<float>(sampleRate_));
-        const float pitchDecaySamples = std::max(1.0f, settings.tonePitchDecayMs * 0.001f * static_cast<float>(sampleRate_));
-        const float pitchShift = std::clamp(settings.tonePitchEnv, -24.0f, 24.0f)
-            * std::exp(-mainAge / pitchDecaySamples);
-        const float brightness = std::clamp((settings.toneFreqHz - 300.0f) / 7700.0f, 0.0f, 1.0f);
-        const float focus = std::clamp(settings.toneQ / 12.0f, 0.0f, 1.0f);
-        const float metalSpread = std::clamp(settings.metalSpread, -24.0f, 24.0f);
-        const float dampingSlope = std::clamp(settings.metalDampingSlope, -1.0f, 1.0f);
-        const float stereoScale = std::clamp(settings.metalStereoSpread, 0.0f, 2.0f);
-        const float ringMod = std::clamp(settings.ringMod, 0.0f, 1.0f);
-        const float nyquist = static_cast<float>(sampleRate_) * 0.5f;
-        float sumL = 0.0f;
-        float sumR = 0.0f;
-        float prevOscL = 0.0f;
-        float prevOscR = 0.0f;
-
-        for (size_t i = 0; i < modalFrequencies_.size(); ++i) {
-            if (!settings.resonatorEnabled[i] || (hasSoloedResonator && !settings.resonatorSolo[i]))
-                continue;
-            const float tuneSemitones = std::clamp(settings.resonatorTuneSemitones[i], -24.0f, 24.0f);
-            const float baseModeHz = modalFrequencies_[i] * std::exp2(tuneSemitones / 12.0f);
-            if (baseModeHz <= 0.0f) continue;
-            const float partialPosition = static_cast<float>(i) / 5.0f;
-            const float semitoneShift = (pitchShift + metalSpread) * partialPosition;
-            const float boundedSemitoneShift = i == 0
-                ? 0.0f
-                : std::max(semitoneShift, -modalMaxDownwardSemitones_[i]);
-            const float frequency = i == 0
-                ? baseModeHz
-                : baseModeHz * std::exp2(boundedSemitoneShift / 12.0f);
-            if (frequency >= nyquist) continue;
-            const float phaseStep = frequency / static_cast<float>(sampleRate_);
-            modalPhases_[i] += phaseStep;
-            if (modalPhases_[i] >= 1.0f) modalPhases_[i] -= 1.0f;
-
-            const float dampingScale = std::exp2(dampingSlope * partialPosition * 2.0f);
-            const float modeDecay = decaySamples * kModalDamping[i] * dampingScale * (0.72f + 0.55f * focus);
-            const float envelope = fullAdsrActive_ ? 1.0f : std::exp(-mainAge / std::max(1.0f, modeDecay));
-            const float highModeWeight = 0.62f + brightness * 0.76f * static_cast<float>(i) / 5.0f;
-            const float focusedWeight = 1.0f - focus * 0.55f * static_cast<float>(i) / 5.0f;
-            const float weight = kModalWeights[i] * highModeWeight * focusedWeight;
-            const float phase = 2.0f * pi() * modalPhases_[i];
-            const float rawLeft = std::sin(phase);
-            const float rawRight = std::sin(phase + (i == 0 ? 0.0f : 0.035f * static_cast<float>(i) * stereoScale));
-            const float left = (i > 0 && ringMod > 0.001f) ? std::lerp(rawLeft, rawLeft * prevOscL * 1.45f, ringMod) : rawLeft;
-            const float right = (i > 0 && ringMod > 0.001f) ? std::lerp(rawRight, rawRight * prevOscR * 1.45f, ringMod) : rawRight;
-            prevOscL = rawLeft;
-            prevOscR = rawRight;
-            float character = 1.0f;
-            switch (settings.metalMode) {
-                case MetalMode::Classic909:
-                    character = i == 0 ? 1.0f : 0.94f;
-                    break;
-                case MetalMode::AnjunaSilk:
-                    character = 0.82f + 0.18f * (1.0f - static_cast<float>(i) / 5.0f);
-                    break;
-                case MetalMode::UpliftingFMBell:
-                    character = 1.10f - 0.24f * static_cast<float>(i) / 5.0f;
-                    break;
-                case MetalMode::Analog808Crisp:
-                    character = i < 3 ? 1.08f : 0.82f;
-                    break;
-            }
-            sumL += left * envelope * weight * character;
-            sumR += right * envelope * weight * character;
-        }
-        unscaledMetalL = sumL * settings.toneLevel;
-        unscaledMetalR = sumR * settings.toneLevel;
-        metalL = unscaledMetalL * metalVelocity;
-        metalR = unscaledMetalR * metalVelocity;
-    }
-
     const float attackEnvelope = mainAge >= 0.0f
         ? std::exp(-mainAge / std::max(1.0f, static_cast<float>(sampleRate_) * 0.0025f))
         : 0.0f;
     const float attackLevel = std::clamp(settings.chickLevel, 0.0f, 1.0f) * 1.8f;
     const float noiseSwellL = rawNoiseL * preChickGainL * 0.4f + rawNoiseL * noiseEnvelope * settings.noiseLevel;
     const float noiseSwellR = rawNoiseR * preChickGainR * 0.4f + rawNoiseR * noiseEnvelope * settings.noiseLevel;
-    const float midiNoiseHPF = settings.noiseHPF * midiPitchRatio_;
-    const float midiNoiseLPF = settings.noiseLPF * midiPitchRatio_;
-    if (std::abs(midiNoiseHPF - lastNoiseHPF_) > 1.0f) {
-        lastNoiseHPF_ = midiNoiseHPF;
+    // The air layer is unpitched, so its filters follow the knobs and never the played note.
+    if (std::abs(settings.noiseHPF - lastNoiseHPF_) > 1.0f) {
+        lastNoiseHPF_ = settings.noiseHPF;
         computeHighpassCoeffs(lastNoiseHPF_, 0.54f, sampleRate_, b0_nh1_, b1_nh1_, b2_nh1_, a1_nh1_, a2_nh1_);
         computeHighpassCoeffs(lastNoiseHPF_, 1.30f, sampleRate_, b0_nh2_, b1_nh2_, b2_nh2_, a1_nh2_, a2_nh2_);
     }
-    if (std::abs(midiNoiseLPF - lastNoiseLPF_) > 1.0f) {
-        lastNoiseLPF_ = midiNoiseLPF;
+    if (std::abs(settings.noiseLPF - lastNoiseLPF_) > 1.0f) {
+        lastNoiseLPF_ = settings.noiseLPF;
         computeLowpassCoeffs(lastNoiseLPF_, 0.54f, sampleRate_, b0_nl1_, b1_nl1_, b2_nl1_, a1_nl1_, a2_nl1_);
         computeLowpassCoeffs(lastNoiseLPF_, 1.30f, sampleRate_, b0_nl2_, b1_nl2_, b2_nl2_, a1_nl2_, a2_nl2_);
     }
@@ -680,10 +564,10 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
     const float unscaledChickR = chick + preChickTickR + attackNoiseR * attackEnvelope * attackLevel;
     const float chickL = unscaledChickL * chickVelocity;
     const float chickR = unscaledChickR * chickVelocity;
-    const float dryL = (airL + metalL + chickL) * amplitudeEnvelope;
-    const float dryR = (airR + metalR + chickR) * amplitudeEnvelope;
-    const float reverbSendL = (unscaledAirL + unscaledMetalL + unscaledChickL) * reverbVelocity * amplitudeEnvelope;
-    const float reverbSendR = (unscaledAirR + unscaledMetalR + unscaledChickR) * reverbVelocity * amplitudeEnvelope;
+    const float dryL = (airL + chickL) * amplitudeEnvelope;
+    const float dryR = (airR + chickR) * amplitudeEnvelope;
+    const float reverbSendL = (unscaledAirL + unscaledChickL) * reverbVelocity * amplitudeEnvelope;
+    const float reverbSendR = (unscaledAirR + unscaledChickR) * reverbVelocity * amplitudeEnvelope;
     StereoFrame reverbOut{0.0f, 0.0f};
     if (settings.reverbMix > 0.001f) {
         reverbOut = reverb_.process(reverbSendL, reverbSendR, settings.reverbSize, settings.reverbDecayMs,
@@ -691,15 +575,14 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
     }
     const float dryMix = 1.0f - settings.reverbMix * 0.40f;
     HatSynthLayers layers {
-        .metal = { metalL * amplitudeEnvelope * dryMix, metalR * amplitudeEnvelope * dryMix },
         .air = { airL * amplitudeEnvelope * dryMix, airR * amplitudeEnvelope * dryMix },
         .chick = { chickL * amplitudeEnvelope * dryMix, chickR * amplitudeEnvelope * dryMix },
         .reverb = { reverbOut.left * settings.reverbMix,
                     reverbOut.right * settings.reverbMix }
     };
     layers.output = {
-        layers.metal.left + layers.air.left + layers.chick.left + layers.reverb.left,
-        layers.metal.right + layers.air.right + layers.chick.right + layers.reverb.right
+        layers.air.left + layers.chick.left + layers.reverb.left,
+        layers.air.right + layers.chick.right + layers.reverb.right
     };
 
     if (chokeStartSample_ >= 0) {
@@ -710,7 +593,6 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
             frame.left *= chokeGain;
             frame.right *= chokeGain;
         };
-        applyChokeGain(layers.metal);
         applyChokeGain(layers.air);
         applyChokeGain(layers.chick);
         applyChokeGain(layers.reverb);
@@ -729,9 +611,8 @@ void HatSynth::renderBlock(
     std::vector<float>& leftOut,
     std::vector<float>& rightOut,
     const HatSynthSettings& settings,
-    float velocity,
-    int semitoneOffset) noexcept {
-    trigger(settings, velocity, semitoneOffset);
+    float velocity) noexcept {
+    trigger(settings, velocity);
     leftOut.resize(totalDurationSamples_);
     rightOut.resize(totalDurationSamples_);
     for (int i = 0; i < totalDurationSamples_; ++i) {

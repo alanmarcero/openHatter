@@ -63,8 +63,6 @@ struct EngineSettings {
 };
 
 struct LayerOutputBuffers {
-    float* metalLeft = nullptr;
-    float* metalRight = nullptr;
     float* airLeft = nullptr;
     float* airRight = nullptr;
     float* chickLeft = nullptr;

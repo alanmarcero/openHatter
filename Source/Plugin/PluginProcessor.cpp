@@ -6,7 +6,6 @@
 OpenHatterProcessor::OpenHatterProcessor()
     : AudioProcessor(BusesProperties()
           .withOutput("Output", juce::AudioChannelSet::stereo(), true)
-          .withOutput("Metal", juce::AudioChannelSet::stereo(), false)
           .withOutput("Air", juce::AudioChannelSet::stereo(), false)
           .withOutput("Chick", juce::AudioChannelSet::stereo(), false)
           .withOutput("Reverb", juce::AudioChannelSet::stereo(), false)),
@@ -129,15 +128,10 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
 
     float* channelPointers[2] = { mainOutput.getWritePointer(0), mainOutput.getWritePointer(1) };
 
-    auto metalOutput = getBusBuffer(buffer, false, 1);
-    auto airOutput = getBusBuffer(buffer, false, 2);
-    auto chickOutput = getBusBuffer(buffer, false, 3);
-    auto reverbOutput = getBusBuffer(buffer, false, 4);
+    auto airOutput = getBusBuffer(buffer, false, 1);
+    auto chickOutput = getBusBuffer(buffer, false, 2);
+    auto reverbOutput = getBusBuffer(buffer, false, 3);
     openhatter::core::LayerOutputBuffers layerOutputs;
-    if (metalOutput.getNumChannels() >= 2) {
-        layerOutputs.metalLeft = metalOutput.getWritePointer(0);
-        layerOutputs.metalRight = metalOutput.getWritePointer(1);
-    }
     if (airOutput.getNumChannels() >= 2) {
         layerOutputs.airLeft = airOutput.getWritePointer(0);
         layerOutputs.airRight = airOutput.getWritePointer(1);
@@ -166,9 +160,8 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
 
 double OpenHatterProcessor::getTailLengthSeconds() const {
     const auto settings = openhatter::params::readSettings(parameters);
-    const float dryTailMs = std::max(settings.synth.noiseAttackMs + settings.synth.noiseHoldMs
-                                         + settings.synth.noiseDecayMs * std::clamp(settings.synth.decayScale, 0.25f, 2.0f),
-                                     settings.synth.toneDecayMs * std::clamp(settings.synth.decayScale, 0.25f, 2.0f));
+    const float dryTailMs = settings.synth.noiseAttackMs + settings.synth.noiseHoldMs
+        + settings.synth.noiseDecayMs * std::clamp(settings.synth.decayScale, 0.25f, 2.0f);
     const float synthTailMs = std::max({ dryTailMs, settings.synth.reverbDecayMs, settings.synth.reverbGateMs });
     const float releaseMs = settings.synth.fullAdsrEnabled
         ? std::clamp(settings.synth.ampReleaseMs, 0.0f, 20000.0f)

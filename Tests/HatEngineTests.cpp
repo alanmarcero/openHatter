@@ -324,14 +324,13 @@ TEST_CASE("HatEngine routes each generated layer to its dedicated output buffers
     }};
     std::vector<float> left(2048, 0.0f);
     std::vector<float> right(2048, 0.0f);
-    std::array<std::vector<float>, 8> stems;
+    std::array<std::vector<float>, 6> stems;
     for (auto& stem : stems) stem.assign(left.size(), 0.0f);
     float* channels[2] = { left.data(), right.data() };
     LayerOutputBuffers outputBuffers {
-        .metalLeft = stems[0].data(), .metalRight = stems[1].data(),
-        .airLeft = stems[2].data(), .airRight = stems[3].data(),
-        .chickLeft = stems[4].data(), .chickRight = stems[5].data(),
-        .reverbLeft = stems[6].data(), .reverbRight = stems[7].data()
+        .airLeft = stems[0].data(), .airRight = stems[1].data(),
+        .chickLeft = stems[2].data(), .chickRight = stems[3].data(),
+        .reverbLeft = stems[4].data(), .reverbRight = stems[5].data()
     };
 
     engine.process(settings, transport, triggers, channels, 2, static_cast<int>(left.size()), {}, &outputBuffers);
