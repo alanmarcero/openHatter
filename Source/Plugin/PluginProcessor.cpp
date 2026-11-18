@@ -167,8 +167,8 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
 double OpenHatterProcessor::getTailLengthSeconds() const {
     const auto settings = openhatter::params::readSettings(parameters);
     const float dryTailMs = std::max(settings.synth.noiseAttackMs + settings.synth.noiseHoldMs
-                                         + settings.synth.noiseDecayMs,
-                                     settings.synth.toneDecayMs);
+                                         + settings.synth.noiseDecayMs * std::clamp(settings.synth.decayScale, 0.25f, 2.0f),
+                                     settings.synth.toneDecayMs * std::clamp(settings.synth.decayScale, 0.25f, 2.0f));
     const float synthTailMs = std::max({ dryTailMs, settings.synth.reverbDecayMs, settings.synth.reverbGateMs });
     const float releaseMs = settings.synth.fullAdsrEnabled
         ? std::clamp(settings.synth.ampReleaseMs, 0.0f, 20000.0f)
@@ -177,7 +177,8 @@ double OpenHatterProcessor::getTailLengthSeconds() const {
         * std::max(0.0f, settings.synth.preChickSpreadMs);
     const float dynamicsTailMs = std::max(settings.effects.compressor.releaseMs, settings.effects.limiter.releaseMs);
     const float reverseTailMs = settings.effects.reverseMode == openhatter::core::ReverseSyncMode::Off ? 0.0f : 2000.0f;
-    const float tailMs = releaseMs + preRollMs + synthTailMs + dynamicsTailMs + 80.0f;
+    const float echoTailMs = settings.effects.echoMix > 0.001f ? 1200.0f : 0.0f;
+    const float tailMs = releaseMs + preRollMs + synthTailMs + dynamicsTailMs + echoTailMs + 80.0f;
     return std::max(tailMs, reverseTailMs) * 0.001;
 }
 

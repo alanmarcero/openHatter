@@ -113,8 +113,10 @@ void OpenHatterEditor::paint(juce::Graphics& g) {
         g.drawEllipse(22.0f, 27.0f + static_cast<float>(i) * 6.0f, 39.0f, 14.0f, 1.8f);
     g.setColour(theme::kText);
     g.setFont(juce::FontOptions(31.0f, juce::Font::bold));
-    g.drawText("openHatter", 72, 13, 200, 38, juce::Justification::left);
+    g.drawText("openHatter", 72, 13, 178, 38, juce::Justification::left);
     g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+    g.drawText("v" JucePlugin_VersionString, 250, 22, 48, 22, juce::Justification::left);
     g.setFont(juce::FontOptions(14.0f));
     g.drawText("Pitched hi-hat synthesizer", 74, 49, 200, 22, juce::Justification::left);
     g.drawText("Factory preset", 309, 8, 220, 19, juce::Justification::left);

@@ -4,19 +4,19 @@
 
 namespace openhatter::theme {
 
-inline const juce::Colour kBackground{ 0xff151923 };
-inline const juce::Colour kPanel{ 0xff222835 };
-inline const juce::Colour kPanelEdge{ 0xff435063 };
-inline const juce::Colour kKnobBody{ 0xff303846 };
-inline const juce::Colour kTrack{ 0xff435063 };
-inline const juce::Colour kText{ 0xfff4f3ef };
-inline const juce::Colour kTextDim{ 0xffbdc7cf };
+inline const juce::Colour kBackground{ 0xff0d1317 };
+inline const juce::Colour kPanel{ 0xff152026 };
+inline const juce::Colour kPanelEdge{ 0xff283842 };
+inline const juce::Colour kKnobBody{ 0xff1b272d };
+inline const juce::Colour kTrack{ 0xff283842 };
+inline const juce::Colour kText{ 0xffe6f0f5 };
+inline const juce::Colour kTextDim{ 0xff869ca8 };
 
-inline const juce::Colour kAccentBrass{ 0xfff1bd80 };
-inline const juce::Colour kAccentSteel{ 0xffbdc7cf };
-inline const juce::Colour kAccentAqua{ 0xff8edacc };
-inline const juce::Colour kAccentCoral{ 0xffc5b3f4 };
-inline const juce::Colour kAccentDim{ 0xffbdc7cf };
+inline const juce::Colour kAccentBrass{ 0xffffbe3b };
+inline const juce::Colour kAccentSteel{ 0xff869ca8 };
+inline const juce::Colour kAccentAqua{ 0xff48f0c8 };
+inline const juce::Colour kAccentCoral{ 0xff5ce1ff };
+inline const juce::Colour kAccentDim{ 0xff869ca8 };
 
 // Keep the look-and-feel accents mapped to the current palette.
 inline const juce::Colour kAccentCyan = kAccentAqua;

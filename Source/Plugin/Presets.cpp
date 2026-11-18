@@ -96,6 +96,7 @@ FactoryPreset makePreset(const Hat& hat, const Character& style) {
         { kToneFreq, hat.bellHz }, { kToneQ, style.bellQ }, { kToneDecay, hat.metalMs },
         { kTonePitchEnv, style.sweep }, { kTonePitchDecay, style.sweepMs }, { kToneLevel, hat.metalLevel },
         { kMetalSpread, 0 }, { kMetalDampingSlope, 0 }, { kMetalStereoSpread, 1 },
+        { kRingMod, 0 }, { kDecayScale, 1 }, { kEchoMix, 0 },
         { kAmpAttack, .15f }, { kAmpDecay, 48 }, { kAmpSustain, .80f }, { kAmpRelease, 40 },
         { kNoiseType, hat.texture }, { kNoiseAttack, style.airAttack }, { kNoiseHold, style.airHold },
         { kNoiseDecay, hat.airMs }, { kNoiseCurve, style.airCurve }, { kNoiseHPF, hat.highpass },
@@ -118,10 +119,10 @@ FactoryPreset makePreset(const Hat& hat, const Character& style) {
         || id == kFlamSpread || id == kPreLevel || id == kClickType || id == kClickLevel || id == kClickFreq) return 0;
     if (id == kToneMode || id == kToneNote || id == kToneOctave || id == kToneFine || id == kToneFreq
         || id == kToneQ || id == kToneDecay || id == kTonePitchEnv || id == kTonePitchDecay
-        || id == kMetalSpread || id == kMetalDampingSlope || id == kMetalStereoSpread || id == kToneLevel
+        || id == kMetalSpread || id == kMetalDampingSlope || id == kMetalStereoSpread || id == kRingMod || id == kToneLevel
         || id == kAmpAttack || id == kAmpDecay || id == kAmpSustain || id == kAmpRelease || id == kLockPitch) return 1;
     if (id == kNoiseType || id == kNoiseAttack || id == kNoiseHold || id == kNoiseDecay || id == kNoiseCurve
-        || id == kNoiseHPF || id == kNoiseLPF || id == kNoiseStereoWidth || id == kNoiseLevel) return 2;
+        || id == kNoiseHPF || id == kNoiseLPF || id == kNoiseStereoWidth || id == kNoiseLevel || id == kDecayScale) return 2;
     if (id == kDistType || id == kDistDrive || id == kDistTone || id == kDistMix) return 3;
     if (id == kCompThresh || id == kCompRatio || id == kCompAttack || id == kCompRelease || id == kCompMakeup
         || id == kCompMix || id == kLimiterCeiling || id == kLimiterRelease || id == kLimiterEnabled) return 4;
