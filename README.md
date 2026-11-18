@@ -1,4 +1,4 @@
-# openHatter v4.6.0
+# openHatter v4.6.1
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
@@ -38,6 +38,10 @@ On **Performance**, set separate velocity curves for air, stick and reverb. A no
 On **Effects**, shape the exciter, parallel compressor and reverb, or add a synced reverse swell. Output EQ, master width, output gain and limiting live on the **Hat** page under **Output**. Three optional stereo buses carry air, stick and reverb for separate mixing. They include output gain and bypass shared effects and master width.
 
 [See the detailed Hat, Performance and Effects pages.](docs/SCREENSHOTS.md)
+
+## Changes in 4.6.1
+
+Most factory hats are noisy cymbals. The bronze partials and the velvet shimmer no longer ring through the tail unless the sound is meant to be a bell: **Starlight Ride** and **Heavy Bronze Ride** keep that tone. Saved parameter values still load.
 
 ## Changes in 4.6
 

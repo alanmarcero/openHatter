@@ -236,6 +236,7 @@ private:
         BiquadState modelHp{};
         float shade = 1.0f;
         float shadeLp = 0.0f;
+        float ringEnv = 1.0f;
         float stickHp = 0.0f;
         float stickLp = 0.0f;
         float dcX = 0.0f;

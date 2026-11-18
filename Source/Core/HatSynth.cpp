@@ -355,6 +355,7 @@ void HatSynth::reset() noexcept {
         ch.modelHp.reset();
         ch.shade = 1.0f;
         ch.shadeLp = 0.0f;
+        ch.ringEnv = 1.0f;
         ch.stickHp = 0.0f;
         ch.stickLp = 0.0f;
         ch.dcX = 0.0f;
@@ -482,7 +483,8 @@ void HatSynth::updateFilterCaches(const HatSynthSettings& settings) noexcept {
         lastBodyTone_ = clampedTone;
         // A hat shell lives around 0.9–5 kHz. The old 330 Hz base was a tom.
         constexpr std::array<float, 4> kRatios{{ 1.00f, 1.48f, 2.11f, 2.89f }};
-        constexpr std::array<float, 4> kModeQs{{ 2.15f, 2.55f, 3.05f, 3.40f }};
+        // Wide modes color the shell. Narrow ones ring like a bell under the noise.
+        constexpr std::array<float, 4> kModeQs{{ 0.70f, 0.82f, 0.95f, 1.10f }};
         const float baseHz = 880.0f * std::exp2(clampedTone * 1.05f);
         std::ranges::for_each(std::views::iota(size_t{0}, size_t{2}), [&](size_t chIdx) {
             const float stereoDetune = chIdx == 0 ? 0.994f : 1.006f;
@@ -508,9 +510,10 @@ void HatSynth::updateFilterCaches(const HatSynthSettings& settings) noexcept {
         switch (settings.noiseType) {
             case NoiseType::CrispWhite:
                 bpHz = 7200.0f * std::exp2(modelColor * 0.40f);
-                bpQ = 1.25f + 1.9f * modelDensity;
-                hpHz = std::clamp(bpHz * 0.38f, 1400.0f, 5200.0f);
-                hpQ = 0.62f;
+                // Broad hat band. A high Q here is a whistle, not a 909.
+                bpQ = 0.72f + 0.35f * modelDensity;
+                hpHz = std::clamp(bpHz * 0.42f, 1600.0f, 5200.0f);
+                hpQ = 0.55f;
                 break;
             case NoiseType::PinkSilk:
                 bpHz = 4600.0f * std::exp2(modelColor * 0.32f);
@@ -615,28 +618,12 @@ float HatSynth::generateHissChannel(ChannelState& ch, int channelIdx, const HatS
             return bp * 0.72f + hp * 0.28f + pink * 0.06f;
         }
         case NoiseType::VelvetShimmer: {
-            constexpr std::array<float, 12> kRatios{{
-                1.00f, 1.17f, 1.36f, 1.58f, 1.83f, 2.12f, 2.46f, 2.85f, 3.31f, 3.84f, 4.45f, 5.16f
-            }};
-            const float base = 2800.0f * std::exp2(color * 0.34f) * chDetune;
-            float sum = 0.0f;
-            float sumSq = 0.0f;
-            std::array<float, 12> amps{};
-            for (size_t i = 0; i < kRatios.size(); ++i) {
-                const float pos = static_cast<float>(i) / 11.0f;
-                amps[i] = std::exp(-0.42f * pos);
-                sumSq += amps[i] * amps[i];
-            }
-            const float norm = 0.34f / std::sqrt(sumSq);
-            for (size_t i = 0; i < kRatios.size(); ++i) {
-                const float hz = base * kRatios[i];
-                const float pairHz = hz * (1.0045f + 0.0075f * density);
-                const float a = bandLimitGain(hz, sr) * std::sin(2.0f * pi() * advancePhase(ch.partialPhases[i], hz, sampleRate_));
-                const float b = bandLimitGain(pairHz, sr) * std::sin(2.0f * pi() * advancePhase(ch.partialPhases[i + 12], pairHz, sampleRate_));
-                sum += (a + 0.72f * b) * amps[i];
-            }
+            // Soft noisy shimmer. Sine partials here read as a bell, not a hat.
             const float air = processBiquad(white, ch.modelHp, modelHpCoeffs_);
-            return sum * norm + air * 0.10f;
+            const float bp = processBiquad(0.55f * white + 0.45f * pink, ch.modelBp, modelBpCoeffs_);
+            const float rateHz = 3.2f + 4.5f * density;
+            const float lfo = 0.78f + 0.22f * std::sin(2.0f * pi() * advancePhase(ch.sizzlePhases[0], rateHz, sampleRate_));
+            return (bp * 0.95f + air * 0.42f) * lfo;
         }
         case NoiseType::LoFiCrunch: {
             const float bright = processBiquad(white, ch.modelHp, modelHpCoeffs_);
@@ -666,8 +653,10 @@ float HatSynth::generateHissChannel(ChannelState& ch, int channelIdx, const HatS
             const float hp = processBiquad(shaped, ch.modelHp, modelHpCoeffs_);
             const float grit = processBiquad(white, ch.modelBp, modelBpCoeffs_);
             // Bright noise following the metal keeps the 808 noisy instead of a low buzz.
-            const float follow = 0.28f + 0.72f * std::min(1.0f, std::abs(shaped) * 1.6f);
-            return hp * 2.35f + grit * 0.72f * follow;
+            // The squares only color the attack. A sustaining ring-mod is a pitched metal tone.
+            ch.ringEnv *= std::exp(-1.0f / (sr * 0.028f));
+            const float follow = 0.55f + 0.45f * std::min(1.0f, std::abs(shaped) * 1.4f);
+            return hp * 1.7f * ch.ringEnv + grit * 0.95f * follow;
         }
         case NoiseType::BronzeCymbal: {
             constexpr std::array<float, 14> kRatios{{
@@ -675,8 +664,14 @@ float HatSynth::generateHissChannel(ChannelState& ch, int channelIdx, const HatS
                 7.47f, 8.93f, 10.58f, 12.44f, 14.52f, 16.85f
             }};
             const float base = 780.0f * std::exp2(color * 0.40f) * chDetune;
-            const float wash = processBiquad(0.75f * white + 0.25f * pink, ch.modelHp, modelHpCoeffs_);
-            return modalStack(base, kRatios, 0.45f, 0.40f) + wash * (0.12f + 0.08f * density);
+            // Density above about 0.6 keeps the partials ringing (ride / bell).
+            // Below that they die in a few dozen milliseconds and the tail is noise.
+            const float ring = std::clamp((density - 0.58f) / 0.30f, 0.0f, 1.0f);
+            const float ringTau = 0.016f + 0.34f * ring;
+            ch.ringEnv *= std::exp(-1.0f / (sr * ringTau));
+            const float bells = modalStack(base, kRatios, 0.40f, 0.55f) * ch.ringEnv;
+            const float wash = processBiquad(0.8f * white + 0.2f * pink, ch.modelHp, modelHpCoeffs_);
+            return bells * (0.18f + 1.05f * ring) + wash * (0.95f - 0.40f * ring);
         }
         case NoiseType::SupersawSizzle: {
             // A few band-limited triangles in the sizzle band, plus bright noise.
@@ -693,7 +688,8 @@ float HatSynth::generateHissChannel(ChannelState& ch, int channelIdx, const HatS
                 sum += bandLimitGain(hz, sr) * tri * (1.0f - 0.12f * static_cast<float>(idx));
             }
             const float air = processBiquad(white, ch.modelHp, modelHpCoeffs_);
-            return sum * 0.20f + air * 0.62f;
+            ch.ringEnv *= std::exp(-1.0f / (sr * 0.020f));
+            return sum * 0.22f * ch.ringEnv + air * 0.78f;
         }
         case NoiseType::CombWash: {
             const float input = 0.70f * white + 0.30f * pink;
@@ -706,7 +702,8 @@ float HatSynth::generateHissChannel(ChannelState& ch, int channelIdx, const HatS
                 return ch.combDelay[readIdx];
             };
             const float delayed = 0.64f * tap(baseMs) + 0.36f * tap(baseMs * 0.67f);
-            const float feedback = 0.34f + 0.36f * density;
+            // Keep the comb a noisy smear. High feedback holds narrow ringing peaks.
+            const float feedback = 0.22f + 0.18f * density;
             ch.combDelay[ch.combWrite] = std::tanh(input + delayed * feedback);
             ch.combWrite = (ch.combWrite + 1) % ch.combDelay.size();
             const float mixed = 0.16f * input + 1.05f * delayed;

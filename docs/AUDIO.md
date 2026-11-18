@@ -1,6 +1,6 @@
 # openHatter synthesis
 
-Each hit is an unpitched hat. Eight hiss modes feed the air filters: resonant 909 noise, softened silk noise, a detuned high partial shimmer, bit-reduced crunch, six band-limited squares ring-modulated at the 808 metal ratios and highpassed, a 14-partial bronze cymbal that darkens as it decays, bright sizzle, and a metallic comb wash. A closing lowpass takes the top off through the tail. The air layer does not follow the played MIDI note.
+Each hit is an unpitched hat. Eight hiss modes feed the air filters: resonant 909 noise, softened silk noise, a noisy velvet shimmer, bit-reduced crunch, six band-limited squares ring-modulated at the 808 metal ratios for the attack and then noise, a bronze wash whose sine partials die in a few dozen milliseconds unless Hiss Density is high enough for a ride, bright sizzle, and a short comb wash. A closing lowpass takes the top off through the tail. The air layer does not follow the played MIDI note.
 
 The bronze shell is four inharmonic bandpasses from about 900 Hz upward, plus a short knock in that same range. It is mixed under the air and does not add a low tom tone. The stick, pedal and laser contacts are short partials with a band-limited noise tick. Partials fade out before Nyquist. The laser strike is a downward pitch sweep onto the selected contact pitch.
 

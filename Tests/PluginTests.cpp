@@ -988,6 +988,79 @@ TEST_CASE("Factory presets are level-matched, distinct and free of DC or clippin
     CHECK(worst < 0.99995);
 }
 
+TEST_CASE("Most factory hats stay noisy instead of ringing like a bell", "[plugin][presets_audio][tone]") {
+    // Peakiness is the strongest bin between 900 Hz and 12 kHz divided by the
+    // median bin, measured on the tail. A sustaining partial stack scores high.
+    // A quiet tail (the hat already finished) is not a bell.
+    int ringing = 0;
+    int noisy = 0;
+    std::ranges::for_each(std::views::iota(0, 56), [&](int program) {
+        OpenHatterProcessor processor;
+        processor.setCurrentProgram(program);
+        processor.prepareToPlay(48000.0, 256);
+        juce::AudioBuffer<float> buffer(2, 256);
+        juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::noteOn(1, 66, static_cast<juce::uint8>(100)), 0);
+        std::vector<float> mono;
+        mono.reserve(8000);
+        for (int block = 0; block < 32; ++block) {
+            processor.processBlock(buffer, midi);
+            midi.clear();
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+                mono.push_back(0.5f * (buffer.getSample(0, i) + buffer.getSample(1, i)));
+        }
+        const int start = static_cast<int>(48000 * 0.05);
+        const int end = static_cast<int>(48000 * 0.16);
+        double energy = 0.0;
+        for (int i = start; i < end; ++i)
+            energy += static_cast<double>(mono[static_cast<size_t>(i)]) * mono[static_cast<size_t>(i)];
+        const double rms = std::sqrt(energy / static_cast<double>(end - start));
+        const auto name = processor.getProgramName(program).toStdString();
+        if (20.0 * std::log10(rms + 1.0e-12) < -42.0) {
+            ++noisy;
+            return;
+        }
+        constexpr int nfft = 2048;
+        const auto window = [](int n) {
+            return 0.5 - 0.5 * std::cos(2.0 * 3.14159265358979323846 * n / 2047.0);
+        };
+        std::vector<double> mag(nfft / 2 + 1, 0.0);
+        int frames = 0;
+        for (int pos = start; pos + nfft <= end; pos += nfft / 2) {
+            for (int k = 0; k <= nfft / 2; ++k) {
+                double re = 0.0;
+                double im = 0.0;
+                for (int n = 0; n < nfft; ++n) {
+                    const double angle = 2.0 * 3.14159265358979323846 * k * n / nfft;
+                    const double sample = mono[static_cast<size_t>(pos + n)] * window(n);
+                    re += sample * std::cos(angle);
+                    im -= sample * std::sin(angle);
+                }
+                mag[static_cast<size_t>(k)] += std::sqrt(re * re + im * im);
+            }
+            ++frames;
+        }
+        REQUIRE(frames > 0);
+        std::vector<double> band;
+        for (int k = 0; k <= nfft / 2; ++k) {
+            const double hz = k * 48000.0 / nfft;
+            if (hz >= 900.0 && hz <= 12000.0)
+                band.push_back(mag[static_cast<size_t>(k)] / frames);
+        }
+        std::sort(band.begin(), band.end());
+        const double median = band[band.size() / 2] + 1.0e-12;
+        const double peak = *std::max_element(band.begin(), band.end());
+        const double peakiness = peak / median;
+        INFO(name + " peakiness " + std::to_string(peakiness));
+        if (peakiness >= 14.0) ++ringing;
+        else ++noisy;
+    });
+    // The two rides keep a bell. The rest of the bank should not.
+    CHECK(ringing >= 2);
+    CHECK(ringing <= 4);
+    CHECK(noisy >= 50);
+}
+
 TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the main page", "[plugin][ui][eq]") {
     openhatter::core::ThreeBandEq eqHigh, eqCut;
     eqHigh.prepare(48000.0);
