@@ -150,6 +150,6 @@ jobs:
           files: openHatter-*.zip
           generate_release_notes: true
           body: |
-            Spun-bronze cymbal body + 8-mode hiss sound engine, fuller open tails, and 56 redone presets led by 24 Uplifting Trance hats.
+            Retuned hat engine and level-matched factory presets: resonant 909 noise, highpassed 808 metal, darker-over-time bronze, real closed ticks, and open rides.
 
             ![openHatter native editor](https://raw.githubusercontent.com/alanmarcero/openHatter/${{ github.ref_name }}/assets/openHatter-hat.png)

@@ -1,4 +1,4 @@
-# openHatter v4.5.0
+# openHatter v4.6.0
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
@@ -8,7 +8,7 @@ openHatter is a spun-bronze and air hi-hat synthesizer built for trance and club
 
 ## Find a hat
 
-Choose a **Factory preset** or step through the bank with **Previous** and **Next**. **Preview hat** plays a one-shot at the last incoming pitch, or C4 before the first note. The 56 redone factory sounds span six dance styles led by **24 Uplifting Trance** presets alongside 8 Rolling, 8 Progressive, 6 Psy, 5 Tech, and 5 Classic hats.
+Choose a **Factory preset** or step through the bank with **Previous** and **Next**. **Preview hat** plays a one-shot at the last incoming pitch, or C4 before the first note. The 56 factory sounds span six dance styles led by **24 Uplifting Trance** presets alongside 8 Rolling, 8 Progressive, 6 Psy, 5 Tech, and 5 Classic hats.
 
 | Style | Try | What to listen for |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ Choose a **Factory preset** or step through the bank with **Previous** and **Nex
 
 On **Hat**, **Hiss & air tail** selects from **8 Hiss Types** (*909 Crisp*, *Anjuna Silk*, *Velvet Shimmer*, *Lo-Fi Crunch*, *808 Analog Metal*, *Bronze Shimmer*, *Trance Sizzle*, and *Spectral Wash*) along with **Decay** (20–2400 ms), **Low-pass**, **Hiss level**, **Hiss color** tilt, **Density**, and pre-envelope analog **Saturation**. **Bronze body & stick** adds spun-bronze shell resonators (**Body level**, **Body tone**, **Body decay**) beneath the contact strike (**Strikes**, **Frequency**, **Strike level**). **Detailed controls** reveals air attack and hold (up to 120 ms), tail curve, high-pass, stereo width, decay morph, and bounce timing. **Output** puts the dual-layer 3-band EQ (±12 dB inner cap, smoothly gliding outer frequency collar), stereo width, output gain, and brickwall limiter directly on the main page.
 
-The animated cymbal opens on the offbeat and follows the host through tempo changes and seeks. It rests when transport stops and uses a 138 BPM clock in Standalone. The dual decay bars show live **Hiss** and **Body** decay times in milliseconds. The MIDI monitor shows the last played note, frequency and velocity. Factory hats span **195–1120 ms** open decay with rich bronze body and longer gated tails. Each section's **Lock** keeps its settings when browsing.
+The animated cymbal opens on the offbeat and follows the host through tempo changes and seeks. It rests when transport stops and uses a 138 BPM clock in Standalone. The dual decay bars show live **Hiss** and **Body** decay times in milliseconds. The MIDI monitor shows the last played note, frequency and velocity. Factory hats run from tight closed ticks around 70 ms to open rides past a second. Each section's **Lock** keeps its settings when browsing.
 
 ## Play sustained notes
 
@@ -38,6 +38,10 @@ On **Performance**, set separate velocity curves for air, stick and reverb. A no
 On **Effects**, shape the exciter, parallel compressor and reverb, or add a synced reverse swell. Output EQ, master width, output gain and limiting live on the **Hat** page under **Output**. Three optional stereo buses carry air, stick and reverb for separate mixing. They include output gain and bypass shared effects and master width.
 
 [See the detailed Hat, Performance and Effects pages.](docs/SCREENSHOTS.md)
+
+## Changes in 4.6
+
+The hiss modes and bronze shell were retuned from their audio. 909 noise is a resonant hat rather than flat hiss, 808 metal is a highpassed ring of band-limited squares, and the bronze partials reach the air band and darken as they decay. The low chest thump and the DC offset from saturation are gone. Closed factory hats are actually short, open and ride hats keep a longer exponential tail, and the 56 presets are level-matched with the limiter left as a ceiling. Saved sessions keep their parameter values. Sessions saved before this bank show as **Custom sound** until a factory hat is chosen.
 
 ## Changes in 4.3
 
