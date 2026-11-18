@@ -150,6 +150,6 @@ jobs:
           files: openHatter-*.zip
           generate_release_notes: true
           body: |
-            Retuned hat engine and level-matched factory presets: resonant 909 noise, highpassed 808 metal, darker-over-time bronze, real closed ticks, and open rides.
+            Noisy hi-hats. The pitched bronze ring stays only on Starlight Ride and Heavy Bronze Ride.
 
             ![openHatter native editor](https://raw.githubusercontent.com/alanmarcero/openHatter/${{ github.ref_name }}/docs/screenshots/preview.png)
