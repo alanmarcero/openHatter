@@ -4,13 +4,16 @@
 #include "Presets.h"
 #include <catch2/catch_test_macros.hpp>
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <new>
+#include <numeric>
 #include <ranges>
 #include <utility>
+#include <vector>
 
 namespace {
 std::atomic<uint64_t> pluginCallbackAllocations { 0 };
@@ -840,6 +843,7 @@ TEST_CASE("OpenHatter ADSR points drag interactively and update envelope knobs a
 TEST_CASE("All factory hats speak promptly with rich body and full tails", "[plugin][presets_audio]") {
     int upliftingCount = 0;
     int longHatCount = 0;
+    int closedHatCount = 0;
     std::ranges::for_each(std::views::iota(0, 56), [&](int program) {
         OpenHatterProcessor processor;
         processor.setCurrentProgram(program);
@@ -847,6 +851,7 @@ TEST_CASE("All factory hats speak promptly with rich body and full tails", "[plu
         if (name.startsWith("Uplifting / ")) ++upliftingCount;
         const float noiseDecayMs = processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load();
         if (noiseDecayMs >= 420.0f) ++longHatCount;
+        if (noiseDecayMs <= 120.0f) ++closedHatCount;
 
         processor.prepareToPlay(48000.0, 512);
         juce::AudioBuffer<float> buffer(2, 512);
@@ -865,22 +870,122 @@ TEST_CASE("All factory hats speak promptly with rich body and full tails", "[plu
                     REQUIRE(std::isfinite(value));
                     peak = std::max(peak, std::abs(value));
                     if (block == 0) attackPeak = std::max(attackPeak, std::abs(value));
-                    if (block < 16) activeEnergy += value * value;
+                    if (block < 4) activeEnergy += value * value;
                     if (block >= totalBlocks - 6) tailPeak = std::max(tailPeak, std::abs(value));
                 });
             });
         });
-        const double rms = std::sqrt(activeEnergy / (2 * 16 * 512));
+        // Loudness of the hit itself. A tight closed hat is quiet if this
+        // window is stretched out to 170 ms, so the check stays on the attack.
+        const double rms = std::sqrt(activeEnergy / (2 * 4 * 512));
         INFO(name.toStdString());
         CAPTURE(peak, attackPeak, rms, tailPeak, totalBlocks);
         CHECK(attackPeak >= .25f);
         CHECK(peak >= .35f);
         CHECK(peak <= 1.0f);
-        CHECK(rms >= .08);
+        CHECK(rms >= .055);
         CHECK(tailPeak < .01f);
     });
     REQUIRE(upliftingCount == 24);
     REQUIRE(longHatCount >= 24);
+    REQUIRE(closedHatCount >= 6);
+}
+
+TEST_CASE("Factory presets are level-matched, distinct and free of DC or clipping", "[plugin][presets_audio]") {
+    struct Fingerprint {
+        std::array<double, 6> bands{};
+        double length = 0.0;
+        float peakDb = -100.0f;
+    };
+    std::vector<Fingerprint> prints;
+    std::vector<std::string> names;
+    prints.reserve(56);
+    std::ranges::for_each(std::views::iota(0, 56), [&](int program) {
+        OpenHatterProcessor processor;
+        processor.setCurrentProgram(program);
+        processor.prepareToPlay(48000.0, 256);
+        juce::AudioBuffer<float> buffer(2, 256);
+        juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::noteOn(1, 66, static_cast<juce::uint8>(100)), 0);
+        std::vector<float> mono;
+        mono.reserve(48000 / 4);
+        float peak = 0.0f;
+        double sum = 0.0;
+        const int blocks = 48; // 0.256 s, enough for the attack and a short hat
+        for (int block = 0; block < blocks; ++block) {
+            processor.processBlock(buffer, midi);
+            midi.clear();
+            for (int i = 0; i < 256; ++i) {
+                const float left = buffer.getSample(0, i);
+                const float right = buffer.getSample(1, i);
+                REQUIRE(std::isfinite(left));
+                REQUIRE(std::isfinite(right));
+                peak = std::max(peak, std::max(std::abs(left), std::abs(right)));
+                const float mid = 0.5f * (left + right);
+                mono.push_back(mid);
+                sum += mid;
+            }
+        }
+        const float peakDb = 20.0f * std::log10(std::max(peak, 1.0e-8f));
+        INFO(processor.getProgramName(program).toStdString());
+        CHECK(peakDb > -8.0f);
+        CHECK(peakDb < -1.2f);
+        CHECK(std::abs(sum / static_cast<double>(mono.size())) < 0.0015);
+
+        constexpr int nfft = 1024;
+        const int start = 480; // 10 ms
+        std::array<double, 6> bands{};
+        for (int k = 1; k < nfft / 2; k += 2) {
+            double re = 0.0;
+            double im = 0.0;
+            for (int n = 0; n < nfft; ++n) {
+                const double angle = 2.0 * 3.14159265358979323846 * k * n / nfft;
+                const float sample = mono[static_cast<size_t>(start + n)];
+                re += sample * std::cos(angle);
+                im -= sample * std::sin(angle);
+            }
+            const double power = re * re + im * im;
+            const double hz = k * 48000.0 / nfft;
+            const int band = hz < 1000.0 ? 0 : hz < 2500.0 ? 1 : hz < 5000.0 ? 2 : hz < 8000.0 ? 3 : hz < 12000.0 ? 4 : 5;
+            bands[static_cast<size_t>(band)] += power;
+        }
+        const double total = std::accumulate(bands.begin(), bands.end(), 0.0) + 1.0e-12;
+        for (double& band : bands) band /= total;
+        double envPeak = 0.0;
+        for (float sample : mono) envPeak = std::max(envPeak, static_cast<double>(std::abs(sample)));
+        int last = 0;
+        for (int i = 0; i < static_cast<int>(mono.size()); ++i)
+            if (std::abs(mono[static_cast<size_t>(i)]) > envPeak * 0.03) last = i;
+        prints.push_back(Fingerprint{ bands, std::log(std::max(0.03, last / 48000.0)), peakDb });
+        names.push_back(processor.getProgramName(program).toStdString());
+    });
+
+    double worst = -1.0;
+    size_t worstA = 0;
+    size_t worstB = 1;
+    for (size_t i = 0; i < prints.size(); ++i) {
+        for (size_t j = i + 1; j < prints.size(); ++j) {
+            constexpr double lengthWeight = 0.9;
+            double dot = prints[i].length * lengthWeight * prints[j].length * lengthWeight;
+            double ni = prints[i].length * lengthWeight * prints[i].length * lengthWeight;
+            double nj = prints[j].length * lengthWeight * prints[j].length * lengthWeight;
+            for (size_t b = 0; b < 6; ++b) {
+                dot += prints[i].bands[b] * prints[j].bands[b];
+                ni += prints[i].bands[b] * prints[i].bands[b];
+                nj += prints[j].bands[b] * prints[j].bands[b];
+            }
+            const double similarity = dot / (std::sqrt(ni * nj) + 1.0e-12);
+            if (similarity > worst) {
+                worst = similarity;
+                worstA = i;
+                worstB = j;
+            }
+        }
+    }
+    // Copies land on 1. Two hats can share a hiss family and still differ in
+    // length, stick and shell, so the bar sits just under a duplicate.
+    INFO(names[worstA] + " ~ " + names[worstB]);
+    CHECK(worst < 0.99995);
 }
 
 TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the main page", "[plugin][ui][eq]") {

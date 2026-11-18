@@ -87,11 +87,18 @@ namespace {
     return phase;
 }
 
+// Odd saturation only. An always-positive even term parked a DC offset on every driven hat.
 [[nodiscard]] inline float softSaturate(float x, float drive) noexcept {
     if (drive <= 0.001f) return x;
-    const float gain = 1.0f + 2.6f * std::clamp(drive, 0.0f, 1.0f);
-    const float even = 0.06f * drive * (x * x) / (1.0f + x * x);
-    return std::tanh(x * gain) / std::tanh(gain) + even;
+    const float gain = 1.0f + 2.2f * std::clamp(drive, 0.0f, 1.0f);
+    return std::tanh(x * gain) / std::tanh(gain);
+}
+
+[[nodiscard]] inline float dcBlock(float x, float& x1, float& y1) noexcept {
+    const float y = x - x1 + 0.995f * y1;
+    x1 = x;
+    y1 = y;
+    return y;
 }
 
 } // namespace
@@ -252,7 +259,9 @@ namespace {
     const float progress = std::clamp(decayAge / decaySamples, 0.0f, 1.0f);
     const float linearEnv = 1.0f - progress;
     const float endFade = progress > 0.92f ? std::max(0.0f, (1.0f - progress) / 0.08f) : 1.0f;
-    const float expEnv = std::exp(-decayAge / std::max(1.0f, decaySamples * 0.44f)) * endFade;
+    // 0.20 of the decay length puts most of the energy up front and lets the tail
+    // fall through -40 dB before the note is cut, instead of staying loud and stopping.
+    const float expEnv = std::exp(-decayAge / std::max(1.0f, decaySamples * 0.20f)) * endFade;
     const float clampedCurve = std::clamp(curve, -1.0f, 1.0f);
     if (clampedCurve < 0.0f) {
         return (1.0f + clampedCurve) * linearEnv - clampedCurve * expEnv;
@@ -262,13 +271,33 @@ namespace {
 }
 
 [[nodiscard]] float bandLimitGain(float hz, float sampleRate) noexcept {
-    return std::clamp((0.49f - hz / sampleRate) * 16.0f, 0.0f, 1.0f);
+    return std::clamp((0.45f - hz / sampleRate) * 18.0f, 0.0f, 1.0f);
+}
+
+// Sum of sines, falling as 1/k^rolloff, each faded out before Nyquist.
+[[nodiscard]] float bandLimitedPartials(float phase, float hz, float sampleRate, int maxHarmonic,
+                                       int step, float rolloff) noexcept {
+    float sum = 0.0f;
+    float weight = 0.0f;
+    for (int k = 1; k <= maxHarmonic; k += step) {
+        const float freq = hz * static_cast<float>(k);
+        const float gain = bandLimitGain(freq, sampleRate);
+        if (gain <= 0.0f) break;
+        const float amp = gain / std::pow(static_cast<float>(k), rolloff);
+        sum += amp * std::sin(2.0f * pi() * phase * static_cast<float>(k));
+        weight += amp;
+    }
+    return weight > 1.0e-6f ? sum / weight : 0.0f;
 }
 
 } // namespace
 
 void HatSynth::prepare(double sampleRate) {
     sampleRate_ = sampleRate;
+    const double safeRate = std::max(1000.0, sampleRate);
+    stickHpAlpha_ = static_cast<float>(1.0 - std::exp(-2.0 * pi() * 2200.0 / safeRate));
+    const double stickLpHz = std::min(10500.0, safeRate * 0.42);
+    stickLpAlpha_ = static_cast<float>(1.0 - std::exp(-2.0 * pi() * stickLpHz / safeRate));
     reverb_.prepare(sampleRate);
     const std::array<double, 2> diffuserDelaySec{{ 0.0017, 0.0023 }};
     const size_t combCap = std::max<size_t>(64, static_cast<size_t>(sampleRate * 0.025));
@@ -298,6 +327,9 @@ void HatSynth::reset() noexcept {
     lastNoiseHPF_ = -1.0f;
     lastNoiseLPF_ = -1.0f;
     lastBodyTone_ = -1.0f;
+    lastModelType_ = -1;
+    lastModelColor_ = -10.0f;
+    lastModelDensity_ = -10.0f;
     chestPhase_ = 0.0f;
 
     std::ranges::for_each(channels_, [](ChannelState& ch) {
@@ -313,12 +345,20 @@ void HatSynth::reset() noexcept {
         ch.lofiHeld = 0.0f;
         ch.lofiCounter = 0;
         ch.metalPhases.fill(0.0f);
-        ch.bronzePhases.fill(0.0f);
+        ch.partialPhases.fill(0.0f);
         ch.sizzlePhases.fill(0.0f);
         std::ranges::fill(ch.combDelay, 0.0f);
         ch.combWrite = 0;
         ch.combFilter = 0.0f;
         ch.diffuser.reset();
+        ch.modelBp.reset();
+        ch.modelHp.reset();
+        ch.shade = 1.0f;
+        ch.shadeLp = 0.0f;
+        ch.stickHp = 0.0f;
+        ch.stickLp = 0.0f;
+        ch.dcX = 0.0f;
+        ch.dcY = 0.0f;
     });
 
     reverb_.reset();
@@ -384,6 +424,17 @@ void HatSynth::noteOff(int midiNoteNumber, int midiChannel, const HatSynthSettin
 
 void HatSynth::start(const HatSynthSettings& settings, float velocity) noexcept {
     reset();
+    // Scatter oscillator phase so the partials don't start as one stacked click.
+    std::ranges::for_each(channels_, [&](ChannelState& ch) {
+        const auto scramble = [&](auto& phases) {
+            for (float& phase : phases)
+                phase = 0.5f * (nextRandomFloat(prngState_) + 1.0f);
+        };
+        scramble(ch.metalPhases);
+        scramble(ch.partialPhases);
+        scramble(ch.sizzlePhases);
+        ch.shade = 1.0f;
+    });
     isPlaying_ = true;
     chokeStartSample_ = -1;
     velocity_ = std::clamp(velocity, 0.0f, 1.0f);
@@ -429,16 +480,83 @@ void HatSynth::updateFilterCaches(const HatSynthSettings& settings) noexcept {
     const float clampedTone = std::clamp(settings.bodyTone, 0.0f, 1.0f);
     if (std::abs(clampedTone - lastBodyTone_) > 0.002f) {
         lastBodyTone_ = clampedTone;
-        constexpr std::array<float, 4> kRatios{{ 1.00f, 1.53f, 2.18f, 3.07f }};
-        constexpr std::array<float, 4> kModeQs{{ 3.2f, 4.1f, 4.9f, 5.6f }};
-        const float baseHz = 330.0f * std::exp2(clampedTone * 1.35f);
+        // A hat shell lives around 0.9–5 kHz. The old 330 Hz base was a tom.
+        constexpr std::array<float, 4> kRatios{{ 1.00f, 1.48f, 2.11f, 2.89f }};
+        constexpr std::array<float, 4> kModeQs{{ 2.15f, 2.55f, 3.05f, 3.40f }};
+        const float baseHz = 880.0f * std::exp2(clampedTone * 1.05f);
         std::ranges::for_each(std::views::iota(size_t{0}, size_t{2}), [&](size_t chIdx) {
-            const float stereoDetune = chIdx == 0 ? 0.985f : 1.015f;
+            const float stereoDetune = chIdx == 0 ? 0.994f : 1.006f;
             std::ranges::for_each(std::views::iota(size_t{0}, size_t{4}), [&](size_t modeIdx) {
                 bodyModeCoeffs_[chIdx][modeIdx] = computeBandpassCoeffs(
                     baseHz * kRatios[modeIdx] * stereoDetune, kModeQs[modeIdx], sampleRate_);
             });
         });
+    }
+
+    const int modelType = static_cast<int>(settings.noiseType);
+    const float modelColor = std::clamp(settings.hissColor, -1.0f, 1.0f);
+    const float modelDensity = std::clamp(settings.hissDensity, 0.0f, 1.0f);
+    if (modelType != lastModelType_ || std::abs(modelColor - lastModelColor_) > 0.01f
+        || std::abs(modelDensity - lastModelDensity_) > 0.01f) {
+        lastModelType_ = modelType;
+        lastModelColor_ = modelColor;
+        lastModelDensity_ = modelDensity;
+        float bpHz = 6000.0f;
+        float bpQ = 0.8f;
+        float hpHz = 2500.0f;
+        float hpQ = 0.7f;
+        switch (settings.noiseType) {
+            case NoiseType::CrispWhite:
+                bpHz = 7200.0f * std::exp2(modelColor * 0.40f);
+                bpQ = 1.25f + 1.9f * modelDensity;
+                hpHz = std::clamp(bpHz * 0.38f, 1400.0f, 5200.0f);
+                hpQ = 0.62f;
+                break;
+            case NoiseType::PinkSilk:
+                bpHz = 4600.0f * std::exp2(modelColor * 0.32f);
+                bpQ = 0.75f + 0.55f * modelDensity;
+                hpHz = 1800.0f * std::exp2(std::max(0.0f, modelColor) * 0.40f);
+                hpQ = 0.55f;
+                break;
+            case NoiseType::VelvetShimmer:
+                hpHz = 3000.0f * std::exp2(modelColor * 0.25f);
+                hpQ = 0.60f;
+                bpHz = 8500.0f;
+                bpQ = 0.70f;
+                break;
+            case NoiseType::LoFiCrunch:
+                hpHz = 2800.0f * std::exp2(modelColor * 0.35f);
+                hpQ = 0.70f;
+                bpHz = 5200.0f;
+                bpQ = 0.80f;
+                break;
+            case NoiseType::AnalogMetal:
+                hpHz = 3400.0f * std::exp2(modelColor * 0.28f);
+                hpQ = 0.75f;
+                bpHz = 7800.0f * std::exp2(modelColor * 0.22f);
+                bpQ = 1.15f;
+                break;
+            case NoiseType::BronzeCymbal:
+                hpHz = 3400.0f * std::exp2(modelColor * 0.35f);
+                hpQ = 0.60f;
+                bpHz = 6200.0f;
+                bpQ = 0.70f;
+                break;
+            case NoiseType::SupersawSizzle:
+                hpHz = 5400.0f * std::exp2(modelColor * 0.28f);
+                hpQ = 0.65f;
+                bpHz = 8600.0f;
+                bpQ = 0.80f;
+                break;
+            case NoiseType::CombWash:
+                hpHz = 2000.0f * std::exp2(modelColor * 0.30f);
+                hpQ = 0.70f;
+                bpHz = 6400.0f;
+                bpQ = 0.60f;
+                break;
+        }
+        modelBpCoeffs_ = computeBandpassCoeffs(bpHz, bpQ, sampleRate_);
+        modelHpCoeffs_ = computeHighpassCoeffs(hpHz, hpQ, sampleRate_);
     }
 }
 
@@ -452,101 +570,165 @@ float HatSynth::generateHissChannel(ChannelState& ch, int channelIdx, const HatS
     const float sr = static_cast<float>(sampleRate_);
     const float color = std::clamp(settings.hissColor, -1.0f, 1.0f);
     const float density = std::clamp(settings.hissDensity, 0.0f, 1.0f);
-    const float chDetune = channelIdx == 0 ? 0.991f : 1.009f;
+    const float chDetune = channelIdx == 0 ? 0.997f : 1.003f;
+    if (!fullAdsrActive_) {
+        const float tau = 0.15f + 0.10f * (1.0f - density);
+        ch.shade *= std::exp(-1.0f / (sr * tau));
+    }
+
+    // Inharmonic stack. A closing lowpass after this function darkens the hit.
+    const auto modalStack = [&](float baseHz, std::span<const float> ratios, float tilt, float level) {
+        std::array<float, 24> amps{};
+        const size_t count = std::min(ratios.size(), amps.size());
+        float sumSq = 0.0f;
+        for (size_t i = 0; i < count; ++i) {
+            const float pos = count > 1 ? static_cast<float>(i) / static_cast<float>(count - 1) : 0.0f;
+            const float amp = std::exp(-tilt * pos);
+            amps[i] = amp;
+            sumSq += amp * amp;
+        }
+        const float norm = sumSq > 1.0e-8f ? level / std::sqrt(sumSq) : 0.0f;
+        float sum = 0.0f;
+        for (size_t i = 0; i < count; ++i) {
+            const float hz = baseHz * ratios[i];
+            const float gain = bandLimitGain(hz, sr);
+            if (gain <= 0.0f || amps[i] <= 0.0f) continue;
+            const float phase = advancePhase(ch.partialPhases[i], hz, sampleRate_);
+            const size_t modIdx = (i + 5) % count;
+            const float fm = (0.04f + 0.16f * density) * std::sin(2.0f * pi() * ch.partialPhases[modIdx]);
+            sum += gain * amps[i] * std::sin(2.0f * pi() * phase + fm);
+        }
+        return sum * norm;
+    };
 
     switch (settings.noiseType) {
-        case NoiseType::CrispWhite:
-            return density > 0.01f ? softSaturate(white, density * 0.35f) : white;
-        case NoiseType::PinkSilk:
-            return (0.50f + 0.24f * color) * white + (0.50f - 0.16f * color) * pink
-                + softSaturate(pink, density * 0.4f) * (0.20f * density);
+        case NoiseType::CrispWhite: {
+            // 909-style: noise through a resonant peak plus a softer highpassed bed.
+            const float bp = processBiquad(white, ch.modelBp, modelBpCoeffs_);
+            const float hp = processBiquad(white, ch.modelHp, modelHpCoeffs_);
+            return bp * 1.05f + hp * 0.42f;
+        }
+        case NoiseType::PinkSilk: {
+            const float bed = 0.72f * pink + 0.28f * white;
+            const float bp = processBiquad(bed, ch.modelBp, modelBpCoeffs_);
+            const float hp = processBiquad(pink, ch.modelHp, modelHpCoeffs_);
+            return bp * 0.72f + hp * 0.28f + pink * 0.06f;
+        }
         case NoiseType::VelvetShimmer: {
-            const float thresh = 0.88f - 0.26f * density;
-            const float gain = 3.6f - 1.5f * density;
-            return std::abs(white) > thresh ? white * gain : white * (0.20f + 0.22f * density);
+            constexpr std::array<float, 12> kRatios{{
+                1.00f, 1.17f, 1.36f, 1.58f, 1.83f, 2.12f, 2.46f, 2.85f, 3.31f, 3.84f, 4.45f, 5.16f
+            }};
+            const float base = 2800.0f * std::exp2(color * 0.34f) * chDetune;
+            float sum = 0.0f;
+            float sumSq = 0.0f;
+            std::array<float, 12> amps{};
+            for (size_t i = 0; i < kRatios.size(); ++i) {
+                const float pos = static_cast<float>(i) / 11.0f;
+                amps[i] = std::exp(-0.42f * pos);
+                sumSq += amps[i] * amps[i];
+            }
+            const float norm = 0.34f / std::sqrt(sumSq);
+            for (size_t i = 0; i < kRatios.size(); ++i) {
+                const float hz = base * kRatios[i];
+                const float pairHz = hz * (1.0045f + 0.0075f * density);
+                const float a = bandLimitGain(hz, sr) * std::sin(2.0f * pi() * advancePhase(ch.partialPhases[i], hz, sampleRate_));
+                const float b = bandLimitGain(pairHz, sr) * std::sin(2.0f * pi() * advancePhase(ch.partialPhases[i + 12], pairHz, sampleRate_));
+                sum += (a + 0.72f * b) * amps[i];
+            }
+            const float air = processBiquad(white, ch.modelHp, modelHpCoeffs_);
+            return sum * norm + air * 0.10f;
         }
         case NoiseType::LoFiCrunch: {
-            const int holdSteps = 2 + static_cast<int>(density * 8.0f);
-            const float levels = 36.0f - density * 24.0f;
+            const float bright = processBiquad(white, ch.modelHp, modelHpCoeffs_);
+            const int holdSteps = 2 + static_cast<int>(density * 3.0f);
+            const float levels = std::max(8.0f, 26.0f - density * 14.0f);
             if (ch.lofiCounter <= 0) {
-                ch.lofiHeld = std::round(white * levels) / levels;
+                ch.lofiHeld = std::round(bright * levels) / levels;
                 ch.lofiCounter = holdSteps;
             }
             --ch.lofiCounter;
-            return ch.lofiHeld + color * 0.12f * (white - ch.lofiHeld);
+            const float crushed = ch.lofiHeld + (0.18f + 0.12f * color) * (bright - ch.lofiHeld);
+            return std::tanh(crushed * (1.6f + 0.9f * density)) * 0.58f;
         }
         case NoiseType::AnalogMetal: {
+            // Six band-limited squares at the 808 metal ratios, ring-modulated in pairs,
+            // then highpassed. Sine ring-mod of these lows never reached the hat band.
             constexpr std::array<float, 6> kBaseHz{{ 205.3f, 304.4f, 369.6f, 522.7f, 540.0f, 800.0f }};
-            const float pitchScale = std::exp2(color * 0.55f) * chDetune;
+            const float pitchScale = std::exp2(color * 0.42f) * chDetune;
             std::array<float, 6> sq{};
-            std::ranges::for_each(std::views::iota(size_t{0}, size_t{6}), [&](size_t idx) {
+            for (size_t idx = 0; idx < sq.size(); ++idx) {
                 const float hz = kBaseHz[idx] * pitchScale;
-                const float ph = advancePhase(ch.metalPhases[idx], hz, sampleRate_);
-                sq[idx] = bandLimitGain(hz, sr) * std::tanh(3.2f * std::sin(2.0f * pi() * ph));
-            });
-            const float metal = (sq[0] * sq[1] + sq[2] * sq[3] + sq[4] * sq[5]) * 0.55f;
-            return metal * (0.72f + 0.24f * density) + white * (0.28f + 0.16f * (1.0f - density));
+                const float phase = advancePhase(ch.metalPhases[idx], hz, sampleRate_);
+                sq[idx] = bandLimitedPartials(phase, hz, sr, 11, 2, 1.0f);
+            }
+            const float metal = (sq[0] * sq[1] + sq[2] * sq[3] + sq[4] * sq[5]) * (0.85f + 0.25f * density);
+            const float shaped = std::tanh(metal * (1.15f + 0.55f * density));
+            const float hp = processBiquad(shaped, ch.modelHp, modelHpCoeffs_);
+            const float grit = processBiquad(white, ch.modelBp, modelBpCoeffs_);
+            // Bright noise following the metal keeps the 808 noisy instead of a low buzz.
+            const float follow = 0.28f + 0.72f * std::min(1.0f, std::abs(shaped) * 1.6f);
+            return hp * 2.35f + grit * 0.72f * follow;
         }
         case NoiseType::BronzeCymbal: {
-            constexpr std::array<float, 8> kPartialsHz{{ 465.0f, 657.6f, 805.4f, 1039.8f, 1264.0f, 1470.3f, 1801.0f, 2171.0f }};
-            const float pitchScale = std::exp2(color * 0.65f) * chDetune;
-            const float fmIndex = 0.25f + 1.15f * density;
-            float modalSum = 0.0f;
-            std::ranges::for_each(std::views::iota(size_t{0}, size_t{8}), [&](size_t idx) {
-                const float hz = kPartialsHz[idx] * pitchScale;
-                const float ph = advancePhase(ch.bronzePhases[idx], hz, sampleRate_);
-                const float modPhase = ch.bronzePhases[(idx + 3) % 8];
-                const float fm = fmIndex * std::sin(2.0f * pi() * modPhase) + 0.06f * white;
-                modalSum += bandLimitGain(hz, sr) * std::sin(2.0f * pi() * ph + fm);
-            });
-            return modalSum * 0.32f + white * 0.28f + pink * 0.14f;
+            constexpr std::array<float, 14> kRatios{{
+                1.00f, 1.46f, 1.97f, 2.58f, 3.29f, 4.12f, 5.08f, 6.19f,
+                7.47f, 8.93f, 10.58f, 12.44f, 14.52f, 16.85f
+            }};
+            const float base = 780.0f * std::exp2(color * 0.40f) * chDetune;
+            const float wash = processBiquad(0.75f * white + 0.25f * pink, ch.modelHp, modelHpCoeffs_);
+            return modalStack(base, kRatios, 0.45f, 0.40f) + wash * (0.12f + 0.08f * density);
         }
         case NoiseType::SupersawSizzle: {
-            constexpr std::array<float, 6> kSizzleHz{{ 1480.0f, 2210.0f, 3170.0f, 4490.0f, 6230.0f, 8510.0f }};
-            const float pitchScale = std::exp2(color * 0.50f);
-            const float spreadDir = channelIdx == 0 ? -1.0f : 1.0f;
-            float sizzleSum = 0.0f;
-            std::ranges::for_each(std::views::iota(size_t{0}, size_t{6}), [&](size_t idx) {
-                const float detuneRatio = 1.0f + spreadDir * (0.004f + 0.024f * density) * static_cast<float>(idx + 1) / 6.0f;
-                const float hz = kSizzleHz[idx] * pitchScale * detuneRatio;
-                const float ph = advancePhase(ch.sizzlePhases[idx], hz, sampleRate_);
-                const float saw = (2.0f * ph - 1.0f) * 0.55f + 0.45f * std::sin(2.0f * pi() * ph);
-                sizzleSum += bandLimitGain(hz, sr) * saw;
-            });
-            return sizzleSum * 0.30f + white * 0.42f;
+            // A few band-limited triangles in the sizzle band, plus bright noise.
+            // Naive saws at 8 kHz were mostly alias.
+            constexpr std::array<float, 5> kHz{{ 1880.0f, 2640.0f, 3520.0f, 4680.0f, 6120.0f }};
+            const float pitchScale = std::exp2(color * 0.32f);
+            const float spread = channelIdx == 0 ? -1.0f : 1.0f;
+            float sum = 0.0f;
+            for (size_t idx = 0; idx < kHz.size(); ++idx) {
+                const float detune = 1.0f + spread * (0.003f + 0.012f * density) * static_cast<float>(idx + 1) / 5.0f;
+                const float hz = kHz[idx] * pitchScale * detune;
+                const float phase = advancePhase(ch.sizzlePhases[idx], hz, sampleRate_);
+                const float tri = bandLimitedPartials(phase, hz, sr, 5, 2, 2.0f);
+                sum += bandLimitGain(hz, sr) * tri * (1.0f - 0.12f * static_cast<float>(idx));
+            }
+            const float air = processBiquad(white, ch.modelHp, modelHpCoeffs_);
+            return sum * 0.20f + air * 0.62f;
         }
         case NoiseType::CombWash: {
-            const float input = 0.65f * white + 0.35f * pink;
+            const float input = 0.70f * white + 0.30f * pink;
             if (ch.combDelay.empty()) return input;
-            const float baseMs = channelIdx == 0 ? 1.13f : 1.49f;
-            const float delayMs = baseMs * (1.35f - 0.50f * color);
-            const size_t delaySamples = std::clamp<size_t>(
-                static_cast<size_t>(delayMs * 0.001f * sr), 1, ch.combDelay.size() - 1);
-            const size_t readIdx = (ch.combWrite + ch.combDelay.size() - delaySamples) % ch.combDelay.size();
-            const float delayed = ch.combDelay[readIdx];
-            ch.combFilter = ch.combFilter * 0.35f + delayed * 0.65f;
-            const float feedback = 0.28f + 0.50f * density;
-            ch.combDelay[ch.combWrite] = std::tanh(input + ch.combFilter * feedback);
+            const float baseMs = (channelIdx == 0 ? 4.15f : 5.55f) * (1.12f - 0.38f * color);
+            const auto tap = [&](float delayMs) {
+                const size_t delaySamples = std::clamp<size_t>(
+                    static_cast<size_t>(std::max(0.2f, delayMs) * 0.001f * sr), size_t{1}, ch.combDelay.size() - 1);
+                const size_t readIdx = (ch.combWrite + ch.combDelay.size() - delaySamples) % ch.combDelay.size();
+                return ch.combDelay[readIdx];
+            };
+            const float delayed = 0.64f * tap(baseMs) + 0.36f * tap(baseMs * 0.67f);
+            const float feedback = 0.34f + 0.36f * density;
+            ch.combDelay[ch.combWrite] = std::tanh(input + delayed * feedback);
             ch.combWrite = (ch.combWrite + 1) % ch.combDelay.size();
-            return 0.42f * input + 0.68f * delayed;
+            const float mixed = 0.16f * input + 1.05f * delayed;
+            return processBiquad(mixed, ch.modelHp, modelHpCoeffs_) * 0.95f;
         }
     }
     return white;
 }
 
 float HatSynth::processBodyChannel(ChannelState& ch, int channelIdx, float excitation, float thump) noexcept {
-    constexpr std::array<float, 4> kModeWeights{{ 0.42f, 0.30f, 0.18f, 0.10f }};
+    constexpr std::array<float, 4> kModeWeights{{ 0.38f, 0.28f, 0.20f, 0.14f }};
     float modes = 0.0f;
     std::ranges::for_each(std::views::iota(size_t{0}, size_t{4}), [&](size_t modeIdx) {
         modes += processBiquad(excitation, ch.bodyModes[modeIdx], bodyModeCoeffs_[channelIdx][modeIdx])
             * kModeWeights[modeIdx];
     });
-    const float subAlpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * 175.0 / sampleRate_));
+    const float subAlpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * 340.0 / sampleRate_));
     ch.bodySubHp += subAlpha * (excitation - ch.bodySubHp);
     const float chest = excitation - ch.bodySubHp;
-    const float warmAlpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * 1250.0 / sampleRate_));
+    const float warmAlpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * 3400.0 / sampleRate_));
     ch.bodyWarmLp += warmAlpha * (chest - ch.bodyWarmLp);
-    return modes * 1.45f + ch.bodyWarmLp * 0.72f + thump * 0.48f;
+    return modes * 1.85f + ch.bodyWarmLp * 0.42f + thump * 0.22f;
 }
 
 float HatSynth::generateNoiseSample(NoiseType type) noexcept {
@@ -571,14 +753,18 @@ float HatSynth::generateChickSample(ChickType type, float freqHz, int ageSamples
     switch (type) {
         case ChickType::CrispStick: {
             if (t > 0.008f) return 0.0f;
-            const float env = std::exp(-t / 0.0012f);
-            const float click = std::max(0.0f, 1.0f - t * 6000.0f);
-            return (click * 0.6f + (partial(1.0f) * 0.6f + partial(1.62f) * 0.4f) * env) * level;
+            const float env = std::exp(-t / 0.0014f);
+            // The broadband spike has to be gone before 0.2 ms; the tone is the stick.
+            const float click = std::max(0.0f, 1.0f - t * 7200.0f);
+            return (click * 0.42f
+                + (partial(1.0f) * 0.52f + partial(1.51f) * 0.30f + partial(2.29f) * 0.16f + partial(3.17f) * 0.08f) * env)
+                * level;
         }
         case ChickType::PedalFoot: {
-            if (t > 0.018f) return 0.0f;
-            const float env = std::exp(-t / 0.0028f);
-            return (partial(0.6f) * 0.65f + partial(1.25f) * 0.35f) * env * level * 1.2f;
+            if (t > 0.020f) return 0.0f;
+            const float env = std::exp(-t / 0.0036f);
+            return (partial(0.47f) * 0.62f + partial(0.81f) * 0.42f + partial(1.23f) * 0.26f + partial(1.84f) * 0.12f)
+                * env * level * 1.15f;
         }
         case ChickType::LaserTick: {
             if (t > 0.010f) return 0.0f;
@@ -690,21 +876,20 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
         chick = generateChickSample(settings.chickType, settings.chickFreqHz * midiPitchRatio_,
                                     static_cast<int>(mainAge), settings.chickLevel);
         const float thumpTime = mainAge / sr;
-        if (thumpTime < 0.024f && settings.bodyLevel > 0.001f) {
-            const float thumpEnv = std::exp(-thumpTime / 0.0055f);
-            const float thumpHz = (165.0f + 195.0f * thumpEnv)
-                * (0.72f + 0.58f * std::clamp(settings.bodyTone, 0.0f, 1.0f));
+        if (thumpTime < 0.009f && settings.bodyLevel > 0.001f) {
+            const float thumpEnv = std::exp(-thumpTime / 0.0024f);
+            const float thumpHz = 740.0f + 640.0f * std::clamp(settings.bodyTone, 0.0f, 1.0f);
             chestThump = std::sin(2.0f * pi() * advancePhase(chestPhase_, thumpHz, sampleRate_)) * thumpEnv;
         }
     }
 
     const float attackEnvelope = mainAge >= 0.0f
-        ? std::exp(-mainAge / std::max(1.0f, sr * 0.0025f))
+        ? std::exp(-mainAge / std::max(1.0f, sr * 0.0018f))
         : 0.0f;
-    const float attackLevel = std::clamp(settings.chickLevel, 0.0f, 1.0f) * 1.8f;
+    const float attackLevel = std::clamp(settings.chickLevel, 0.0f, 1.0f) * 1.15f;
     const float hissColor = std::clamp(settings.hissColor, -1.0f, 1.0f);
     const float tiltAlpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * 4200.0 / sampleRate_));
-    const bool useDiffuser = settings.noiseType == NoiseType::PinkSilk || settings.noiseType == NoiseType::VelvetShimmer;
+    const bool useDiffuser = settings.noiseType == NoiseType::PinkSilk || settings.noiseType == NoiseType::CombWash;
     const float bodyMix = std::clamp(settings.bodyLevel, 0.0f, 1.0f);
 
     std::array<float, 2> airPair{};
@@ -713,9 +898,19 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
     // Process independent left/right channels uniformly through the same synthesis helper chain.
     std::ranges::for_each(std::views::iota(size_t{0}, size_t{2}), [&](size_t chIdx) {
         auto& ch = channels_[chIdx];
-        const float rawHiss = generateHissChannel(ch, static_cast<int>(chIdx), settings);
-        const float attackWhite = nextRandomFloat(prngState_);
-        const float noiseSwell = rawHiss * preChickGain[chIdx] * 0.4f + rawHiss * noiseEnvelope * settings.noiseLevel;
+        const float rawTone = generateHissChannel(ch, static_cast<int>(chIdx), settings);
+        // The lowpass closes over the note, the way a real cymbal loses its top.
+        const float shadeNow = std::clamp(ch.shade, 0.0f, 1.0f);
+        const float cutoff = std::min(1700.0f + 16000.0f * shadeNow, static_cast<float>(sampleRate_) * 0.45f);
+        const float darkAlpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * cutoff / sampleRate_));
+        ch.shadeLp += darkAlpha * (rawTone - ch.shadeLp);
+        const float rawHiss = ch.shadeLp;
+        float stickNoise = nextRandomFloat(prngState_);
+        ch.stickHp += stickHpAlpha_ * (stickNoise - ch.stickHp);
+        stickNoise -= ch.stickHp;
+        ch.stickLp += stickLpAlpha_ * (stickNoise - ch.stickLp);
+        stickNoise = ch.stickLp;
+        const float noiseSwell = rawHiss * preChickGain[chIdx] * 0.28f + rawHiss * noiseEnvelope * settings.noiseLevel;
 
         // The air & bronze body layer is unpitched, following filter & tone controls instead of MIDI pitch.
         float air = processBiquad(noiseSwell, ch.hpf1, nh1Coeffs_);
@@ -733,15 +928,15 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
             air = ch.diffuser.process(air);
         }
 
-        const float warmPink = (ch.pinkB0 + ch.pinkB1) * 0.65f;
-        const float bodyExcite = (warmPink + rawHiss * 0.45f) * (preChickGain[chIdx] * 0.55f + bodyEnvelope * 0.90f)
-            + attackEnvelope * 0.95f;
+        const float warmPink = (ch.pinkB0 + ch.pinkB1) * 0.35f;
+        const float bodyExcite = (warmPink + rawHiss * 0.30f) * (preChickGain[chIdx] * 0.30f + bodyEnvelope * 0.80f)
+            + attackEnvelope * 0.45f;
         const float bronzeBody = bodyMix > 0.001f
             ? processBodyChannel(ch, static_cast<int>(chIdx), bodyExcite, chestThump * (bodyEnvelope > 0.0f ? 1.0f : 0.0f)) * bodyMix
             : 0.0f;
 
-        airPair[chIdx] = softSaturate(air + bronzeBody, settings.hissDrive);
-        unscaledChickPair[chIdx] = chick + preChickTick[chIdx] + attackWhite * attackEnvelope * attackLevel;
+        airPair[chIdx] = dcBlock(softSaturate(air + bronzeBody, settings.hissDrive), ch.dcX, ch.dcY);
+        unscaledChickPair[chIdx] = chick + preChickTick[chIdx] + stickNoise * attackEnvelope * attackLevel;
     });
 
     if (settings.noiseStereoWidth != 1.0f) {

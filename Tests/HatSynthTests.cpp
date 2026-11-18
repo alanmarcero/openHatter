@@ -295,3 +295,118 @@ TEST_CASE("Laser strike glides down to the played pitch from above", "[core][syn
         }
     }
 }
+
+namespace {
+double spectralCentroid(const std::vector<float>& audio, double sampleRate, size_t start) {
+    constexpr int nfft = 1024;
+    double weighted = 0.0;
+    double weight = 0.0;
+    for (int k = 1; k < nfft / 2; k += 4) {
+        double re = 0.0;
+        double im = 0.0;
+        for (int n = 0; n < nfft; ++n) {
+            const double angle = 2.0 * 3.14159265358979323846 * k * n / static_cast<double>(nfft);
+            const float sample = audio[start + static_cast<size_t>(n)];
+            re += sample * std::cos(angle);
+            im -= sample * std::sin(angle);
+        }
+        const double mag = std::sqrt(re * re + im * im);
+        weighted += (k * sampleRate / nfft) * mag;
+        weight += mag;
+    }
+    return weight > 0.0 ? weighted / weight : 0.0;
+}
+}
+
+TEST_CASE("Hat textures stay in the hat band without DC or runaway peaks", "[core][synth][tone]") {
+    for (int type = 0; type < 8; ++type) {
+        HatSynth synth;
+        synth.prepare(48000.0);
+        HatSynthSettings settings;
+        settings.noiseType = static_cast<NoiseType>(type);
+        settings.noiseDecayMs = 280.0f;
+        settings.noiseCurve = -0.5f;
+        settings.noiseHPF = 600.0f;
+        settings.noiseLPF = 17000.0f;
+        settings.noiseLevel = 0.9f;
+        settings.chickLevel = 0.0f;
+        settings.preChickLevel = 0.0f;
+        settings.bodyLevel = 0.0f;
+        settings.reverbMix = 0.0f;
+        settings.hissDrive = 0.0f;
+        synth.trigger(settings, 1.0f);
+        std::vector<float> audio;
+        double sum = 0.0;
+        float peak = 0.0f;
+        while (synth.isPlaying()) {
+            const float sample = synth.processSample(settings).left;
+            REQUIRE(std::isfinite(sample));
+            audio.push_back(sample);
+            sum += sample;
+            peak = std::max(peak, std::abs(sample));
+        }
+        CAPTURE(type);
+        CHECK(peak > 0.05f);
+        CHECK(peak < 1.6f);
+        CHECK(std::abs(sum / static_cast<double>(audio.size())) < 0.003);
+    }
+
+    const auto render = [](NoiseType type) {
+        HatSynth synth;
+        synth.prepare(48000.0);
+        HatSynthSettings settings;
+        settings.noiseType = type;
+        settings.noiseDecayMs = 320.0f;
+        settings.noiseCurve = -0.45f;
+        settings.chickLevel = 0.0f;
+        settings.preChickLevel = 0.0f;
+        settings.bodyLevel = 0.0f;
+        settings.reverbMix = 0.0f;
+        settings.hissDrive = 0.0f;
+        settings.noiseLevel = 0.9f;
+        synth.trigger(settings, 1.0f);
+        std::vector<float> audio;
+        while (synth.isPlaying()) audio.push_back(synth.processSample(settings).left);
+        return audio;
+    };
+    const auto crisp = render(NoiseType::CrispWhite);
+    const auto metal = render(NoiseType::AnalogMetal);
+    const auto bronze = render(NoiseType::BronzeCymbal);
+    // A 909 hat is a bright resonant noise. The 808 metal sits lower, but still
+    // above the old sub-2 kHz buzz.
+    CHECK(spectralCentroid(crisp, 48000.0, 800) > 6800.0);
+    CHECK(spectralCentroid(metal, 48000.0, 800) > 5200.0);
+    const double bronzeAttack = spectralCentroid(bronze, 48000.0, 400);
+    const double bronzeTail = spectralCentroid(bronze, 48000.0, 48000 / 5);
+    CHECK(bronzeAttack > bronzeTail + 80.0);
+}
+
+TEST_CASE("A closed decay finishes quickly and an open decay keeps ringing", "[core][synth][envelope]") {
+    const auto audibleMs = [](float decayMs, float curve) {
+        HatSynth synth;
+        synth.prepare(48000.0);
+        HatSynthSettings settings;
+        settings.noiseDecayMs = decayMs;
+        settings.noiseCurve = curve;
+        settings.noiseAttackMs = 0.2f;
+        settings.noiseHoldMs = 0.0f;
+        settings.bodyLevel = 0.0f;
+        settings.chickLevel = 0.0f;
+        settings.preChickLevel = 0.0f;
+        settings.reverbMix = 0.0f;
+        synth.trigger(settings, 1.0f);
+        std::vector<float> audio;
+        while (synth.isPlaying()) audio.push_back(synth.processSample(settings).left);
+        float peak = 0.0f;
+        for (float sample : audio) peak = std::max(peak, std::abs(sample));
+        int last = 0;
+        for (int i = 0; i < static_cast<int>(audio.size()); ++i)
+            if (std::abs(audio[static_cast<size_t>(i)]) > peak * 0.01f) last = i;
+        return last * 1000.0 / 48000.0;
+    };
+    const double closed = audibleMs(60.0f, -0.9f);
+    const double open = audibleMs(500.0f, -0.45f);
+    CHECK(closed > 30.0);
+    CHECK(closed < 130.0);
+    CHECK(open > 340.0);
+}

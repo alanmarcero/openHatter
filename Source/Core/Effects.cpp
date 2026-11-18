@@ -33,9 +33,10 @@ float DistortionShaper::processSample(float input, DistortionType type, float dr
     float saturated = x;
     switch (type) {
         case DistortionType::Tape: {
-            const float rounded = std::tanh(1.35f * x);
-            const float bias = 0.035f * (1.0f - std::exp(-x * x));
-            saturated = rounded + bias;
+            // Asymmetric around a bias, then remove the resting offset so the exciter
+            // does not print a DC step onto the hat.
+            const float bias = 0.10f * drive;
+            saturated = std::tanh(1.25f * (x + bias)) - std::tanh(1.25f * bias);
             break;
         }
         case DistortionType::Tube: {

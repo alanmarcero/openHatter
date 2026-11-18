@@ -16,13 +16,15 @@ struct Character {
     float drive, compressorMix, roomSize, roomMs, roomGate;
 };
 
+// spacing, bounce decay, fallback bounce, fallback attack, fallback hold, fallback curve,
+// air level, exciter drive, compressor mix, room size, room ms, room gate.
 constexpr std::array<Character, 6> kStyles {{
-    { 5, 4, .42f, 2.0f, 14, +.05f, .88f, .12f, .45f, .42f, 460, 320 }, // 0 Progressive
-    { 6, 4, .44f, 1.2f, 16, +.12f, .92f, .16f, .52f, .58f, 780, 440 }, // 1 Uplifting
-    { 5, 5, .48f, 0.6f, 12, -.05f, .90f, .18f, .48f, .35f, 380, 260 }, // 2 Classic
-    { 3, 3, .42f, 0.4f,  8, -.28f, .90f, .16f, .55f, .22f, 260, 190 }, // 3 Tech
-    { 4, 3, .44f, 0.5f,  9, -.22f, .92f, .14f, .50f, .32f, 340, 240 }, // 4 Psy
-    { 6, 4, .45f, 0.9f, 13, -.02f, .91f, .14f, .50f, .40f, 420, 300 }  // 5 Rolling
+    { 10, 5, .16f, .4f, 6, -.55f, .86f, .06f, .16f, .36f, 320, 200 }, // 0 Progressive
+    {  9, 5, .14f, .4f, 8, -.45f, .86f, .08f, .20f, .42f, 380, 240 }, // 1 Uplifting
+    {  8, 4, .14f, .3f, 4, -.60f, .86f, .07f, .14f, .32f, 280, 180 }, // 2 Classic
+    {  6, 3, .12f, .2f, 2, -.80f, .84f, .14f, .26f, .24f, 180, 120 }, // 3 Tech
+    {  7, 4, .14f, .3f, 3, -.55f, .86f, .10f, .18f, .30f, 240, 160 }, // 4 Psy
+    {  8, 4, .14f, .4f, 5, -.55f, .86f, .07f, .18f, .34f, 300, 190 }  // 5 Rolling
 }};
 
 struct Hat {
@@ -36,101 +38,105 @@ struct Hat {
     float chickLevel, chickHz;
     int strikes;
     float roomMix, echoMix;
+    float curve, attack, hold, bounce, outGain;
 };
 
+// texture: 0 909, 1 silk, 2 velvet, 3 lofi, 4 808, 5 bronze, 6 sizzle, 7 comb
+// chick: 0 stick, 1 pedal, 2 laser
+// trailing fields: curve, attack ms, hold ms, bounce level, output gain dB
 constexpr std::array<Hat, 56> kDefinitions {{
-    // Uplifting Trance (24 presets)
-    { "Uplifting / Euphoria Open",      1, 6, 420, 18800,  480, 1.38f, +.25f, .48f, .34f, .62f, .48f, 185, 0, .40f,  8800, 1, .12f, .00f },
-    { "Uplifting / 138 Anthem Bronze",  1, 5, 360, 18200,  520, 1.32f, +.10f, .42f, .38f, .68f, .42f, 210, 0, .42f,  8400, 1, .10f, .00f },
-    { "Uplifting / Pearl Horizon",      1, 1, 480, 18600,  560, 1.42f, +.30f, .45f, .28f, .58f, .52f, 195, 0, .38f,  9200, 1, .14f, .00f },
-    { "Uplifting / Skyward Wash",       1, 7, 380, 17800,  780, 1.48f, +.18f, .55f, .32f, .64f, .46f, 260, 1, .38f,  7400, 1, .18f, .00f },
-    { "Uplifting / White Flare Sizzle", 1, 6, 580, 19800,  440, 1.35f, +.45f, .52f, .30f, .55f, .58f, 165, 2, .38f,  9800, 1, .10f, .00f },
-    { "Uplifting / Golden 909 Open",    1, 0, 390, 17900,  410, 1.22f, +.05f, .40f, .42f, .72f, .38f, 190, 0, .44f,  8200, 1, .08f, .00f },
-    { "Uplifting / Starlight Ride",     1, 5, 440, 19200,  860, 1.44f, +.22f, .48f, .26f, .60f, .55f, 280, 0, .36f,  9500, 2, .15f, .00f },
-    { "Uplifting / Analog 808 Air",     1, 4, 340, 17400,  465, 1.30f, +.00f, .44f, .38f, .70f, .40f, 205, 0, .40f,  8100, 1, .09f, .00f },
-    { "Uplifting / Long Arc Sizzle",    1, 6, 350, 19400,  980, 1.52f, +.32f, .60f, .34f, .66f, .50f, 320, 0, .38f,  9000, 1, .20f, .00f },
-    { "Uplifting / Sunlit Tight Closed",1, 5, 540, 18500,  215, 1.12f, +.20f, .35f, .32f, .58f, .60f, 105, 0, .42f, 10200, 1, .05f, .00f },
-    { "Uplifting / Driving Offbeat 140",1, 4, 410, 18600,  380, 1.28f, +.15f, .46f, .36f, .68f, .48f, 165, 0, .42f,  8900, 1, .08f, .00f },
-    { "Uplifting / Crystal Ribbon",     1, 2, 620, 19500,  510, 1.45f, +.40f, .50f, .28f, .52f, .62f, 175, 2, .36f, 10400, 1, .14f, .00f },
-    { "Uplifting / Cloudburst Swell",   1, 7, 430, 18800,  680, 1.46f, +.12f, .62f, .30f, .62f, .44f, 240, 0, .36f,  8600, 2, .16f, .12f },
-    { "Uplifting / Solar Pump",         1, 0, 320, 17200,  490, 1.34f, -.08f, .45f, .44f, .76f, .34f, 220, 1, .44f,  6800, 1, .10f, .00f },
-    { "Uplifting / Afterglow Wide",     1, 1, 400, 18200,  640, 1.50f, +.18f, .48f, .30f, .64f, .42f, 230, 0, .35f,  8500, 1, .16f, .00f },
-    { "Uplifting / Mainstage Splash",   1, 5, 310, 18900, 1120, 1.48f, +.20f, .56f, .36f, .70f, .49f, 360, 0, .40f,  9100, 1, .22f, .00f },
-    { "Uplifting / Neon Sixteenth",     1, 4, 560, 18800,  245, 1.20f, +.25f, .38f, .34f, .56f, .58f, 115, 0, .38f,  9600, 2, .06f, .00f },
-    { "Uplifting / Pure 138 Bronze",    1, 5, 440, 19100,  435, 1.32f, +.14f, .40f, .32f, .65f, .50f, 175, 0, .40f,  9000, 1, .10f, .00f },
-    { "Uplifting / Silver Comb Lift",   1, 7, 500, 19000,  540, 1.44f, +.28f, .58f, .28f, .58f, .54f, 185, 2, .36f, 10200, 1, .12f, .00f },
-    { "Uplifting / Arena Shaker Hat",   1, 2, 520, 18100,  340, 1.36f, +.22f, .55f, .30f, .54f, .56f, 140, 0, .36f,  8400, 3, .10f, .00f },
-    { "Uplifting / Twilight Bronze",    1, 6, 330, 16800,  580, 1.38f, -.12f, .46f, .40f, .72f, .36f, 225, 1, .42f,  7200, 1, .14f, .00f },
-    { "Uplifting / Peak Time Ride",     1, 6, 460, 19600,  740, 1.46f, +.34f, .54f, .32f, .60f, .54f, 250, 0, .38f,  9400, 1, .16f, .10f },
-    { "Uplifting / Satin Closed Tick",  1, 1, 580, 17600,  195, 1.14f, +.08f, .32f, .30f, .58f, .52f,  95, 0, .40f,  9100, 1, .04f, .00f },
-    { "Uplifting / Endless Horizon",    1, 5, 360, 18700,  920, 1.54f, +.22f, .52f, .34f, .68f, .46f, 300, 0, .36f,  8800, 1, .20f, .12f },
+    // Uplifting Trance (24)
+    { "Uplifting / Euphoria Open",      1, 0,  520, 17000,  580, 1.26f, -.08f, .36f, .16f, .38f, .40f, 180, 0, .32f,  7400, 1, .10f, .00f, -.40f, 0.6f, 12, .12f, -2.12f },
+    { "Uplifting / 138 Anthem Bronze",  1, 5,  420, 16800,  520, 1.18f, +.04f, .48f, .22f, .62f, .42f, 210, 0, .34f,  7600, 1, .09f, .00f, -.48f, 0.6f, 10, .12f, -1.34f },
+    { "Uplifting / Pearl Horizon",      1, 1, 1100, 17800,  380, 1.18f, +.34f, .30f, .08f, .16f, .62f, 120, 0, .28f,  9800, 1, .08f, .00f, -.58f, 0.6f,  6, .08f, -0.41f },
+    { "Uplifting / Skyward Wash",       1, 7,  520, 17000,  760, 1.32f, +.08f, .62f, .16f, .34f, .40f, 240, 0, .28f,  7000, 1, .14f, .00f, -.32f, 2.4f, 18, .10f, -1.84f },
+    { "Uplifting / White Flare Sizzle", 1, 6, 1400, 19000,  360, 1.20f, +.36f, .40f, .14f, .16f, .62f, 110, 2, .34f, 10400, 1, .07f, .00f, -.62f, 0.3f,  4, .10f, -2.98f },
+    { "Uplifting / Golden 909 Open",    1, 0, 1800, 16800,  340, 1.06f, +.22f, .62f, .06f, .10f, .58f,  90, 0, .46f, 10000, 1, .04f, .00f, -.70f, 0.2f,  2, .08f, -1.82f },
+    { "Uplifting / Starlight Ride",     1, 5,  360, 17500,  980, 1.30f, +.16f, .52f, .18f, .55f, .46f, 280, 0, .26f,  8000, 2, .12f, .00f, -.22f, 1.0f, 16, .16f, -2.37f },
+    { "Uplifting / Analog 808 Air",     1, 4,  700, 11200,  460, 1.10f, -.06f, .46f, .28f, .40f, .32f, 180, 0, .38f,  6800, 1, .07f, .00f, -.52f, 0.4f,  6, .12f, -1.09f },
+    { "Uplifting / Long Arc Sizzle",    1, 6,  800, 18800, 1100, 1.34f, +.22f, .48f, .16f, .24f, .58f, 260, 0, .24f,  9000, 1, .13f, .08f, -.24f, 1.6f, 20, .10f, -2.62f },
+    { "Uplifting / Sunlit Tight Closed",1, 5, 1600, 17500,   78, 1.04f, +.32f, .40f, .10f, .36f, .64f,  55, 0, .58f, 10400, 1, .03f, .00f, -.88f, 0.2f,  0, .08f, 0.06f },
+    { "Uplifting / Driving Offbeat 140",1, 4,  860, 12400,  300, 1.08f, +.02f, .50f, .24f, .36f, .38f, 140, 0, .42f,  8400, 1, .05f, .00f, -.64f, 0.3f,  4, .12f, -1.60f },
+    { "Uplifting / Crystal Ribbon",     1, 2, 1200, 18600,  480, 1.26f, +.28f, .58f, .12f, .20f, .60f, 150, 2, .32f, 10800, 1, .09f, .00f, -.46f, 0.8f, 10, .10f, -2.01f },
+    { "Uplifting / Cloudburst Swell",   1, 7,  480, 16600,  640, 1.30f, +.02f, .66f, .18f, .30f, .36f, 220, 0, .26f,  6400, 2, .12f, .10f, -.30f, 6.0f, 12, .12f, -1.79f },
+    { "Uplifting / Solar Pump",         1, 0,  760, 16000,  420, 1.14f, -.10f, .48f, .20f, .32f, .34f, 160, 1, .40f,  5600, 1, .07f, .00f, -.55f, 0.5f,  8, .14f, -3.15f },
+    { "Uplifting / Afterglow Wide",     1, 1,  340, 14000,  820, 1.40f, -.18f, .34f, .14f, .34f, .30f, 260, 0, .22f,  5600, 1, .14f, .00f, -.28f, 2.2f, 24, .10f, -1.61f },
+    { "Uplifting / Mainstage Splash",   1, 5,  300, 17200, 1080, 1.28f, +.08f, .44f, .20f, .68f, .40f, 320, 0, .30f,  7800, 1, .16f, .00f, -.20f, 0.8f, 14, .14f, -2.35f },
+    { "Uplifting / Neon Sixteenth",     1, 0, 2800, 18400,   74, 1.00f, +.26f, .30f, .08f, .12f, .66f,  52, 0, .58f, 11800, 1, .03f, .00f, -.92f, 0.2f,  0, .06f, -2.04f },
+    { "Uplifting / Pure 138 Bronze",    1, 5,  260, 14800,  480, 1.12f, -.20f, .44f, .24f, .68f, .32f, 220, 0, .32f,  6400, 1, .08f, .00f, -.42f, 0.5f,  8, .14f, -1.31f },
+    { "Uplifting / Silver Comb Lift",   1, 7,  880, 17800,  500, 1.24f, +.24f, .60f, .14f, .22f, .52f, 160, 2, .30f, 10000, 1, .08f, .00f, -.44f, 0.5f,  6, .10f, -1.74f },
+    { "Uplifting / Arena Shaker Hat",   1, 2,  980, 17000,  260, 1.18f, +.14f, .64f, .16f, .24f, .56f, 110, 0, .34f,  7600, 2, .08f, .00f, -.70f, 0.3f,  2, .55f, -1.90f },
+    { "Uplifting / Twilight Bronze",    1, 5,  280, 14000,  540, 1.14f, -.22f, .42f, .26f, .70f, .30f, 230, 1, .42f,  4800, 1, .10f, .00f, -.40f, 0.6f,  8, .16f, -1.79f },
+    { "Uplifting / Peak Time Ride",     1, 6,  640, 18600,  860, 1.32f, +.30f, .46f, .14f, .20f, .64f, 220, 0, .28f,  9600, 1, .12f, .08f, -.26f, 0.8f, 12, .10f, -2.31f },
+    { "Uplifting / Satin Closed Tick",  1, 2, 1800, 16800,   70, 1.08f, +.20f, .48f, .10f, .12f, .60f,  48, 0, .42f,  9800, 1, .02f, .00f, -.86f, 0.5f,  2, .10f, -1.4f },
+    { "Uplifting / Endless Horizon",    1, 5,  340, 16600,  920, 1.34f, +.06f, .50f, .18f, .60f, .38f, 300, 0, .24f,  7200, 1, .15f, .10f, -.22f, 1.2f, 18, .12f, -2.08f },
 
-    // Rolling (8 presets)
-    { "Rolling / Heavy Floor Open",     5, 4, 360, 18000,  420, 1.24f, +.05f, .44f, .38f, .72f, .42f, 175, 0, .42f,  8300, 1, .08f, .00f },
-    { "Rolling / Warm Club Pocket",     5, 0, 320, 16600,  360, 1.16f, -.10f, .40f, .40f, .70f, .38f, 160, 1, .42f,  6600, 1, .08f, .00f },
-    { "Rolling / Brushed Sixteen",      5, 1, 480, 17400,  235, 1.18f, +.12f, .36f, .30f, .60f, .50f, 115, 0, .38f,  8600, 2, .06f, .00f },
-    { "Rolling / Open Shutter",         5, 6, 400, 18400,  480, 1.38f, +.20f, .46f, .34f, .62f, .48f, 185, 0, .38f,  8900, 1, .10f, .00f },
-    { "Rolling / Punchy Pedal",         5, 5, 340, 16900,  330, 1.14f, -.05f, .38f, .36f, .74f, .40f, 155, 1, .44f,  6900, 1, .07f, .00f },
-    { "Rolling / Groove Flam",          5, 2, 460, 17800,  285, 1.26f, +.14f, .45f, .30f, .60f, .52f, 130, 0, .38f,  8400, 3, .08f, .00f },
-    { "Rolling / Midnight Mirrors",     5, 7, 420, 18600,  540, 1.36f, +.18f, .52f, .32f, .62f, .46f, 200, 2, .36f,  9600, 1, .12f, .14f },
-    { "Rolling / Bronze Driver",        5, 5, 380, 17900,  390, 1.22f, +.04f, .42f, .36f, .70f, .44f, 170, 0, .40f,  8200, 1, .08f, .00f },
+    // Rolling (8)
+    { "Rolling / Heavy Floor Open",     5, 4,  280,  7600,  340, 0.98f, -.42f, .58f, .42f, .66f, .22f, 200, 0, .46f,  5200, 1, .05f, .00f, -.58f, 0.3f,  4, .16f, -1.49f },
+    { "Rolling / Warm Club Pocket",     5, 1,  380, 12000,  280, 1.02f, -.28f, .32f, .16f, .40f, .28f, 160, 0, .34f,  5200, 1, .05f, .00f, -.55f, 0.8f,  8, .12f, -1.6f },
+    { "Rolling / Brushed Sixteen",      5, 2, 1400, 16500,  140, 1.08f, +.22f, .55f, .10f, .14f, .58f,  70, 0, .30f,  8600, 2, .04f, .00f, -.74f, 0.4f,  2, .42f, -0.35f },
+    { "Rolling / Open Shutter",         5, 6,  720, 17600,  450, 1.16f, +.18f, .44f, .14f, .22f, .54f, 150, 0, .32f,  8800, 1, .07f, .00f, -.48f, 0.4f,  6, .10f, -1.99f },
+    { "Rolling / Punchy Pedal",         5, 5,  260,  9800,  130, 0.96f, -.18f, .36f, .22f, .64f, .26f, 110, 1, .56f,  4200, 1, .04f, .00f, -.74f, 0.3f,  2, .14f, -3.81f },
+    { "Rolling / Groove Flam",          5, 2,  500, 13000,  200, 1.04f, -.16f, .48f, .18f, .30f, .34f, 110, 0, .36f,  5600, 2, .05f, .00f, -.66f, 0.3f,  2, .60f, -1.6f },
+    { "Rolling / Midnight Mirrors",     5, 7,  460, 16800,  560, 1.22f, +.12f, .58f, .16f, .28f, .40f, 180, 2, .30f,  9200, 1, .10f, .12f, -.34f, 0.8f,  8, .12f, -1.24f },
+    { "Rolling / Bronze Driver",        5, 5,  900, 17200,  260, 1.14f, +.26f, .34f, .12f, .40f, .62f, 100, 0, .40f,  9800, 1, .05f, .00f, -.68f, 0.3f,  2, .10f, -1.58f },
 
-    // Progressive (8 presets)
-    { "Progressive / Silk Offbeat",     0, 1, 420, 17400,  450, 1.30f, +.10f, .42f, .28f, .64f, .44f, 180, 0, .34f,  7900, 1, .10f, .00f },
-    { "Progressive / Deep Alloy",       0, 5, 340, 16000,  380, 1.18f, -.18f, .40f, .34f, .72f, .34f, 170, 0, .38f,  7400, 1, .08f, .00f },
-    { "Progressive / After Hours",      0, 7, 300, 15400,  580, 1.36f, -.22f, .48f, .30f, .66f, .32f, 220, 1, .34f,  6200, 1, .16f, .00f },
-    { "Progressive / Satin Rim",        0, 1, 500, 16800,  290, 1.22f, +.08f, .36f, .28f, .62f, .48f, 130, 0, .36f,  7800, 2, .07f, .00f },
-    { "Progressive / Smoked Bronze",    0, 4, 310, 15800,  410, 1.20f, -.14f, .42f, .40f, .74f, .36f, 185, 1, .38f,  6500, 1, .08f, .00f },
-    { "Progressive / Horizon Drift",    0, 6, 440, 18200,  620, 1.46f, +.22f, .46f, .26f, .58f, .48f, 215, 0, .32f,  8500, 1, .14f, .00f },
-    { "Progressive / Warm Shaker",      0, 2, 480, 16600,  320, 1.28f, +.05f, .44f, .28f, .60f, .46f, 145, 0, .34f,  7600, 3, .08f, .00f },
-    { "Progressive / Closed Felt",      0, 1, 460, 15200,  200, 1.06f, -.16f, .32f, .32f, .66f, .38f, 100, 1, .38f,  6000, 1, .04f, .00f },
+    // Progressive (8)
+    { "Progressive / Silk Offbeat",     0, 1,  560, 15400,  460, 1.20f, +.08f, .34f, .08f, .24f, .40f, 160, 0, .28f,  7200, 1, .08f, .00f, -.46f, 1.0f, 12, .10f, -0.83f },
+    { "Progressive / Deep Alloy",       0, 5,  240, 13600,  430, 1.08f, -.28f, .46f, .24f, .66f, .28f, 200, 0, .34f,  6200, 1, .07f, .00f, -.44f, 0.5f,  8, .12f, -1.31f },
+    { "Progressive / After Hours",      0, 7,  300, 13200,  620, 1.24f, -.16f, .52f, .18f, .36f, .32f, 240, 1, .30f,  4600, 1, .12f, .00f, -.30f, 1.8f, 14, .14f, -0.96f },
+    { "Progressive / Satin Rim",        0, 1, 1100, 14600,  170, 1.06f, +.02f, .30f, .06f, .20f, .50f,  90, 0, .32f,  6800, 2, .05f, .00f, -.72f, 0.5f,  3, .36f, -0.93f },
+    { "Progressive / Smoked Bronze",    0, 4,  240,  8200,  560, 1.02f, -.48f, .36f, .38f, .70f, .18f, 280, 1, .34f,  3400, 1, .08f, .00f, -.36f, 0.6f, 10, .16f, -1.37f },
+    { "Progressive / Horizon Drift",    0, 6,  600, 17400,  640, 1.30f, +.16f, .42f, .12f, .18f, .56f, 200, 0, .26f,  8400, 1, .11f, .00f, -.34f, 1.2f, 14, .08f, -2.33f },
+    { "Progressive / Warm Shaker",      0, 2,  760, 15000,  280, 1.16f, -.02f, .60f, .12f, .22f, .46f, 120, 0, .30f,  6600, 2, .06f, .00f, -.64f, 0.4f,  3, .52f, -1.93f },
+    { "Progressive / Closed Felt",      0, 1, 1500, 15000,   80, 1.00f, +.12f, .24f, .06f, .16f, .55f,  50, 0, .40f,  6400, 1, .03f, .00f, -.86f, 0.8f,  2, .08f, 1.55f },
 
-    // Psy (6 presets)
-    { "Psy / Spectral Orbit",           4, 7, 520, 18800,  360, 1.32f, +.20f, .58f, .34f, .56f, .60f, 145, 2, .40f, 10800, 1, .08f, .00f },
-    { "Psy / Twin Laser Metal",         4, 4, 480, 19200,  270, 1.24f, +.16f, .50f, .36f, .60f, .58f, 120, 2, .38f, 11400, 2, .06f, .00f },
-    { "Psy / Fractal Shimmer",          4, 5, 450, 18600,  410, 1.34f, +.22f, .68f, .32f, .58f, .54f, 155, 0, .36f,  9200, 1, .09f, .00f },
-    { "Psy / Crunch Cog",               4, 3, 440, 17400,  250, 1.18f, +.05f, .48f, .40f, .62f, .50f, 115, 0, .38f,  9400, 2, .05f, .00f },
-    { "Psy / Liquid Combs",             4, 7, 410, 18400,  520, 1.42f, +.15f, .62f, .30f, .54f, .52f, 180, 2, .34f, 10400, 1, .12f, .16f },
-    { "Psy / Acid Top",                 4, 6, 540, 19400,  310, 1.28f, +.30f, .52f, .34f, .60f, .56f, 135, 2, .38f, 11000, 1, .07f, .00f },
+    // Psy (6)
+    { "Psy / Spectral Orbit",           4, 7,  980, 18400,  340, 1.18f, +.18f, .70f, .20f, .18f, .58f, 120, 2, .36f, 11200, 1, .06f, .00f, -.58f, 0.3f,  3, .12f, -1.20f },
+    { "Psy / Twin Laser Metal",         4, 4, 1100, 16800,  280, 1.16f, +.28f, .46f, .16f, .18f, .62f,  80, 2, .34f, 12800, 2, .05f, .00f, -.62f, 0.2f,  2, .46f, -0.92f },
+    { "Psy / Fractal Shimmer",          4, 5,  640, 18000,  420, 1.22f, +.20f, .72f, .16f, .34f, .55f, 150, 0, .32f,  9800, 1, .07f, .00f, -.50f, 0.4f,  5, .10f, -1.99f },
+    { "Psy / Crunch Cog",               4, 3, 1400, 15500,  210, 1.12f, +.24f, .50f, .36f, .16f, .64f,  70, 2, .36f, 11000, 1, .04f, .00f, -.64f, 0.2f,  2, .10f, -2.2f },
+    { "Psy / Liquid Combs",             4, 7,  540, 17600,  540, 1.28f, +.06f, .74f, .18f, .20f, .44f, 170, 2, .28f, 10200, 1, .10f, .10f, -.36f, 0.6f,  8, .12f, -1.90f },
+    { "Psy / Acid Top",                 4, 6, 1600, 19200,  220, 1.10f, +.40f, .50f, .22f, .14f, .68f,  90, 2, .42f, 12400, 1, .05f, .00f, -.70f, 0.2f,  2, .08f, -2.06f },
 
-    // Tech (5 presets)
-    { "Tech / Industrial Bronze",       3, 4, 380, 17200,  240, 1.06f, -.08f, .46f, .44f, .74f, .42f, 125, 0, .44f,  8800, 1, .04f, .00f },
-    { "Tech / Dark Warehouse",          3, 5, 320, 15200,  310, 1.10f, -.24f, .42f, .40f, .76f, .34f, 150, 1, .42f,  6400, 1, .06f, .00f },
-    { "Tech / Black Chrome",            3, 3, 420, 16200,  230, 1.04f, -.05f, .48f, .42f, .68f, .46f, 110, 0, .40f,  7900, 1, .04f, .00f },
-    { "Tech / Raw Relay",               3, 0, 460, 17600,  210, 1.08f, +.02f, .36f, .38f, .66f, .50f, 105, 0, .42f,  9100, 2, .04f, .00f },
-    { "Tech / Steel Pump",              3, 7, 390, 16600,  290, 1.14f, -.10f, .44f, .36f, .70f, .40f, 135, 1, .44f,  7100, 1, .06f, .00f },
+    // Tech (5)
+    { "Tech / Industrial Bronze",       3, 4,  360,  7200,  130, 0.86f, -.28f, .64f, .62f, .42f, .30f,  90, 0, .54f,  6400, 1, .02f, .00f, -.86f, 0.15f, 0, .08f, -3.04f },
+    { "Tech / Dark Warehouse",          3, 5,  220, 11000,  280, 0.92f, -.34f, .40f, .30f, .72f, .22f, 160, 1, .46f,  3600, 1, .05f, .00f, -.60f, 0.3f,  3, .12f, -3.75f },
+    { "Tech / Black Chrome",            3, 3,  600,  6400,   90, 0.84f, -.30f, .70f, .58f, .28f, .36f,  70, 0, .52f,  5400, 1, .02f, .00f, -.88f, 0.15f, 0, .06f, -2.0f },
+    { "Tech / Raw Relay",               3, 0,  480,  9000,   96, 0.90f, -.24f, .34f, .22f, .18f, .40f,  60, 0, .50f,  7200, 1, .02f, .00f, -.90f, 0.15f, 0, .08f, 0.14f },
+    { "Tech / Steel Pump",              3, 7,  420, 14000,  240, 0.98f, -.08f, .48f, .24f, .38f, .34f, 120, 1, .44f,  5200, 1, .04f, .00f, -.68f, 0.3f,  2, .12f, 0.03f },
 
-    // Classic (5 presets)
-    { "Classic / 909 Full Bronze",      2, 0, 320, 17000,  430, 1.18f, -.04f, .38f, .40f, .72f, .40f, 185, 0, .42f,  7800, 1, .08f, .00f },
-    { "Classic / 808 Analog Open",      2, 4, 300, 16500,  490, 1.20f, -.08f, .42f, .36f, .74f, .36f, 200, 0, .40f,  7500, 1, .09f, .00f },
-    { "Classic / Heavy Bronze Ride",    2, 5, 340, 17800,  720, 1.32f, +.05f, .46f, .34f, .70f, .44f, 250, 0, .38f,  8400, 1, .16f, .00f },
-    { "Classic / Pedal Choke",          2, 1, 360, 15400,  240, 1.04f, -.12f, .34f, .32f, .68f, .38f, 120, 1, .44f,  6000, 1, .05f, .00f },
-    { "Classic / Studio Brass",         2, 5, 380, 18000,  540, 1.24f, +.05f, .40f, .32f, .68f, .46f, 200, 0, .38f,  8200, 1, .12f, .00f },
+    // Classic (5)
+    { "Classic / 909 Full Bronze",      2, 0,  800, 16000,  480, 1.08f, +.00f, .50f, .12f, .34f, .42f, 170, 0, .42f,  8400, 1, .06f, .00f, -.55f, 0.3f,  6, .12f, -1.68f },
+    { "Classic / 808 Analog Open",      2, 4,  900, 14500,  680, 1.14f, +.16f, .40f, .18f, .26f, .48f, 160, 0, .30f,  8200, 1, .08f, .00f, -.38f, 0.5f, 10, .10f, -1.05f },
+    { "Classic / Heavy Bronze Ride",    2, 5,  260, 16200,  880, 1.16f, -.04f, .42f, .20f, .74f, .36f, 340, 0, .28f,  7000, 1, .12f, .00f, -.24f, 0.6f, 12, .14f, -1.21f },
+    { "Classic / Pedal Choke",          2, 1,  180,  7200,  110, 0.88f, -.36f, .28f, .20f, .70f, .24f,  90, 1, .60f,  2800, 1, .03f, .00f, -.80f, 0.2f,  1, .12f, -0.64f },
+    { "Classic / Studio Brass",         2, 5,  900, 17600,  360, 1.08f, +.30f, .28f, .10f, .30f, .66f, 120, 0, .36f, 10200, 1, .06f, .00f, -.62f, 0.3f,  4, .08f, -1.8f },
 }};
 
 FactoryPreset makePreset(const Hat& hat, const Character& style) {
     return { hat.name, {
         { kDecayScale, 1 }, { kEchoMix, hat.echoMix },
-        { kAmpAttack, .15f }, { kAmpDecay, 140 }, { kAmpSustain, .94f }, { kAmpRelease, 85 },
-        { kNoiseType, static_cast<float>(hat.texture) }, { kNoiseAttack, style.airAttack },
-        { kNoiseHold, style.airHold }, { kNoiseDecay, hat.airMs }, { kNoiseCurve, style.airCurve },
+        { kAmpAttack, .20f }, { kAmpDecay, 30 }, { kAmpSustain, 1.f }, { kAmpRelease, 36 },
+        { kNoiseType, static_cast<float>(hat.texture) }, { kNoiseAttack, hat.attack },
+        { kNoiseHold, hat.hold }, { kNoiseDecay, hat.airMs }, { kNoiseCurve, hat.curve },
         { kNoiseHPF, hat.highpass }, { kNoiseLPF, hat.lowpass }, { kNoiseStereoWidth, hat.width },
         { kNoiseLevel, style.airLevel },
         { kHissColor, hat.hissColor }, { kHissDensity, hat.hissDensity }, { kHissDrive, hat.hissDrive },
         { kBodyLevel, hat.bodyLevel }, { kBodyTone, hat.bodyTone }, { kBodyDecay, hat.bodyMs },
         { kPreBursts, static_cast<float>(hat.strikes) }, { kPreSpread, style.bounceSpacing },
-        { kPreDecay, style.bounceDecay }, { kPreJitter, .03f }, { kFlamSpread, .24f },
-        { kPreLevel, style.bounceLevel },
+        { kPreDecay, style.bounceDecay }, { kPreJitter, .03f }, { kFlamSpread, .22f },
+        { kPreLevel, hat.bounce },
         { kClickType, static_cast<float>(hat.chickType) }, { kClickLevel, hat.chickLevel },
         { kClickFreq, hat.chickHz },
-        { kDistType, 0 }, { kDistDrive, style.drive }, { kDistTone, 0.1f }, { kDistMix, .14f },
-        { kCompThresh, -14 }, { kCompRatio, 2.5f }, { kCompAttack, 5 }, { kCompRelease, 55 },
-        { kCompMakeup, 1.5f }, { kCompMix, style.compressorMix }, { kLimiterEnabled, 1 },
-        { kLimiterCeiling, -1.0f }, { kLimiterRelease, 22 }, { kReverbSize, style.roomSize },
-        { kReverbDecay, style.roomMs }, { kReverbDamp, .34f }, { kReverbGate, style.roomGate },
+        { kDistType, 0 }, { kDistDrive, style.drive }, { kDistTone, 0.05f }, { kDistMix, .06f },
+        { kCompThresh, -18 }, { kCompRatio, 2.0f }, { kCompAttack, 6 }, { kCompRelease, 80 },
+        { kCompMakeup, 0.0f }, { kCompMix, style.compressorMix }, { kLimiterEnabled, 1 },
+        { kLimiterCeiling, -1.0f }, { kLimiterRelease, 18 }, { kReverbSize, style.roomSize },
+        { kReverbDecay, style.roomMs }, { kReverbDamp, .42f }, { kReverbGate, style.roomGate },
         { kReverbMix, hat.roomMix }, { kReverseMode, 0 }, { kReverseMix, 0 },
-        { kEqLowFreq, 80.0f }, { kEqLowDb, 0.0f }, { kEqMidFreq, 1000.0f }, { kEqMidDb, 0.0f },
-        { kEqHighFreq, 7500.0f }, { kEqHighDb, 0.0f }, { kStereoWidth, 1.05f }, { kOutputGain, 0 }
+        { kEqLowFreq, 90.0f }, { kEqLowDb, 0.0f }, { kEqMidFreq, 3200.0f }, { kEqMidDb, 0.0f },
+        { kEqHighFreq, 9000.0f }, { kEqHighDb, 0.0f }, { kStereoWidth, 1.0f }, { kOutputGain, hat.outGain }
     } };
 }
 

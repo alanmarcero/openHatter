@@ -226,12 +226,20 @@ private:
         float lofiHeld = 0.0f;
         int lofiCounter = 0;
         std::array<float, 6> metalPhases{};
-        std::array<float, 8> bronzePhases{};
-        std::array<float, 6> sizzlePhases{};
+        std::array<float, 24> partialPhases{};
+        std::array<float, 8> sizzlePhases{};
         std::vector<float> combDelay;
         size_t combWrite = 0;
         float combFilter = 0.0f;
         AllpassDiffuser diffuser{};
+        BiquadState modelBp{};
+        BiquadState modelHp{};
+        float shade = 1.0f;
+        float shadeLp = 0.0f;
+        float stickHp = 0.0f;
+        float stickLp = 0.0f;
+        float dcX = 0.0f;
+        float dcY = 0.0f;
     };
 
     void start(const HatSynthSettings& settings, float velocity) noexcept;
@@ -270,11 +278,18 @@ private:
     float lastNoiseHPF_ = -1.0f;
     float lastNoiseLPF_ = -1.0f;
     float lastBodyTone_ = -1.0f;
+    int lastModelType_ = -1;
+    float lastModelColor_ = -10.0f;
+    float lastModelDensity_ = -10.0f;
     BiquadCoeffs nh1Coeffs_{};
     BiquadCoeffs nh2Coeffs_{};
     BiquadCoeffs nl1Coeffs_{};
     BiquadCoeffs nl2Coeffs_{};
+    BiquadCoeffs modelBpCoeffs_{};
+    BiquadCoeffs modelHpCoeffs_{};
     std::array<std::array<BiquadCoeffs, 4>, 2> bodyModeCoeffs_{};
+    float stickHpAlpha_ = 0.3f;
+    float stickLpAlpha_ = 0.6f;
 
     // Unpitched bronze shell strike thump phase & PRNG state
     float chestPhase_ = 0.0f;

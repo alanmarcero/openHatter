@@ -215,7 +215,7 @@ void OpenHatterProcessor::setCurrentProgram(int index) {
 
 void OpenHatterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = parameters.copyState();
-    state.setProperty("preset_catalog_version", 6, nullptr);
+    state.setProperty("preset_catalog_version", 7, nullptr);
     state.setProperty("legacy_sound", hasLegacySound(), nullptr);
     std::ranges::for_each(std::views::iota(size_t{0}, sectionLocks_.size()), [&](size_t i) {
         state.setProperty("section_lock_" + juce::String(i), sectionLocks_[i].load(std::memory_order_relaxed), nullptr);
@@ -245,7 +245,7 @@ void OpenHatterProcessor::setStateInformation(const void* data, int sizeInBytes)
             }
         });
     }
-    legacySound_.store(catalog != 6 || static_cast<bool>(state.getProperty("legacy_sound", false)));
+    legacySound_.store(catalog != 7 || static_cast<bool>(state.getProperty("legacy_sound", false)));
     std::ranges::for_each(std::views::iota(size_t{0}, sectionLocks_.size()), [&](size_t i) {
         const auto property = "section_lock_" + juce::String(i);
         sectionLocks_[i].store(catalog >= 2 && static_cast<bool>(state.getProperty(property, false)),
