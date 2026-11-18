@@ -62,6 +62,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kMetalStereoSpread, 1 }, "Metal Stereo Spread", juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f), 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kRingMod, 1 }, "Ring Mod", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kDecayScale, 1 }, "Decay Scale", juce::NormalisableRange<float>(0.25f, 2.0f, 0.01f), 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kEchoMix, 1 }, "Echo Mix", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kToneLevel, 1 }, "Metal Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.20f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kVelocityMetal, 1 }, "Metal Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
@@ -252,6 +258,9 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     s.synth.metalSpread = *apvts.getRawParameterValue(kMetalSpread);
     s.synth.metalDampingSlope = *apvts.getRawParameterValue(kMetalDampingSlope);
     s.synth.metalStereoSpread = *apvts.getRawParameterValue(kMetalStereoSpread);
+    if (const auto* pRingMod = apvts.getRawParameterValue(kRingMod)) s.synth.ringMod = *pRingMod;
+    if (const auto* pDecayScale = apvts.getRawParameterValue(kDecayScale)) s.synth.decayScale = *pDecayScale;
+    if (const auto* pEchoMix = apvts.getRawParameterValue(kEchoMix)) s.effects.echoMix = *pEchoMix;
     s.synth.toneLevel = *apvts.getRawParameterValue(kToneLevel);
     s.synth.velocityMetal = *apvts.getRawParameterValue(kVelocityMetal);
     for (int resonator = 1; resonator <= 6; ++resonator) {

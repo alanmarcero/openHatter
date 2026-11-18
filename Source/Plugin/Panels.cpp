@@ -55,8 +55,9 @@ void MidiMonitorPanel::timerCallback() {
     }
     const int note = processor_.displayMidiNoteReceived.load() ? processor_.displayMidiNoteNumber.load() : -1;
     const float velocity = processor_.displayVelocity.load();
-    const float metal = processor_.parameters.getRawParameterValue(params::kToneDecay)->load();
-    const float air = processor_.parameters.getRawParameterValue(params::kNoiseDecay)->load();
+    const float decayScale = std::clamp(processor_.parameters.getRawParameterValue(params::kDecayScale)->load(), 0.25f, 2.0f);
+    const float metal = processor_.parameters.getRawParameterValue(params::kToneDecay)->load() * decayScale;
+    const float air = processor_.parameters.getRawParameterValue(params::kNoiseDecay)->load() * decayScale;
     if (note != lastNote_ || !juce::approximatelyEqual(velocity, lastVelocity_)
         || !juce::approximatelyEqual(metal, metalMs_) || !juce::approximatelyEqual(air, airMs_)) {
         lastNote_ = note;
@@ -69,9 +70,11 @@ void MidiMonitorPanel::timerCallback() {
 
 void MidiMonitorPanel::paint(juce::Graphics& g) {
     const auto bounds = getLocalBounds().toFloat();
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff3d3938), bounds.getTopLeft(),
-                                            juce::Colour(0xff232d3e), bounds.getBottomRight(), false));
+    g.setGradientFill(juce::ColourGradient(theme::kPanel, bounds.getTopLeft(),
+                                            theme::kBackground, bounds.getBottomRight(), false));
     g.fillRoundedRectangle(bounds, 10.0f);
+    g.setColour(theme::kPanelEdge);
+    g.drawRoundedRectangle(bounds.reduced(0.5f), 10.0f, 1.0f);
     if (cymbals_) {
         // An open offbeat stroke lifts the top plate and lets it settle before the next beat.
         const float distance = (beatPhase_ - .5f) * 7.0f;
@@ -133,6 +136,7 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       metalSpread_(processor.parameters, params::kMetalSpread, "Spread", theme::kAccentBrass),
       metalDampingSlope_(processor.parameters, params::kMetalDampingSlope, "Damping", theme::kAccentBrass),
       metalStereoSpread_(processor.parameters, params::kMetalStereoSpread, "Stereo", theme::kAccentBrass),
+      ringMod_(processor.parameters, params::kRingMod, "Ring mod", theme::kAccentBrass),
       toneLevel_(processor.parameters, params::kToneLevel, "Level", theme::kAccentBrass),
       noiseType_(processor.parameters, params::kNoiseType, "Air texture", theme::kAccentAqua),
       noiseAttack_(processor.parameters, params::kNoiseAttack, "Attack", theme::kAccentAqua),
@@ -142,6 +146,7 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       noiseHPF_(processor.parameters, params::kNoiseHPF, "High-pass", theme::kAccentAqua),
       noiseLPF_(processor.parameters, params::kNoiseLPF, "Low-pass", theme::kAccentAqua),
       noiseWidth_(processor.parameters, params::kNoiseStereoWidth, "Width", theme::kAccentAqua),
+      decayScale_(processor.parameters, params::kDecayScale, "Decay morph", theme::kAccentAqua),
       noiseLevel_(processor.parameters, params::kNoiseLevel, "Level", theme::kAccentAqua),
       preBursts_(processor.parameters, params::kPreBursts, "Strikes", theme::kAccentCoral),
       preSpread_(processor.parameters, params::kPreSpread, "Spread", theme::kAccentCoral),
@@ -164,10 +169,12 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
     metalSpread_.setTooltip("Move upper metal partials outward or inward by up to two octaves.");
     metalDampingSlope_.setTooltip("Adjust upper-mode decay relative to the lowest resonator.");
     metalStereoSpread_.setTooltip("Scale stereo dispersion across the upper metal partials.");
+    ringMod_.setTooltip("Cross-modulate adjacent metallic resonators for classic diode-ring sizzle.");
+    decayScale_.setTooltip("Scale metal, air, and bounce decays together to morph between closed and open hats.");
     for (juce::Component* child : std::initializer_list<juce::Component*>{
              &toneMode_, &toneFreq_, &toneQ_, &toneDecay_, &tonePitchEnv_, &tonePitchDecay_,
-             &metalSpread_, &metalDampingSlope_, &metalStereoSpread_, &toneLevel_, &noiseType_, &noiseAttack_,
-             &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &noiseLevel_,
+             &metalSpread_, &metalDampingSlope_, &metalStereoSpread_, &ringMod_, &toneLevel_, &noiseType_, &noiseAttack_,
+             &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &decayScale_, &noiseLevel_,
              &preBursts_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_, &clickType_,
              &clickLevel_, &clickFreq_, &articulationLock_, &cymbalLock_, &airLock_ })
         addAndMakeVisible(child);
@@ -177,8 +184,8 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
 void HatSynthPanel::setAdvancedMode(bool advanced) {
     advanced_ = advanced;
     for (auto* knob : { &toneQ_, &tonePitchEnv_, &tonePitchDecay_, &metalSpread_, &metalDampingSlope_,
-                        &metalStereoSpread_, &noiseAttack_, &noiseHold_, &noiseCurve_, &noiseHPF_, &noiseWidth_,
-                        &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_ })
+                        &metalStereoSpread_, &ringMod_, &noiseAttack_, &noiseHold_, &noiseCurve_, &noiseHPF_, &noiseWidth_,
+                        &decayScale_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_ })
         knob->setVisible(advanced);
     resized();
 }
@@ -207,8 +214,8 @@ void HatSynthPanel::resized() {
     layoutRow(stick.removeFromTop(rowHeight), { &preBursts_, &clickFreq_, &clickLevel_ });
     if (advanced_) {
         layoutRows(metal, { { &toneQ_, &tonePitchEnv_, &tonePitchDecay_ }, { &metalSpread_, &metalDampingSlope_, &metalStereoSpread_ } });
-        layoutRows(air, { { &noiseAttack_, &noiseHold_, &noiseCurve_ }, { &noiseHPF_, &noiseWidth_, nullptr } });
-        layoutRows(stick, { { &preSpread_, &preDecay_, &preLevel_ }, { &preJitter_, &flamSpread_, nullptr } });
+        layoutRows(air, { { &noiseAttack_, &noiseHold_, &noiseCurve_ }, { &noiseHPF_, &noiseWidth_, &decayScale_ } });
+        layoutRows(stick, { { &preSpread_, &preDecay_, &preLevel_ }, { &preJitter_, &flamSpread_, &ringMod_ } });
     }
 }
 
@@ -376,6 +383,7 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
       reverbDamp_(processor.parameters, params::kReverbDamp, "Damping", theme::kAccentAqua),
       reverbGate_(processor.parameters, params::kReverbGate, "Choke", theme::kAccentAqua),
       reverbMix_(processor.parameters, params::kReverbMix, "Mix", theme::kAccentAqua),
+      echoMix_(processor.parameters, params::kEchoMix, "Echo mix", theme::kAccentAqua),
       reverseMode_(processor.parameters, params::kReverseMode, "Reverse sync", theme::kAccentAqua),
       reverseMix_(processor.parameters, params::kReverseMix, "Reverse mix", theme::kAccentAqua),
       masterWidth_(processor.parameters, params::kStereoWidth, "Width", theme::kAccentAqua),
@@ -390,11 +398,12 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput, on); }) {
     limiterEnabled_.setTooltip("Switch output peak limiting on or off.");
+    echoMix_.setTooltip("Blend a tempo-synced dotted-sixteenth stereo ping-pong echo.");
     for (juce::Component* component : std::array<juce::Component*, 26>{
              &distType_, &distDrive_, &distTone_, &distMix_, &compThresh_, &compRatio_, &compAttack_, &compRelease_,
              &compMakeup_, &compMix_, &limiterCeiling_, &limiterRelease_, &limiterEnabled_, &reverbSize_, &reverbDecay_,
-             &reverbDamp_, &reverbGate_, &reverbMix_, &reverseMode_, &reverseMix_, &masterWidth_, &outputGain_,
-             &exciterLock_, &dynamicsLock_, &spaceLock_, nullptr})
+             &reverbDamp_, &reverbGate_, &reverbMix_, &echoMix_, &reverseMode_, &reverseMix_, &masterWidth_, &outputGain_,
+             &exciterLock_, &dynamicsLock_, &spaceLock_})
         if (component != nullptr) addAndMakeVisible(component);
 }
 
@@ -423,7 +432,7 @@ void EffectsPanel::resized() {
     });
     layoutRows(sectionBounds_[2].reduced(7, 10).withTrimmedTop(36), {
         { &reverbSize_, &reverbDecay_, &reverbDamp_ },
-        { &reverbGate_, &reverbMix_ },
+        { &reverbGate_, &reverbMix_, &echoMix_ },
         { &reverseMode_, &reverseMix_ },
         { &masterWidth_, &outputGain_ }
     });

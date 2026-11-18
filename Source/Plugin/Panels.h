@@ -46,6 +46,7 @@ private:
     Knob metalSpread_;
     Knob metalDampingSlope_;
     Knob metalStereoSpread_;
+    Knob ringMod_;
     Knob toneLevel_;
 
     // Noise tail
@@ -57,6 +58,7 @@ private:
     Knob noiseHPF_;
     Knob noiseLPF_;
     Knob noiseWidth_;
+    Knob decayScale_;
     Knob noiseLevel_;
 
     // Stick articulation
@@ -142,6 +144,7 @@ private:
     Knob reverbDamp_;
     Knob reverbGate_;
     Knob reverbMix_;
+    Knob echoMix_;
     Choice reverseMode_;
     Knob reverseMix_;
     Knob masterWidth_;

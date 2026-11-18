@@ -87,11 +87,37 @@ TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") 
 TEST_CASE("OpenHatter metal spread, damping, and width controls are automatable", "[plugin][parameters]") {
     OpenHatterProcessor processor;
     for (const auto* id : { openhatter::params::kMetalSpread, openhatter::params::kMetalDampingSlope,
-                            openhatter::params::kMetalStereoSpread }) {
+                            openhatter::params::kMetalStereoSpread, openhatter::params::kRingMod,
+                            openhatter::params::kDecayScale, openhatter::params::kEchoMix }) {
         auto* parameter = processor.parameters.getParameter(id);
         REQUIRE(parameter != nullptr);
         CHECK(parameter->isAutomatable());
     }
+}
+
+TEST_CASE("OpenHatter ring mod, decay scale, and tempo-synced echo shape output", "[plugin][dsp]") {
+    OpenHatterProcessor dryProc, enhancedProc;
+    dryProc.prepareToPlay(48000.0, 16000);
+    enhancedProc.prepareToPlay(48000.0, 16000);
+    for (const auto& [id, val] : { std::pair{openhatter::params::kRingMod, 0.8f},
+                                   {openhatter::params::kDecayScale, 1.5f},
+                                   {openhatter::params::kEchoMix, 0.8f} }) {
+        auto* param = enhancedProc.parameters.getParameter(id);
+        REQUIRE(param != nullptr);
+        param->setValueNotifyingHost(param->convertTo0to1(val));
+    }
+    juce::AudioBuffer<float> dryBuf(2, 16000), enhancedBuf(2, 16000);
+    juce::MidiBuffer midi1, midi2;
+    midi1.addEvent(juce::MidiMessage::noteOn(1, 66, 1.0f), 0);
+    midi2.addEvent(juce::MidiMessage::noteOn(1, 66, 1.0f), 0);
+    dryProc.processBlock(dryBuf, midi1);
+    enhancedProc.processBlock(enhancedBuf, midi2);
+    float lateDry = 0.0f, lateEnhanced = 0.0f;
+    for (int i = 8000; i < 16000; ++i) {
+        lateDry += std::abs(dryBuf.getSample(0, i));
+        lateEnhanced += std::abs(enhancedBuf.getSample(0, i));
+    }
+    REQUIRE(lateEnhanced > lateDry + 1.0f);
 }
 
 TEST_CASE("OpenHatter metal controls map to render settings", "[plugin][parameters]") {

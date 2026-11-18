@@ -44,6 +44,7 @@ struct HatEffectSettings {
 
     ReverseSyncMode reverseMode = ReverseSyncMode::Off;
     float reverseMix = 0.5f;       // 0..1
+    float echoMix = 0.0f;          // 0..1 tempo-synced ping-pong echo
 
     float stereoWidth = 1.15f;     // 0..2
     float outputGainDb = 0.0f;     // -36..+12 dB
@@ -144,6 +145,9 @@ private:
     DistortionShaper distR_;
     StereoCompressor compressor_;
     BrickwallLimiter limiter_;
+    std::vector<float> echoBufferL_;
+    std::vector<float> echoBufferR_;
+    size_t echoWriteIndex_ = 0;
 
     HatWavCache wavCache_;
 
