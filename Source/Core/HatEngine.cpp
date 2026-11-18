@@ -421,8 +421,6 @@ void HatEngine::process(
             currentHatProgress_ = synth_.getEnvelopeProgress();
 
             if (layerOutputs != nullptr) {
-                if (layerOutputs->metalLeft != nullptr) layerOutputs->metalLeft[sample] = layers.metal.left * masterGain;
-                if (layerOutputs->metalRight != nullptr) layerOutputs->metalRight[sample] = layers.metal.right * masterGain;
                 if (layerOutputs->airLeft != nullptr) layerOutputs->airLeft[sample] = layers.air.left * masterGain;
                 if (layerOutputs->airRight != nullptr) layerOutputs->airRight[sample] = layers.air.right * masterGain;
                 if (layerOutputs->chickLeft != nullptr) layerOutputs->chickLeft[sample] = layers.chick.left * masterGain;
@@ -435,8 +433,6 @@ void HatEngine::process(
         }
 
         if (layerOutputs != nullptr && !synth_.isPlaying()) {
-            if (layerOutputs->metalLeft != nullptr) layerOutputs->metalLeft[sample] = 0.0f;
-            if (layerOutputs->metalRight != nullptr) layerOutputs->metalRight[sample] = 0.0f;
             if (layerOutputs->airLeft != nullptr) layerOutputs->airLeft[sample] = 0.0f;
             if (layerOutputs->airRight != nullptr) layerOutputs->airRight[sample] = 0.0f;
             if (layerOutputs->chickLeft != nullptr) layerOutputs->chickLeft[sample] = 0.0f;
@@ -466,21 +462,19 @@ void HatEngine::process(
             sR = sR * (1.0f - settings.effects.distMix) + wetDistR * settings.effects.distMix;
         }
 
-        if (!echoBufferL_.empty()) {
+        const float echoMix = std::clamp(settings.effects.echoMix, 0.0f, 1.0f);
+        if (!echoBufferL_.empty() && echoMix > 0.001f) {
             const size_t bufSize = echoBufferL_.size();
             const double safeBpm = std::clamp(std::isfinite(transport.bpm) && transport.bpm > 0.0 ? transport.bpm : 138.0, 40.0, 260.0);
             const size_t delaySamples = std::clamp<size_t>(static_cast<size_t>(0.375 * 60.0 / safeBpm * sampleRate_), 1, bufSize - 1);
             const size_t readIdx = (echoWriteIndex_ + bufSize - delaySamples) % bufSize;
             const float delayedL = echoBufferL_[readIdx];
             const float delayedR = echoBufferR_[readIdx];
-            const float echoMix = std::clamp(settings.effects.echoMix, 0.0f, 1.0f);
             echoBufferL_[echoWriteIndex_] = std::tanh(sL + delayedR * 0.35f);
             echoBufferR_[echoWriteIndex_] = std::tanh(sR + delayedL * 0.35f);
             echoWriteIndex_ = (echoWriteIndex_ + 1) % bufSize;
-            if (echoMix > 0.001f) {
-                sL += delayedL * echoMix * 0.65f;
-                sR += delayedR * echoMix * 0.65f;
-            }
+            sL += delayedL * echoMix * 0.65f;
+            sR += delayedR * echoMix * 0.65f;
         }
 
         if (settings.effects.stereoWidth != 1.0f) {

@@ -27,11 +27,11 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     presetBox_.setTooltip("Choose one of eight hats in each of six trance styles.");
     prevPresetBtn_.setTooltip("Load the previous factory hat.");
     nextPresetBtn_.setTooltip("Load the next factory hat.");
-    hatTab_.setTooltip("Shape the pitched metal, air tail and stick strike.");
+    hatTab_.setTooltip("Shape the air tail and stick strike.");
     envelopeTab_.setTooltip("Choose one-shot or held notes and shape the amplitude envelope.");
-    performanceTab_.setTooltip("Edit velocity, MIDI choke, rolls and the six resonators.");
+    performanceTab_.setTooltip("Edit velocity, MIDI choke and rolls.");
     effectsTab_.setTooltip("Edit the exciter, dynamics, space and output.");
-    detailBtn_.setTooltip("Show or hide the resonator, air filter and bounce settings.");
+    detailBtn_.setTooltip("Show or hide the air filter and bounce settings.");
     presetBox_.setTextWhenNothingSelected("Custom sound");
     presetBox_.onChange = [this] {
         if (presetBox_.getSelectedId() > 0)

@@ -13,24 +13,9 @@ inline constexpr const char* kPreJitter = "pre_jitter";
 inline constexpr const char* kFlamSpread = "flam_spread";
 inline constexpr const char* kPreLevel = "pre_level";
 
-// Tunable Cymbal Matrix & Metallic Body
-inline constexpr const char* kToneMode = "tone_mode";
-inline constexpr const char* kToneNote = "tone_note";
-inline constexpr const char* kToneOctave = "tone_octave";
-inline constexpr const char* kToneFine = "tone_fine";
-inline constexpr const char* kToneFreq = "tone_freq";
-inline constexpr const char* kToneQ = "tone_q";
-inline constexpr const char* kToneDecay = "tone_decay";
-inline constexpr const char* kTonePitchEnv = "tone_pitch_env";
-inline constexpr const char* kTonePitchDecay = "tone_pitch_decay";
-inline constexpr const char* kMetalSpread = "metal_spread";
-inline constexpr const char* kMetalDampingSlope = "metal_damping_slope";
-inline constexpr const char* kMetalStereoSpread = "metal_stereo_spread";
-inline constexpr const char* kRingMod = "ring_mod";
+// Decay morph, echo and amplitude envelope
 inline constexpr const char* kDecayScale = "decay_scale";
 inline constexpr const char* kEchoMix = "echo_mix";
-inline constexpr const char* kToneLevel = "tone_level";
-inline constexpr const char* kVelocityMetal = "velocity_metal";
 inline constexpr const char* kAmpEnabled = "amp_enabled";
 inline constexpr const char* kAmpAttack = "amp_attack";
 inline constexpr const char* kAmpDecay = "amp_decay";
@@ -87,8 +72,6 @@ inline constexpr const char* kReverseMode = "reverse_mode";
 inline constexpr const char* kReverseMix = "reverse_mix";
 
 // Global / Master
-inline constexpr const char* kMidiMode = "midi_mode";
-inline constexpr const char* kLockPitch = "lock_pitch";
 inline constexpr const char* kLockIn = "lock_in";
 inline constexpr const char* kStereoWidth = "stereo_width";
 inline constexpr const char* kOutputGain = "output_gain";
