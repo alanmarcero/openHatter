@@ -165,7 +165,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kRollAccent, 1 }, "Roll Accent", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID{ kPreset, 1 }, "Preset Index", 0, 47, 0));
+        juce::ParameterID{ kPreset, 1 }, "Preset Index", 0, 55, 0));
 
     return { params.begin(), params.end() };
 }

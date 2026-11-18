@@ -535,11 +535,11 @@ TEST_CASE("OpenHatter host-synced roll repeats the last MIDI hit while transport
     REQUIRE(processor.displayTriggerCount.load() >= 4);
 }
 
-TEST_CASE("OpenHatterProcessor provides exactly 48 EDM and trance factory presets", "[plugin]") {
+TEST_CASE("OpenHatterProcessor provides 56 EDM and trance factory presets", "[plugin]") {
     OpenHatterProcessor processor;
-    REQUIRE(processor.getNumPrograms() == 48);
+    REQUIRE(processor.getNumPrograms() == 56);
 
-    for (int i = 0; i < 48; ++i) {
+    for (int i = 0; i < 56; ++i) {
         processor.setCurrentProgram(i);
         REQUIRE(processor.getCurrentProgram() == i);
         REQUIRE(processor.getProgramName(i).isNotEmpty());
@@ -723,8 +723,8 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
     auto* presets = dynamic_cast<juce::ComboBox*>(find(find, *editor, "Factory preset"));
     REQUIRE(presets != nullptr);
     CHECK(presets->getRootMenu()->getNumItems() == 6);
-    presets->setSelectedId(48, juce::sendNotificationSync);
-    CHECK(processor.getCurrentProgram() == 47);
+    presets->setSelectedId(56, juce::sendNotificationSync);
+    CHECK(processor.getCurrentProgram() == 55);
     click("Next");
     CHECK(processor.getCurrentProgram() == 0);
     click("Next");
@@ -764,7 +764,7 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
 }
 
 TEST_CASE("All factory hats speak promptly and leave space after the offbeat", "[plugin][presets_audio]") {
-    for (int program = 0; program < 48; ++program) {
+    for (int program = 0; program < 56; ++program) {
         OpenHatterProcessor processor;
         processor.setCurrentProgram(program);
         processor.prepareToPlay(48000.0, 512);

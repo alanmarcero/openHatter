@@ -8,16 +8,16 @@ openHatter is a hi-hat synthesizer built from filtered air and a stick or pedal 
 
 ## Find a hat
 
-Choose a **Factory preset** or step through the bank with **Previous** and **Next**. **Preview hat** plays a one-shot at the last incoming pitch, or C4 before the first note. The 48 new sounds span six families of eight.
+Choose a **Factory preset** or step through the bank with **Previous** and **Next**. **Preview hat** plays a one-shot at the last incoming pitch, or C4 before the first note. The 56 factory sounds span six dance styles: 16 Uplifting and eight each of Rolling, Progressive, Psy, Tech, and Classic.
 
-| Family | Try | What to listen for |
+| Style | Try | What to listen for |
 | --- | --- | --- |
-| Progressive | Silk Offbeat | A soft, wide air tail |
 | Uplifting | Long Arc | Bright, open air between kick hits |
-| Classic | Pressed Bronze | A stick strike and rounded 909-style air |
-| Tech | Dry Contact | A narrow, short hat with a defined attack |
+| Rolling | Main Floor | An even offbeat with a firm leading edge |
+| Progressive | Silk Offbeat | A soft, wide air tail |
 | Psy | Twin Pulses | Two close strikes with a pitched laser tick |
-| Club | Main Floor | An even offbeat with a firm leading edge |
+| Tech | Dry Contact | A narrow, short hat with a defined attack |
+| Classic | Pressed Bronze | A stick strike and rounded 909-style air |
 
 ## Shape the hit
 

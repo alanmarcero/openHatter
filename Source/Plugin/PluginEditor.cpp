@@ -14,7 +14,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     juce::PopupMenu sounds;
     for (size_t i = 0; i < presets.size(); ++i) {
         const juce::String name(presets[i].name);
-        const auto nextFamily = name.upToFirstOccurrenceOf(" | ", false, false);
+        const auto nextFamily = name.upToFirstOccurrenceOf(" / ", false, false);
         if (nextFamily != family && sounds.getNumItems() > 0) {
             presetBox_.getRootMenu()->addSubMenu(family, sounds);
             sounds.clear();
@@ -24,7 +24,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     }
     presetBox_.getRootMenu()->addSubMenu(family, sounds);
     presetBox_.setName("Factory preset");
-    presetBox_.setTooltip("Choose one of eight hats in each of six trance styles.");
+    presetBox_.setTooltip("Choose a factory hat across six dance styles.");
     prevPresetBtn_.setTooltip("Load the previous factory hat.");
     nextPresetBtn_.setTooltip("Load the next factory hat.");
     hatTab_.setTooltip("Shape the air tail and stick strike.");
