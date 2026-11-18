@@ -4,7 +4,7 @@
 
 openHatter is a spun-bronze and air hi-hat synthesizer built for trance and club drums. Pair an eight-mode hiss engine and bronzed modal shell resonators with a pitch-tracking stick strike, one-shot open tails up to 2.4 seconds, or held synth notes.
 
-![Native openHatter editor showing the selected hat, hiss and body decay bars, MIDI monitor and controls for hiss, bronze body and stick layers](assets/openHatter-hat.png)
+![Native openHatter editor showing the selected hat, hiss and body decay bars, MIDI monitor and controls for hiss, bronze body and stick layers](docs/screenshots/preview.png)
 
 ## Find a hat
 
