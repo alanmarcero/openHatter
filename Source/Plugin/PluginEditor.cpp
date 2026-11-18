@@ -74,7 +74,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
         addAndMakeVisible(child);
     setPage(Page::hat);
     syncPresetBox();
-    setSize(1060, 826);
+    setSize(1060, 866);
     startTimerHz(15);
 }
 
@@ -120,7 +120,7 @@ void OpenHatterEditor::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
     g.drawText("v" JucePlugin_VersionString, 250, 22, 48, 22, juce::Justification::left);
     g.setFont(juce::FontOptions(14.0f));
-    g.drawText("Pitched hi-hat synthesizer", 74, 49, 200, 22, juce::Justification::left);
+    g.drawText("Bronze & air hi-hat synth", 74, 49, 210, 22, juce::Justification::left);
     g.drawText("Factory preset", 309, 8, 220, 19, juce::Justification::left);
 }
 

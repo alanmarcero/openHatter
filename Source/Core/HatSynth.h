@@ -15,7 +15,11 @@ enum class NoiseType {
     CrispWhite = 0,
     PinkSilk = 1,
     VelvetShimmer = 2,
-    LoFiCrunch = 3
+    LoFiCrunch = 3,
+    AnalogMetal = 4,
+    BronzeCymbal = 5,
+    SupersawSizzle = 6,
+    CombWash = 7
 };
 
 enum class ChickType {
@@ -41,17 +45,27 @@ struct HatSynthSettings {
     float ampSustain = 0.70f;
     float ampReleaseMs = 180.0f;
 
-    // Air Sizzle & Shimmer Noise
+    // Air Sizzle & Shimmer Hiss
     NoiseType noiseType = NoiseType::CrispWhite;
     float noiseAttackMs = 1.5f;   // 0..40 ms (allows off-beat pocket swell)
-    float noiseHoldMs = 3.0f;     // 0..30 ms
-    float noiseDecayMs = 260.0f;  // 20..1200 ms open hat tail decay
-    float noiseCurve = -0.35f;    // -1..+1 shape curve (-1 exp, 0 lin, +1 log)
-    float noiseHPF = 1200.0f;     // 100..6000 Hz high-pass filter cutoff
+    float noiseHoldMs = 12.0f;    // 0..120 ms plateau hold before tail decay
+    float noiseDecayMs = 420.0f;  // 20..2400 ms open hat tail decay
+    float noiseCurve = -0.35f;    // -1..+1 shape curve (-1 exp, 0 lin, +1 sustained shoulder)
+    float noiseHPF = 480.0f;      // 60..6000 Hz high-pass filter cutoff
     float noiseLPF = 16500.0f;    // 1500..20000 Hz low-pass filter cutoff
     float noiseStereoWidth = 1.2f;// 0 (mono) .. 2 (ultra-wide stereo shimmer)
     float noiseLevel = 0.88f;     // 0..1
     float velocityAir = 1.0f;
+
+    // Hiss Tone, Density & Analog Saturation Options
+    float hissColor = 0.0f;       // -1 (warm bronze tilt) .. +1 (airy crystal sheen)
+    float hissDensity = 0.35f;    // 0..1 metallic cluster/detune/comb density
+    float hissDrive = 0.25f;      // 0..1 pre-envelope analog warmth & saturation
+
+    // Spun Bronze Cymbal Body & Low-Mid Shell Punch
+    float bodyLevel = 0.55f;      // 0..1 modal bronze shell + warm chest mix
+    float bodyTone = 0.45f;       // 0..1 330 Hz warm chest .. 840 Hz bronze cut
+    float bodyDecayMs = 150.0f;   // 25..900 ms bronze shell resonance tail
 
     // Stick Chick / Transient
     ChickType chickType = ChickType::CrispStick;
@@ -61,9 +75,9 @@ struct HatSynthSettings {
 
     // Shimmer Reverb & Choke Gate Tail
     float reverbSize = 0.55f;     // 0.1..1.0
-    float reverbDecayMs = 380.0f; // 50..2500 ms
+    float reverbDecayMs = 620.0f; // 50..2500 ms
     float reverbDamp = 0.25f;     // 0..1 high damping
-    float reverbGateMs = 180.0f;  // 0 (off) .. 600 ms
+    float reverbGateMs = 320.0f;  // 0 (off) .. 1500 ms
     float reverbMix = 0.24f;      // 0..1
     float velocityReverb = 1.0f;
 
@@ -75,7 +89,7 @@ struct HatSynthSettings {
     return 440.0f * std::pow(2.0f, static_cast<float>(midiNote - 69) / 12.0f);
 }
 
-// Biquad filter state for audio filtering
+// Biquad filter state & coefficients for audio filtering
 struct BiquadState {
     float x1 = 0.0f;
     float x2 = 0.0f;
@@ -85,6 +99,14 @@ struct BiquadState {
     void reset() noexcept {
         x1 = x2 = y1 = y2 = 0.0f;
     }
+};
+
+struct BiquadCoeffs {
+    float b0 = 1.0f;
+    float b1 = 0.0f;
+    float b2 = 0.0f;
+    float a1 = 0.0f;
+    float a2 = 0.0f;
 };
 
 // Clean stereo frame
@@ -189,15 +211,41 @@ public:
     void copyRandomStateFrom(const HatSynth& source) noexcept { prngState_ = source.prngState_; }
 
 private:
+    struct ChannelState {
+        BiquadState hpf1{};
+        BiquadState hpf2{};
+        BiquadState lpf1{};
+        BiquadState lpf2{};
+        std::array<BiquadState, 4> bodyModes{};
+        float tiltLp = 0.0f;
+        float bodySubHp = 0.0f;
+        float bodyWarmLp = 0.0f;
+        float pinkB0 = 0.0f;
+        float pinkB1 = 0.0f;
+        float pinkB2 = 0.0f;
+        float lofiHeld = 0.0f;
+        int lofiCounter = 0;
+        std::array<float, 6> metalPhases{};
+        std::array<float, 8> bronzePhases{};
+        std::array<float, 6> sizzlePhases{};
+        std::vector<float> combDelay;
+        size_t combWrite = 0;
+        float combFilter = 0.0f;
+        AllpassDiffuser diffuser{};
+    };
+
     void start(const HatSynthSettings& settings, float velocity) noexcept;
+    void updateFilterCaches(const HatSynthSettings& settings) noexcept;
     [[nodiscard]] float fullAdsrEnvelopeAt(int sample, const HatSynthSettings& settings) const noexcept;
+    [[nodiscard]] float generateHissChannel(ChannelState& ch, int channelIdx, const HatSynthSettings& settings) noexcept;
+    [[nodiscard]] float processBodyChannel(ChannelState& ch, int channelIdx, float excitation, float thump) noexcept;
     [[nodiscard]] float generateNoiseSample(NoiseType type) noexcept;
     [[nodiscard]] float generateChickSample(ChickType type, float freqHz, int ageSamples, float level) noexcept;
 
     double sampleRate_ = 48000.0;
     bool isPlaying_ = false;
     float velocity_ = 1.0f;
-    float midiPitchRatio_ = 1.0f; // the stick strike follows the played note; the air layer never does
+    float midiPitchRatio_ = 1.0f; // the stick strike follows the played note; the air/body layer never does
     bool fullAdsrActive_ = false;
     int activeMidiNote_ = -1;
     int activeMidiChannel_ = 0;
@@ -218,34 +266,20 @@ private:
     std::array<float, 5> burstPans_{};
     int mainHitSample_ = 0;
 
-    // Filter states for air sizzle noise (4-pole 24dB/oct cascaded filters)
-    BiquadState noiseHPF1_L_{};
-    BiquadState noiseHPF1_R_{};
-    BiquadState noiseHPF2_L_{};
-    BiquadState noiseHPF2_R_{};
-    BiquadState noiseLPF1_L_{};
-    BiquadState noiseLPF1_R_{};
-    BiquadState noiseLPF2_L_{};
-    BiquadState noiseLPF2_R_{};
-
-    // Filter cache for noise cutoff
+    // Filter caches for air cutoffs and spun-bronze body resonators
     float lastNoiseHPF_ = -1.0f;
     float lastNoiseLPF_ = -1.0f;
-    float b0_nh1_ = 0.0f, b1_nh1_ = 0.0f, b2_nh1_ = 0.0f, a1_nh1_ = 0.0f, a2_nh1_ = 0.0f;
-    float b0_nh2_ = 0.0f, b1_nh2_ = 0.0f, b2_nh2_ = 0.0f, a1_nh2_ = 0.0f, a2_nh2_ = 0.0f;
-    float b0_nl1_ = 0.0f, b1_nl1_ = 0.0f, b2_nl1_ = 0.0f, a1_nl1_ = 0.0f, a2_nl1_ = 0.0f;
-    float b0_nl2_ = 0.0f, b1_nl2_ = 0.0f, b2_nl2_ = 0.0f, a1_nl2_ = 0.0f, a2_nl2_ = 0.0f;
+    float lastBodyTone_ = -1.0f;
+    BiquadCoeffs nh1Coeffs_{};
+    BiquadCoeffs nh2Coeffs_{};
+    BiquadCoeffs nl1Coeffs_{};
+    BiquadCoeffs nl2Coeffs_{};
+    std::array<std::array<BiquadCoeffs, 4>, 2> bodyModeCoeffs_{};
 
-    // PRNG and noise state (independent L/R filter/hold state for true stereo air)
+    // Unpitched bronze shell strike thump phase & PRNG state
+    float chestPhase_ = 0.0f;
     uint32_t prngState_ = 0x854378A1;
-    float pinkB0_L_ = 0.0f, pinkB1_L_ = 0.0f, pinkB2_L_ = 0.0f;
-    float pinkB0_R_ = 0.0f, pinkB1_R_ = 0.0f, pinkB2_R_ = 0.0f;
-    float lofiHeld_L_ = 0.0f, lofiHeld_R_ = 0.0f;
-    int lofiCounter_L_ = 0, lofiCounter_R_ = 0;
-
-    // Stereo phase diffuser for silk air decorrelation
-    AllpassDiffuser noiseDiffL_{};
-    AllpassDiffuser noiseDiffR_{};
+    std::array<ChannelState, 2> channels_{};
 
     // Gated Shimmer Reverb
     GatedStereoReverb reverb_;

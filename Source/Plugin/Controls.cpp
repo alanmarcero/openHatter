@@ -281,7 +281,7 @@ void Choice::bind(Apvts& state, const juce::String& parameterId) {
 }
 
 void Choice::resized() {
-    auto area = getLocalBounds().reduced(5, 0).withSizeKeepingCentre(getWidth() - 10, std::min(getHeight(), 62));
+    auto area = getLocalBounds().reduced(5, 0).withSizeKeepingCentre(getWidth() - 10, std::min(getHeight(), 64));
     title_.setBounds(area.removeFromTop(20));
     box_.setBounds(area.reduced(1, 3));
 }

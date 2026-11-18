@@ -58,11 +58,13 @@ void MidiMonitorPanel::timerCallback() {
     const float velocity = processor_.displayVelocity.load();
     const float decayScale = std::clamp(processor_.parameters.getRawParameterValue(params::kDecayScale)->load(), 0.25f, 2.0f);
     const float air = processor_.parameters.getRawParameterValue(params::kNoiseDecay)->load() * decayScale;
+    const float body = processor_.parameters.getRawParameterValue(params::kBodyDecay)->load() * decayScale;
     if (note != lastNote_ || !juce::approximatelyEqual(velocity, lastVelocity_)
-        || !juce::approximatelyEqual(air, airMs_)) {
+        || !juce::approximatelyEqual(air, airMs_) || !juce::approximatelyEqual(body, bodyMs_)) {
         lastNote_ = note;
         lastVelocity_ = velocity;
         airMs_ = air;
+        bodyMs_ = body;
         repaint();
     }
 }
@@ -89,7 +91,7 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     g.setColour(theme::kText);
     g.drawText("Layer decay", 326, 16, 200, 22, juce::Justification::left);
-    const float scale = std::max(250.0f, airMs_);
+    const float scale = std::max({ 250.0f, airMs_, bodyMs_ });
     const auto decayBar = [&](int y, const char* label, float value, juce::Colour colour) {
         g.setFont(juce::FontOptions(15.0f));
         g.setColour(theme::kTextDim);
@@ -103,7 +105,8 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
         g.setColour(colour);
         g.fillRoundedRectangle(track.withWidth(track.getWidth() * value / scale), 2);
     };
-    decayBar(71, "Air", airMs_, theme::kAccentAqua);
+    decayBar(58, "Hiss", airMs_, theme::kAccentAqua);
+    decayBar(104, "Body", bodyMs_, theme::kAccentBrass);
 
     g.setColour(theme::kTextDim);
     g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
@@ -125,7 +128,7 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
 }
 
 HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
-    : noiseType_(processor.parameters, params::kNoiseType, "Air texture", theme::kAccentAqua),
+    : noiseType_(processor.parameters, params::kNoiseType, "Hiss type", theme::kAccentAqua),
       noiseAttack_(processor.parameters, params::kNoiseAttack, "Attack", theme::kAccentAqua),
       noiseHold_(processor.parameters, params::kNoiseHold, "Hold", theme::kAccentAqua),
       noiseDecay_(processor.parameters, params::kNoiseDecay, "Decay", theme::kAccentAqua),
@@ -134,7 +137,13 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       noiseLPF_(processor.parameters, params::kNoiseLPF, "Low-pass", theme::kAccentAqua),
       noiseWidth_(processor.parameters, params::kNoiseStereoWidth, "Width", theme::kAccentAqua),
       decayScale_(processor.parameters, params::kDecayScale, "Decay morph", theme::kAccentAqua),
-      noiseLevel_(processor.parameters, params::kNoiseLevel, "Level", theme::kAccentAqua),
+      noiseLevel_(processor.parameters, params::kNoiseLevel, "Hiss level", theme::kAccentAqua),
+      hissColor_(processor.parameters, params::kHissColor, "Hiss color", theme::kAccentAqua),
+      hissDensity_(processor.parameters, params::kHissDensity, "Density", theme::kAccentAqua),
+      hissDrive_(processor.parameters, params::kHissDrive, "Saturation", theme::kAccentAqua),
+      bodyLevel_(processor.parameters, params::kBodyLevel, "Body level", theme::kAccentBrass),
+      bodyTone_(processor.parameters, params::kBodyTone, "Body tone", theme::kAccentBrass),
+      bodyDecay_(processor.parameters, params::kBodyDecay, "Body decay", theme::kAccentBrass),
       preBursts_(processor.parameters, params::kPreBursts, "Strikes", theme::kAccentCoral),
       preSpread_(processor.parameters, params::kPreSpread, "Spread", theme::kAccentCoral),
       preDecay_(processor.parameters, params::kPreDecay, "Decay", theme::kAccentCoral),
@@ -150,51 +159,81 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       airLock_("Air", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::air); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, on); }) {
-    decayScale_.setTooltip("Scale air and bounce decays together to morph between closed and open hats.");
-    for (juce::Component* child : std::initializer_list<juce::Component*>{
-             &noiseType_, &noiseAttack_,
-             &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_, &noiseWidth_, &decayScale_, &noiseLevel_,
-             &preBursts_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_, &clickType_,
-             &clickLevel_, &clickFreq_, &articulationLock_, &airLock_ })
-        addAndMakeVisible(child);
+    decayScale_.setTooltip("Scale hiss and bronze body decays together to morph between closed and open hats.");
+    hissColor_.setTooltip("Tilt the hiss sheen from warm bronze (-1) to airy uplift shimmer (+1).");
+    hissDensity_.setTooltip("Control metallic harmonic modulation, unison spread, or comb feedback density.");
+    hissDrive_.setTooltip("Warm analog saturation gluing the hiss and bronze body layers together.");
+    bodyLevel_.setTooltip("Mix the spun-bronze cymbal shell resonators and low-mid chest punch.");
+    bodyTone_.setTooltip("Sweep the bronze shell resonant chest modes from dark warm weight to biting bronze.");
+    bodyDecay_.setTooltip("Set how long the bronze cymbal shell resonance sustains.");
+    std::ranges::for_each(std::array<juce::Component*, 27>{
+             &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_,
+             &noiseWidth_, &decayScale_, &noiseLevel_, &hissColor_, &hissDensity_, &hissDrive_,
+             &bodyLevel_, &bodyTone_, &bodyDecay_, &preBursts_, &preSpread_, &preDecay_, &preJitter_,
+             &flamSpread_, &preLevel_, &clickType_, &clickLevel_, &clickFreq_,
+             &articulationLock_, &airLock_ },
+        [this](juce::Component* child) { addAndMakeVisible(child); });
     setAdvancedMode(false);
 }
 
 void HatSynthPanel::setAdvancedMode(bool advanced) {
     advanced_ = advanced;
-    for (auto* knob : { &noiseAttack_, &noiseHold_, &noiseCurve_, &noiseHPF_, &noiseWidth_,
-                        &decayScale_, &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_ })
-        knob->setVisible(advanced);
+    std::ranges::for_each(std::array<juce::Component*, 11>{
+             &noiseAttack_, &noiseHold_, &noiseCurve_, &noiseHPF_, &noiseWidth_, &decayScale_,
+             &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_ },
+        [advanced](juce::Component* knob) { knob->setVisible(advanced); });
     resized();
 }
 
 void HatSynthPanel::paint(juce::Graphics& g) {
-    drawSection(g, sectionBounds_[0], "Air tail", theme::kAccentAqua);
-    drawSection(g, sectionBounds_[1], "Stick & bounce", theme::kAccentCoral);
+    drawSection(g, sectionBounds_[0], "Hiss & air tail", theme::kAccentAqua);
+    drawSection(g, sectionBounds_[1], "Bronze body & stick", theme::kAccentCoral);
 }
 
 void HatSynthPanel::resized() {
     const int width = (getWidth() - 10) / 2;
-    for (int i = 0; i < 2; ++i)
+    std::ranges::for_each(std::views::iota(0, 2), [&](int i) {
         sectionBounds_[static_cast<size_t>(i)] = { i * (width + 10), 0, width, getHeight() };
+    });
     auto air = sectionBounds_[0].reduced(11, 9);
     auto stick = sectionBounds_[1].reduced(11, 9);
-    for (auto [area, lock] : { std::pair{ &air, &airLock_ }, { &stick, &articulationLock_ } })
-        lock->setBounds(area->removeFromTop(36).removeFromRight(56));
-    for (auto [area, choice] : { std::pair{ &air, &noiseType_ }, { &stick, &clickType_ } })
-        choice->setBounds(area->removeFromTop(advanced_ ? 68 : 83));
+    std::ranges::for_each(std::array{ std::pair{ &air, &airLock_ }, std::pair{ &stick, &articulationLock_ } },
+        [](const auto& pair) {
+            pair.second->setBounds(pair.first->removeFromTop(36).removeFromRight(56));
+        });
+    std::ranges::for_each(std::array{ std::pair{ &air, &noiseType_ }, std::pair{ &stick, &clickType_ } },
+        [](const auto& pair) {
+            pair.second->setBounds(pair.first->removeFromTop(64));
+        });
 
-    const int rowHeight = advanced_ ? air.getHeight() / 3 : air.getHeight();
-    layoutRow(air.removeFromTop(rowHeight), { &noiseDecay_, &noiseLPF_, &noiseLevel_ });
-    layoutRow(stick.removeFromTop(rowHeight), { &preBursts_, &clickFreq_, &clickLevel_ });
     if (advanced_) {
-        layoutRows(air, { { &noiseAttack_, &noiseHold_, &noiseCurve_ }, { &noiseHPF_, &noiseWidth_, &decayScale_ } });
-        layoutRows(stick, { { &preSpread_, &preDecay_, &preLevel_ }, { &preJitter_, &flamSpread_ } });
+        layoutRows(air, {
+            { &noiseDecay_, &noiseLPF_, &noiseLevel_ },
+            { &hissColor_, &hissDensity_, &hissDrive_ },
+            { &noiseAttack_, &noiseHold_, &noiseCurve_ },
+            { &noiseHPF_, &noiseWidth_, &decayScale_ }
+        });
+        layoutRows(stick, {
+            { &bodyLevel_, &bodyTone_, &bodyDecay_ },
+            { &preBursts_, &clickFreq_, &clickLevel_ },
+            { &preSpread_, &preDecay_, &preLevel_ },
+            { &preJitter_, &flamSpread_ }
+        });
+        return;
     }
+    layoutRows(air, {
+        { &noiseDecay_, &noiseLPF_, &noiseLevel_ },
+        { &hissColor_, &hissDensity_, &hissDrive_ }
+    });
+    layoutRows(stick, {
+        { &bodyLevel_, &bodyTone_, &bodyDecay_ },
+        { &preBursts_, &clickFreq_, &clickLevel_ }
+    });
 }
 
 EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
-    : attack_(processor.parameters, params::kAmpAttack, "Attack", theme::kAccentBrass),
+    : processor_(processor),
+      attack_(processor.parameters, params::kAmpAttack, "Attack", theme::kAccentBrass),
       decay_(processor.parameters, params::kAmpDecay, "Decay", theme::kAccentBrass),
       sustain_(processor.parameters, params::kAmpSustain, "Sustain", theme::kAccentAqua),
       release_(processor.parameters, params::kAmpRelease, "Release", theme::kAccentCoral),
@@ -209,18 +248,156 @@ EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
     oneShot_.setTooltip("Let each hit play its full air tail, even after key up.");
     holdNotes_.setTooltip("Sustain until a matching note-off on the original MIDI channel.");
     addAndMakeVisible(envelopeLock_);
-    for (auto* button : { &oneShot_, &holdNotes_ }) {
+    std::ranges::for_each(std::array{ &oneShot_, &holdNotes_ }, [this](juce::TextButton* button) {
         button->setToggleable(true);
         button->setColour(juce::TextButton::buttonOnColourId, theme::kAccentAqua);
         addAndMakeVisible(button);
-    }
+    });
     oneShot_.onClick = [this] { gateAttachment_.setValueAsCompleteGesture(0.0f); };
     holdNotes_.onClick = [this] { gateAttachment_.setValueAsCompleteGesture(1.0f); };
-    for (auto* knob : { &attack_, &decay_, &sustain_, &release_ }) {
+    std::ranges::for_each(std::array{ &attack_, &decay_, &sustain_, &release_ }, [this](Knob* knob) {
         addAndMakeVisible(knob);
         knob->slider().onValueChange = [this] { repaint(); };
-    }
+    });
     gateAttachment_.sendInitialUpdate();
+}
+
+EnvelopePanel::EnvelopeGeometry EnvelopePanel::computeGeometry() const noexcept {
+    const auto plot = getLocalBounds().reduced(40, 0).withTrimmedTop(114).withTrimmedBottom(200).toFloat();
+    const auto relative = [](const Knob& knob) {
+        auto& slider = const_cast<Knob&>(knob).slider();
+        return static_cast<float>(slider.valueToProportionOfLength(slider.getValue()));
+    };
+    const float attackX = plot.getX() + plot.getWidth() * (.04f + .20f * relative(attack_));
+    const float decayX = attackX + plot.getWidth() * (.10f + .20f * relative(decay_));
+    const float releaseX = plot.getRight() - plot.getWidth() * (.08f + .20f * relative(release_));
+    const float sustainY = plot.getBottom() - plot.getHeight() * relative(sustain_);
+    return { plot, attackX, decayX, releaseX, sustainY };
+}
+
+EnvelopePanel::DragHandle EnvelopePanel::hitTestHandle(juce::Point<float> pos) const noexcept {
+    const auto g = computeGeometry();
+    const std::array<std::pair<DragHandle, juce::Point<float>>, 3> handles{{
+        { DragHandle::attack, { g.attackX, g.plot.getY() } },
+        { DragHandle::decaySustain, { g.decayX, g.sustainY } },
+        { DragHandle::releaseSustain, { g.releaseX, g.sustainY } }
+    }};
+    DragHandle best = DragHandle::none;
+    float bestDist = 16.0f;
+    std::ranges::for_each(handles, [&](const auto& entry) {
+        const float dist = entry.second.getDistanceFrom(pos);
+        if (dist <= bestDist) {
+            bestDist = dist;
+            best = entry.first;
+        }
+    });
+    if (best != DragHandle::none) return best;
+    if (pos.x >= g.decayX && pos.x <= g.releaseX && std::abs(pos.y - g.sustainY) <= 10.0f) {
+        return DragHandle::sustainSegment;
+    }
+    return DragHandle::none;
+}
+
+void EnvelopePanel::setHandleGesture(DragHandle handle, bool begin) {
+    const auto touch = [&](const char* paramId) {
+        if (auto* param = processor_.parameters.getParameter(paramId)) {
+            if (begin) {
+                param->beginChangeGesture();
+                return;
+            }
+            param->endChangeGesture();
+        }
+    };
+    switch (handle) {
+        case DragHandle::attack:
+            touch(params::kAmpAttack);
+            return;
+        case DragHandle::decaySustain:
+            touch(params::kAmpDecay);
+            touch(params::kAmpSustain);
+            return;
+        case DragHandle::releaseSustain:
+            touch(params::kAmpRelease);
+            touch(params::kAmpSustain);
+            return;
+        case DragHandle::sustainSegment:
+            touch(params::kAmpSustain);
+            return;
+        case DragHandle::none:
+            return;
+    }
+}
+
+void EnvelopePanel::updateDrag(juce::Point<float> pos) {
+    const auto g = computeGeometry();
+    const float w = std::max(1.0f, g.plot.getWidth());
+    const float h = std::max(1.0f, g.plot.getHeight());
+    const auto setKnobProportion = [](Knob& knob, float prop) {
+        const float clamped = std::clamp(prop, 0.0f, 1.0f);
+        const double value = knob.slider().proportionOfLengthToValue(static_cast<double>(clamped));
+        knob.slider().setValue(value, juce::sendNotificationSync);
+    };
+    switch (activeHandle_) {
+        case DragHandle::attack:
+            setKnobProportion(attack_, (pos.x - g.plot.getX() - w * .04f) / (w * .20f));
+            return;
+        case DragHandle::decaySustain:
+            setKnobProportion(decay_, (pos.x - g.attackX - w * .10f) / (w * .20f));
+            setKnobProportion(sustain_, (g.plot.getBottom() - pos.y) / h);
+            return;
+        case DragHandle::releaseSustain:
+            setKnobProportion(release_, (g.plot.getRight() - pos.x - w * .08f) / (w * .20f));
+            setKnobProportion(sustain_, (g.plot.getBottom() - pos.y) / h);
+            return;
+        case DragHandle::sustainSegment:
+            setKnobProportion(sustain_, (g.plot.getBottom() - pos.y) / h);
+            return;
+        case DragHandle::none:
+            return;
+    }
+}
+
+void EnvelopePanel::mouseMove(const juce::MouseEvent& event) {
+    const auto hit = hitTestHandle(event.position);
+    if (hit == hoverHandle_) return;
+    hoverHandle_ = hit;
+    setMouseCursor(hoverHandle_ == DragHandle::none
+        ? juce::MouseCursor::NormalCursor
+        : (hoverHandle_ == DragHandle::sustainSegment
+            ? juce::MouseCursor::UpDownResizeCursor
+            : juce::MouseCursor::DraggingHandCursor));
+    repaint();
+}
+
+void EnvelopePanel::mouseExit(const juce::MouseEvent&) {
+    if (activeHandle_ != DragHandle::none || hoverHandle_ == DragHandle::none) return;
+    hoverHandle_ = DragHandle::none;
+    setMouseCursor(juce::MouseCursor::NormalCursor);
+    repaint();
+}
+
+void EnvelopePanel::mouseDown(const juce::MouseEvent& event) {
+    if (event.mods.isPopupMenu()) return;
+    activeHandle_ = hitTestHandle(event.position);
+    if (activeHandle_ == DragHandle::none) return;
+    setHandleGesture(activeHandle_, true);
+    updateDrag(event.position);
+}
+
+void EnvelopePanel::mouseDrag(const juce::MouseEvent& event) {
+    if (activeHandle_ == DragHandle::none) return;
+    updateDrag(event.position);
+}
+
+void EnvelopePanel::mouseUp(const juce::MouseEvent& event) {
+    if (activeHandle_ == DragHandle::none) return;
+    setHandleGesture(activeHandle_, false);
+    activeHandle_ = DragHandle::none;
+    hoverHandle_ = hitTestHandle(event.position);
+    setMouseCursor(hoverHandle_ == DragHandle::none
+        ? juce::MouseCursor::NormalCursor
+        : juce::MouseCursor::DraggingHandCursor);
+    repaint();
 }
 
 void EnvelopePanel::paint(juce::Graphics& g) {
@@ -228,24 +405,22 @@ void EnvelopePanel::paint(juce::Graphics& g) {
     g.setColour(theme::kTextDim);
     g.setFont(juce::FontOptions(16.0f));
     const bool held = holdNotes_.getToggleState();
-    g.drawText(held ? "Sustain the air until the matching MIDI note ends."
-                    : "Play each strike to the end of its air tail.",
+    g.drawText(held ? "Sustain the air until the matching MIDI note ends. Drag any point to shape ADSR."
+                    : "Play each strike to the end of its air tail. Drag any point to shape ADSR.",
                22, 53, getWidth() - 290, 33, juce::Justification::left);
-    auto plot = getLocalBounds().reduced(40, 0).withTrimmedTop(114).withTrimmedBottom(200).toFloat();
-    const float base = plot.getBottom(), top = plot.getY();
-    const auto relative = [](Knob& knob) { return static_cast<float>(knob.slider().valueToProportionOfLength(knob.slider().getValue())); };
-    const float attackX = plot.getX() + plot.getWidth() * (.04f + .20f * relative(attack_));
-    const float decayX = attackX + plot.getWidth() * (.10f + .20f * relative(decay_));
-    const float releaseX = plot.getRight() - plot.getWidth() * (.08f + .20f * relative(release_));
-    const float sustainY = base - plot.getHeight() * relative(sustain_);
+    const auto geom = computeGeometry();
+    const auto& plot = geom.plot;
+    const float base = plot.getBottom();
+    const float top = plot.getY();
     g.setColour(theme::kPanelEdge.withAlpha(.5f));
-    for (int i = 0; i <= 4; ++i)
+    std::ranges::for_each(std::views::iota(0, 5), [&](int i) {
         g.drawHorizontalLine(juce::roundToInt(top + plot.getHeight() * static_cast<float>(i) / 4), plot.getX(), plot.getRight());
+    });
     juce::Path line;
     line.startNewSubPath(plot.getX(), base);
-    line.lineTo(attackX, top);
-    line.lineTo(decayX, sustainY);
-    line.lineTo(releaseX, sustainY);
+    line.lineTo(geom.attackX, top);
+    line.lineTo(geom.decayX, geom.sustainY);
+    line.lineTo(geom.releaseX, geom.sustainY);
     line.lineTo(plot.getRight(), base);
     auto fill = line;
     fill.closeSubPath();
@@ -254,11 +429,26 @@ void EnvelopePanel::paint(juce::Graphics& g) {
     g.fillPath(fill);
     g.setColour(theme::kAccentAqua);
     g.strokePath(line, juce::PathStrokeType(2.6f));
-    for (auto point : { juce::Point<float>{attackX, top}, {decayX, sustainY}, {releaseX, sustainY} })
-        g.fillEllipse(juce::Rectangle<float>(7, 7).withCentre(point));
+    const std::array<std::tuple<DragHandle, juce::Point<float>, juce::Colour>, 3> points{{
+        { DragHandle::attack, { geom.attackX, top }, theme::kAccentBrass },
+        { DragHandle::decaySustain, { geom.decayX, geom.sustainY }, theme::kAccentAqua },
+        { DragHandle::releaseSustain, { geom.releaseX, geom.sustainY }, theme::kAccentCoral }
+    }};
+    std::ranges::for_each(points, [&](const auto& item) {
+        const auto& [handle, point, colour] = item;
+        const bool hot = activeHandle_ == handle || hoverHandle_ == handle;
+        g.setColour(colour.withAlpha(hot ? 0.35f : 0.16f));
+        const float haloSize = hot ? 22.0f : 16.0f;
+        g.fillEllipse(juce::Rectangle<float>(haloSize, haloSize).withCentre(point));
+        g.setColour(colour);
+        g.drawEllipse(juce::Rectangle<float>(12.0f, 12.0f).withCentre(point), hot ? 2.2f : 1.5f);
+        g.setColour(theme::kText);
+        g.fillEllipse(juce::Rectangle<float>(hot ? 8.0f : 6.5f, hot ? 8.0f : 6.5f).withCentre(point));
+    });
     g.setFont(juce::FontOptions(13.0f));
+    g.setColour(theme::kTextDim);
     g.drawText(held ? "Key down" : "Strike", juce::Rectangle<float>(plot.getX(), base + 8, 100, 20), juce::Justification::left);
-    g.drawText(held ? "Key up" : "Tail fade", juce::Rectangle<float>(releaseX - 45, base + 8, 90, 20), juce::Justification::centred);
+    g.drawText(held ? "Key up" : "Tail fade", juce::Rectangle<float>(geom.releaseX - 45, base + 8, 90, 20), juce::Justification::centred);
 }
 
 void EnvelopePanel::resized() {

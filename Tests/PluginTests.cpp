@@ -77,6 +77,12 @@ TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") 
     REQUIRE(processor.parameters.getParameter(openhatter::params::kFlamSpread) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kClickType) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kNoiseType) != nullptr);
+    REQUIRE(processor.parameters.getParameter(openhatter::params::kHissColor) != nullptr);
+    REQUIRE(processor.parameters.getParameter(openhatter::params::kHissDensity) != nullptr);
+    REQUIRE(processor.parameters.getParameter(openhatter::params::kHissDrive) != nullptr);
+    REQUIRE(processor.parameters.getParameter(openhatter::params::kBodyLevel) != nullptr);
+    REQUIRE(processor.parameters.getParameter(openhatter::params::kBodyTone) != nullptr);
+    REQUIRE(processor.parameters.getParameter(openhatter::params::kBodyDecay) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kDistDrive) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kCompThresh) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kLimiterCeiling) != nullptr);
@@ -764,39 +770,117 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
     capture("effects");
 }
 
-TEST_CASE("All factory hats speak promptly and leave space after the offbeat", "[plugin][presets_audio]") {
-    for (int program = 0; program < 56; ++program) {
+TEST_CASE("OpenHatter ADSR points drag interactively and update envelope knobs and parameters", "[plugin][gui][adsr]") {
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto findButton = [&](auto&& self, juce::Component& parent, const juce::String& text) -> juce::TextButton* {
+        for (auto* child : parent.getChildren()) {
+            if (auto* btn = dynamic_cast<juce::TextButton*>(child); btn && btn->getButtonText() == text) return btn;
+            if (auto* nested = self(self, *child, text)) return nested;
+        }
+        return nullptr;
+    };
+    auto* envTab = static_cast<juce::Component*>(findButton(findButton, *editor, "Envelope"));
+    REQUIRE(envTab != nullptr);
+    const auto clickPos = envTab->getLocalBounds().getCentre().toFloat();
+    const auto clickTime = juce::Time::getCurrentTime();
+    const juce::MouseEvent tabDown(juce::Desktop::getInstance().getMainMouseSource(), clickPos,
+        juce::ModifierKeys::leftButtonModifier, 1, 0, 0, 0, 0, envTab, envTab, clickTime, clickPos, clickTime, 1, false);
+    envTab->mouseDown(tabDown);
+    envTab->mouseUp(tabDown);
+
+    openhatter::ui::EnvelopePanel* envPanel = nullptr;
+    std::ranges::for_each(editor->getChildren(), [&](juce::Component* child) {
+        if (auto* candidate = dynamic_cast<openhatter::ui::EnvelopePanel*>(child)) envPanel = candidate;
+    });
+    REQUIRE(envPanel != nullptr);
+    REQUIRE(envPanel->isVisible());
+
+    const auto plot = envPanel->getLocalBounds().reduced(40, 0).withTrimmedTop(114).withTrimmedBottom(200).toFloat();
+    const auto getProp = [&](const char* id) {
+        auto* p = processor.parameters.getParameter(id);
+        REQUIRE(p != nullptr);
+        return p->getValue();
+    };
+    const auto relA = getProp(openhatter::params::kAmpAttack);
+    const auto relD = getProp(openhatter::params::kAmpDecay);
+    const auto relS = getProp(openhatter::params::kAmpSustain);
+    const auto relR = getProp(openhatter::params::kAmpRelease);
+
+    const float attackX = plot.getX() + plot.getWidth() * (.04f + .20f * relA);
+    const float releaseX = plot.getRight() - plot.getWidth() * (.08f + .20f * relR);
+    const float sustainY = plot.getBottom() - plot.getHeight() * relS;
+
+    const auto dragPoint = [&](juce::Point<float> from, juce::Point<float> to) {
+        const auto now = juce::Time::getCurrentTime();
+        const auto& mouse = juce::Desktop::getInstance().getMainMouseSource();
+        envPanel->mouseDown(juce::MouseEvent(mouse, from, juce::ModifierKeys::leftButtonModifier,
+                                             1, 0, 0, 0, 0, envPanel, envPanel, now, from, now, 1, false));
+        envPanel->mouseDrag(juce::MouseEvent(mouse, to, juce::ModifierKeys::leftButtonModifier,
+                                             1, 0, 0, 0, 0, envPanel, envPanel, now, from, now, 1, false));
+        envPanel->mouseUp(juce::MouseEvent(mouse, to, juce::ModifierKeys{},
+                                           1, 0, 0, 0, 0, envPanel, envPanel, now, from, now, 1, false));
+    };
+
+    dragPoint({ attackX, plot.getY() }, { plot.getX() + plot.getWidth() * .20f, plot.getY() });
+    CHECK(getProp(openhatter::params::kAmpAttack) > 0.70f);
+
+    const float newAttackX = plot.getX() + plot.getWidth() * (.04f + .20f * getProp(openhatter::params::kAmpAttack));
+    dragPoint({ newAttackX + plot.getWidth() * (.10f + .20f * relD), sustainY },
+              { newAttackX + plot.getWidth() * .26f, plot.getBottom() - plot.getHeight() * .35f });
+    CHECK(getProp(openhatter::params::kAmpDecay) > 0.70f);
+    CHECK(std::abs(getProp(openhatter::params::kAmpSustain) - 0.35f) < 0.05f);
+
+    dragPoint({ releaseX, plot.getBottom() - plot.getHeight() * getProp(openhatter::params::kAmpSustain) },
+              { plot.getRight() - plot.getWidth() * .24f, plot.getBottom() - plot.getHeight() * .55f });
+    CHECK(getProp(openhatter::params::kAmpRelease) > 0.70f);
+    CHECK(std::abs(getProp(openhatter::params::kAmpSustain) - 0.55f) < 0.05f);
+}
+
+TEST_CASE("All factory hats speak promptly with rich body and full tails", "[plugin][presets_audio]") {
+    int upliftingCount = 0;
+    int longHatCount = 0;
+    std::ranges::for_each(std::views::iota(0, 56), [&](int program) {
         OpenHatterProcessor processor;
         processor.setCurrentProgram(program);
+        const auto name = processor.getProgramName(program);
+        if (name.startsWith("Uplifting / ")) ++upliftingCount;
+        const float noiseDecayMs = processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load();
+        if (noiseDecayMs >= 420.0f) ++longHatCount;
+
         processor.prepareToPlay(48000.0, 512);
         juce::AudioBuffer<float> buffer(2, 512);
         juce::MidiBuffer midi;
         midi.addEvent(juce::MidiMessage::noteOn(1, 66, static_cast<juce::uint8>(100)), 0);
+        const int totalBlocks = std::clamp(static_cast<int>(std::ceil(processor.getTailLengthSeconds() * 48000.0 / 512.0)) + 16,
+                                           48, 260);
         float peak = 0, attackPeak = 0, tailPeak = 0;
         double activeEnergy = 0;
-        for (int block = 0; block < 40; ++block) {
+        std::ranges::for_each(std::views::iota(0, totalBlocks), [&](int block) {
             processor.processBlock(buffer, midi);
             midi.clear();
-            for (int ch = 0; ch < 2; ++ch) {
-                for (int i = 0; i < 512; ++i) {
+            std::ranges::for_each(std::views::iota(0, 2), [&](int ch) {
+                std::ranges::for_each(std::views::iota(0, 512), [&](int i) {
                     const float value = buffer.getSample(ch, i);
                     REQUIRE(std::isfinite(value));
                     peak = std::max(peak, std::abs(value));
                     if (block == 0) attackPeak = std::max(attackPeak, std::abs(value));
-                    if (block < 12) activeEnergy += value * value;
-                    if (block >= 28) tailPeak = std::max(tailPeak, std::abs(value));
-                }
-            }
-        }
-        const double rms = std::sqrt(activeEnergy / (2 * 12 * 512));
-        INFO(processor.getProgramName(program).toStdString());
-        CAPTURE(peak, attackPeak, rms, tailPeak);
-        CHECK(attackPeak >= .30f);
+                    if (block < 16) activeEnergy += value * value;
+                    if (block >= totalBlocks - 6) tailPeak = std::max(tailPeak, std::abs(value));
+                });
+            });
+        });
+        const double rms = std::sqrt(activeEnergy / (2 * 16 * 512));
+        INFO(name.toStdString());
+        CAPTURE(peak, attackPeak, rms, tailPeak, totalBlocks);
+        CHECK(attackPeak >= .25f);
         CHECK(peak >= .35f);
         CHECK(peak <= 1.0f);
-        CHECK(rms >= .06);
-        CHECK(tailPeak < .005f);
-    }
+        CHECK(rms >= .08);
+        CHECK(tailPeak < .01f);
+    });
+    REQUIRE(upliftingCount == 24);
+    REQUIRE(longHatCount >= 24);
 }
 
 TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the main page", "[plugin][ui][eq]") {
