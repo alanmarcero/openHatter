@@ -25,6 +25,7 @@ private:
     juce::TextButton detailBtn_{ "Detailed controls" };
     openhatter::ui::MidiMonitorPanel midiPanel_;
     openhatter::ui::HatSynthPanel synthPanel_;
+    openhatter::ui::OutputPanel outputPanel_;
     openhatter::ui::EnvelopePanel envelopePanel_;
     openhatter::ui::PerformancePanel performancePanel_;
     openhatter::ui::EffectsPanel effectsPanel_;

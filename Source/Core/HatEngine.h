@@ -46,6 +46,7 @@ struct HatEffectSettings {
     float reverseMix = 0.5f;       // 0..1
     float echoMix = 0.0f;          // 0..1 tempo-synced ping-pong echo
 
+    ThreeBandEqSettings eq{};
     float stereoWidth = 1.15f;     // 0..2
     float outputGainDb = 0.0f;     // -36..+12 dB
 };
@@ -141,6 +142,7 @@ private:
     HatSynth synth_;
     DistortionShaper distL_;
     DistortionShaper distR_;
+    ThreeBandEq eq_;
     StereoCompressor compressor_;
     BrickwallLimiter limiter_;
     std::vector<float> echoBufferL_;

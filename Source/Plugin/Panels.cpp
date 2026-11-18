@@ -4,6 +4,7 @@
 #include "PluginProcessor.h"
 #include "Theme.h"
 #include <algorithm>
+#include <ranges>
 
 namespace openhatter::ui {
 namespace {
@@ -320,9 +321,6 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
       compRelease_(processor.parameters, params::kCompRelease, "Release", theme::kAccentBrass),
       compMakeup_(processor.parameters, params::kCompMakeup, "Makeup", theme::kAccentBrass),
       compMix_(processor.parameters, params::kCompMix, "Mix", theme::kAccentBrass),
-      limiterCeiling_(processor.parameters, params::kLimiterCeiling, "Ceiling", theme::kAccentBrass),
-      limiterRelease_(processor.parameters, params::kLimiterRelease, "Limit release", theme::kAccentBrass),
-      limiterEnabled_(processor.parameters, params::kLimiterEnabled, "Limiter off", "Limiter on", theme::kAccentBrass),
       reverbSize_(processor.parameters, params::kReverbSize, "Size", theme::kAccentAqua),
       reverbDecay_(processor.parameters, params::kReverbDecay, "Decay", theme::kAccentAqua),
       reverbDamp_(processor.parameters, params::kReverbDamp, "Damping", theme::kAccentAqua),
@@ -331,40 +329,40 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
       echoMix_(processor.parameters, params::kEchoMix, "Echo mix", theme::kAccentAqua),
       reverseMode_(processor.parameters, params::kReverseMode, "Reverse sync", theme::kAccentAqua),
       reverseMix_(processor.parameters, params::kReverseMix, "Reverse mix", theme::kAccentAqua),
-      masterWidth_(processor.parameters, params::kStereoWidth, "Width", theme::kAccentAqua),
-      outputGain_(processor.parameters, params::kOutputGain, "Output", theme::kAccentAqua),
       exciterLock_("Exciter", theme::kAccentCoral,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::exciter); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::exciter, on); }),
       dynamicsLock_("Dynamics", theme::kAccentBrass,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::dynamics); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::dynamics, on); }),
-      spaceLock_("Space & Output", theme::kAccentAqua,
+      spaceLock_("Space", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput, on); }) {
-    limiterEnabled_.setTooltip("Switch output peak limiting on or off.");
     echoMix_.setTooltip("Blend a tempo-synced dotted-sixteenth stereo ping-pong echo.");
-    for (juce::Component* component : std::array<juce::Component*, 26>{
+    std::ranges::for_each(std::array<juce::Component*, 21>{
              &distType_, &distDrive_, &distTone_, &distMix_, &compThresh_, &compRatio_, &compAttack_, &compRelease_,
-             &compMakeup_, &compMix_, &limiterCeiling_, &limiterRelease_, &limiterEnabled_, &reverbSize_, &reverbDecay_,
-             &reverbDamp_, &reverbGate_, &reverbMix_, &echoMix_, &reverseMode_, &reverseMix_, &masterWidth_, &outputGain_,
-             &exciterLock_, &dynamicsLock_, &spaceLock_})
-        if (component != nullptr) addAndMakeVisible(component);
+             &compMakeup_, &compMix_, &reverbSize_, &reverbDecay_,
+             &reverbDamp_, &reverbGate_, &reverbMix_, &echoMix_, &reverseMode_, &reverseMix_,
+             &exciterLock_, &dynamicsLock_, &spaceLock_},
+        [this](juce::Component* component) { addAndMakeVisible(component); });
 }
 
 void EffectsPanel::paint(juce::Graphics& g) {
     drawSection(g, sectionBounds_[0], "Exciter", theme::kAccentCoral);
     drawSection(g, sectionBounds_[1], "Dynamics", theme::kAccentBrass);
-    drawSection(g, sectionBounds_[2], "Space & output", theme::kAccentAqua);
+    drawSection(g, sectionBounds_[2], "Space", theme::kAccentAqua);
 }
 
 void EffectsPanel::resized() {
     constexpr int gap = 10;
     const int width = (getWidth() - gap * 2) / 3;
-    for (size_t i = 0; i < sectionBounds_.size(); ++i)
+    std::ranges::for_each(std::views::iota(size_t{0}, sectionBounds_.size()), [&](size_t i) {
         sectionBounds_[i] = { static_cast<int>(i) * (width + gap), 0, width, getHeight() };
-    for (auto [index, lock] : { std::pair{ 0, &exciterLock_ }, { 1, &dynamicsLock_ }, { 2, &spaceLock_ } })
-        lock->setBounds(sectionBounds_[static_cast<size_t>(index)].getRight() - 67, 7, 56, 36);
+    });
+    std::ranges::for_each(std::array{ std::pair{ 0, &exciterLock_ }, std::pair{ 1, &dynamicsLock_ }, std::pair{ 2, &spaceLock_ } },
+        [&](const auto& pair) {
+            pair.second->setBounds(sectionBounds_[static_cast<size_t>(pair.first)].getRight() - 67, 7, 56, 36);
+        });
 
     layoutRows(sectionBounds_[0].reduced(8, 10).withTrimmedTop(36), {
         { &distType_, &distDrive_ },
@@ -372,14 +370,56 @@ void EffectsPanel::resized() {
     });
     layoutRows(sectionBounds_[1].reduced(7, 10).withTrimmedTop(36), {
         { &compThresh_, &compRatio_, &compAttack_ },
-        { &compRelease_, &compMakeup_, &compMix_ },
-        { &limiterCeiling_, &limiterRelease_, &limiterEnabled_ }
+        { &compRelease_, &compMakeup_, &compMix_ }
     });
     layoutRows(sectionBounds_[2].reduced(7, 10).withTrimmedTop(36), {
         { &reverbSize_, &reverbDecay_, &reverbDamp_ },
         { &reverbGate_, &reverbMix_, &echoMix_ },
-        { &reverseMode_, &reverseMix_ },
-        { &masterWidth_, &outputGain_ }
+        { &reverseMode_, &reverseMix_ }
+    });
+}
+
+OutputPanel::OutputPanel(OpenHatterProcessor& processor)
+    : eqLow_(processor.parameters, params::kEqLowFreq, params::kEqLowDb, "Low EQ", theme::kAccentAqua, theme::kAccentBrass),
+      eqMid_(processor.parameters, params::kEqMidFreq, params::kEqMidDb, "Mid EQ", theme::kAccentAqua, theme::kAccentBrass),
+      eqHigh_(processor.parameters, params::kEqHighFreq, params::kEqHighDb, "High EQ", theme::kAccentAqua, theme::kAccentBrass),
+      masterWidth_(processor.parameters, params::kStereoWidth, "Width", theme::kAccentAqua),
+      outputGain_(processor.parameters, params::kOutputGain, "Output", theme::kAccentAqua),
+      limiterCeiling_(processor.parameters, params::kLimiterCeiling, "Ceiling", theme::kAccentBrass),
+      limiterRelease_(processor.parameters, params::kLimiterRelease, "Limit release", theme::kAccentBrass),
+      limiterEnabled_(processor.parameters, params::kLimiterEnabled, "Limiter off", "Limiter on", theme::kAccentBrass),
+      outputLock_("Output", theme::kAccentAqua,
+          [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::output); },
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::output, on); }) {
+    eqLow_.setTooltip("Inner cap sets Low shelf gain (-12 to +12 dB); outer collar glides cutoff frequency smoothly.");
+    eqMid_.setTooltip("Inner cap sets Mid peak gain (-12 to +12 dB); outer collar glides center frequency smoothly.");
+    eqHigh_.setTooltip("Inner cap sets High shelf gain (-12 to +12 dB); outer collar glides cutoff frequency smoothly.");
+    limiterEnabled_.setTooltip("Switch output peak limiting on or off.");
+    std::ranges::for_each(std::array<juce::Component*, 9>{
+             &eqLow_, &eqMid_, &eqHigh_, &masterWidth_, &outputGain_,
+             &limiterCeiling_, &limiterRelease_, &limiterEnabled_, &outputLock_},
+        [this](juce::Component* component) { addAndMakeVisible(component); });
+}
+
+void OutputPanel::paint(juce::Graphics& g) {
+    drawSection(g, getLocalBounds(), "Output", theme::kAccentAqua);
+}
+
+void OutputPanel::resized() {
+    outputLock_.setBounds(getWidth() - 67, 7, 56, 36);
+    auto row = getLocalBounds().reduced(10, 6).withTrimmedTop(36);
+    const std::array<std::pair<juce::Component*, float>, 8> items{{
+        { &eqLow_, 14.0f }, { &eqMid_, 14.0f }, { &eqHigh_, 14.0f },
+        { &masterWidth_, 9.5f }, { &outputGain_, 9.5f },
+        { &limiterCeiling_, 9.5f }, { &limiterRelease_, 9.5f }, { &limiterEnabled_, 10.0f }
+    }};
+    const float total = 90.0f;
+    const int gap = 4;
+    const int avail = std::max(0, row.getWidth() - gap * static_cast<int>(items.size() - 1));
+    std::ranges::for_each(items, [&](const auto& item) {
+        const int w = juce::roundToInt(static_cast<float>(avail) * (item.second / total));
+        item.first->setBounds(row.removeFromLeft(w));
+        row.removeFromLeft(gap);
     });
 }
 

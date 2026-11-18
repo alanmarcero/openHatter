@@ -161,6 +161,7 @@ void HatEngine::prepare(double sampleRate) {
     synth_.prepare(sampleRate);
     distL_.reset();
     distR_.reset();
+    eq_.prepare(sampleRate);
     compressor_.prepare(sampleRate);
     limiter_.prepare(sampleRate);
     reversePreviewSynth_.prepare(sampleRate);
@@ -178,6 +179,7 @@ void HatEngine::reset() noexcept {
     synth_.reset();
     distL_.reset();
     distR_.reset();
+    eq_.reset();
     compressor_.reset();
     limiter_.reset();
     std::fill(echoBufferL_.begin(), echoBufferL_.end(), 0.0f);
@@ -212,8 +214,10 @@ void HatEngine::lockCurrentHat(const EngineSettings& settings) {
     std::vector<float> renderedR(dryR.size());
 
     DistortionShaper dL, dR;
+    ThreeBandEq lockEq;
     StereoCompressor comp;
     BrickwallLimiter lim;
+    lockEq.prepare(sampleRate_);
     comp.prepare(sampleRate_);
     lim.prepare(sampleRate_);
 
@@ -235,6 +239,7 @@ void HatEngine::lockCurrentHat(const EngineSettings& settings) {
             sR = mid - side;
         }
 
+        lockEq.process(sL, sR, settings.effects.eq);
         comp.process(sL, sR, settings.effects.compressor);
         lim.process(sL, sR, settings.effects.limiter);
 
@@ -484,6 +489,7 @@ void HatEngine::process(
             sR = mid - side;
         }
 
+        eq_.process(sL, sR, settings.effects.eq);
         compressor_.process(sL, sR, settings.effects.compressor);
         limiter_.process(sL, sR, settings.effects.limiter);
 

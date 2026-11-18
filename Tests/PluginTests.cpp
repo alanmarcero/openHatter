@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <new>
+#include <ranges>
 #include <utility>
 
 namespace {
@@ -796,4 +797,70 @@ TEST_CASE("All factory hats speak promptly and leave space after the offbeat", "
         CHECK(rms >= .06);
         CHECK(tailPeak < .005f);
     }
+}
+
+TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the main page", "[plugin][ui][eq]") {
+    openhatter::core::ThreeBandEq eqHigh, eqCut;
+    eqHigh.prepare(48000.0);
+    eqCut.prepare(48000.0);
+    const openhatter::core::ThreeBandEqSettings boost{ 80.0f, 0.0f, 1000.0f, 0.0f, 4000.0f, 12.0f };
+    const openhatter::core::ThreeBandEqSettings cut{ 80.0f, 0.0f, 1000.0f, 0.0f, 4000.0f, -12.0f };
+    double rmsBoost = 0.0;
+    double rmsCut = 0.0;
+    std::ranges::for_each(std::views::iota(0, 4800), [&](int i) {
+        const float x = 0.25f * std::sin(2.0f * 3.14159265f * 8000.0f * static_cast<float>(i) / 48000.0f);
+        float bL = x;
+        float bR = x;
+        eqHigh.process(bL, bR, boost);
+        float cL = x;
+        float cR = x;
+        eqCut.process(cL, cR, cut);
+        if (i >= 2400) {
+            rmsBoost += static_cast<double>(bL) * bL;
+            rmsCut += static_cast<double>(cL) * cL;
+        }
+    });
+    REQUIRE(10.0 * std::log10(rmsBoost / rmsCut) > 20.0);
+
+    OpenHatterProcessor processor;
+    std::ranges::for_each(std::array<const char*, 6>{
+        "eq_low_freq", "eq_low_db", "eq_mid_freq", "eq_mid_db", "eq_high_freq", "eq_high_db"},
+        [&](const char* id) { REQUIRE(processor.parameters.getParameter(id) != nullptr); });
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    auto* outputPanel = [&] {
+        openhatter::ui::OutputPanel* found = nullptr;
+        std::ranges::for_each(editor->getChildren(), [&](juce::Component* child) {
+            if (auto* candidate = dynamic_cast<openhatter::ui::OutputPanel*>(child)) found = candidate;
+        });
+        return found;
+    }();
+    REQUIRE(outputPanel != nullptr);
+    CHECK(outputPanel->isVisible());
+
+    const auto findById = [](auto&& self, juce::Component& parent, const juce::String& id) -> juce::Component* {
+        if (parent.getComponentID() == id) return &parent;
+        for (auto* child : parent.getChildren()) {
+            if (auto* match = self(self, *child, id)) return match;
+        }
+        return nullptr;
+    };
+    std::ranges::for_each(std::array<const char*, 8>{
+        "eq_low_db", "eq_mid_db", "eq_high_db", "stereo_width",
+        "output_gain", "limiter_ceiling", "limiter_release", "limiter_enabled"},
+        [&](const char* id) {
+            auto* control = findById(findById, *outputPanel, id);
+            REQUIRE(control != nullptr);
+            CHECK(control->isVisible());
+        });
+
+    auto* presets = [&] {
+        juce::ComboBox* box = nullptr;
+        std::ranges::for_each(editor->getChildren(), [&](juce::Component* child) {
+            if (auto* candidate = dynamic_cast<juce::ComboBox*>(child); candidate && candidate->getName() == "Factory preset")
+                box = candidate;
+        });
+        return box;
+    }();
+    REQUIRE(presets != nullptr);
 }

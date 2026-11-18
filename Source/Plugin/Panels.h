@@ -114,9 +114,6 @@ private:
     Knob compRelease_;
     Knob compMakeup_;
     Knob compMix_;
-    Knob limiterCeiling_;
-    Knob limiterRelease_;
-    Toggle limiterEnabled_;
     Knob reverbSize_;
     Knob reverbDecay_;
     Knob reverbDamp_;
@@ -125,12 +122,29 @@ private:
     Knob echoMix_;
     Choice reverseMode_;
     Knob reverseMix_;
-    Knob masterWidth_;
-    Knob outputGain_;
     SectionLockButton exciterLock_;
     SectionLockButton dynamicsLock_;
     SectionLockButton spaceLock_;
     std::array<juce::Rectangle<int>, 3> sectionBounds_{};
+};
+
+/** Output EQ (dual-layer 3-band), stereo width, gain, and limiter on the main Hat page. */
+class OutputPanel : public juce::Component {
+public:
+    explicit OutputPanel(OpenHatterProcessor& processor);
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+
+private:
+    DualEqKnob eqLow_;
+    DualEqKnob eqMid_;
+    DualEqKnob eqHigh_;
+    Knob masterWidth_;
+    Knob outputGain_;
+    Knob limiterCeiling_;
+    Knob limiterRelease_;
+    Toggle limiterEnabled_;
+    SectionLockButton outputLock_;
 };
 
 } // namespace openhatter::ui
