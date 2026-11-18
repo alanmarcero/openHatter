@@ -6,8 +6,9 @@ namespace theme = openhatter::theme;
 
 OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     : AudioProcessorEditor(&processorToEdit), processor_(processorToEdit),
-      midiPanel_(processorToEdit), synthPanel_(processorToEdit), envelopePanel_(processorToEdit),
-      performancePanel_(processorToEdit), effectsPanel_(processorToEdit), tooltipWindow_(this, 500) {
+      midiPanel_(processorToEdit), synthPanel_(processorToEdit), outputPanel_(processorToEdit),
+      envelopePanel_(processorToEdit), performancePanel_(processorToEdit), effectsPanel_(processorToEdit),
+      tooltipWindow_(this, 500) {
     setLookAndFeel(&lookAndFeel_);
     const auto& presets = openhatter::presets::factoryPresets();
     juce::String family;
@@ -30,7 +31,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     hatTab_.setTooltip("Shape the air tail and stick strike.");
     envelopeTab_.setTooltip("Choose one-shot or held notes and shape the amplitude envelope.");
     performanceTab_.setTooltip("Edit velocity, MIDI choke and rolls.");
-    effectsTab_.setTooltip("Edit the exciter, dynamics, space and output.");
+    effectsTab_.setTooltip("Edit the exciter, dynamics and space.");
     detailBtn_.setTooltip("Show or hide the air filter and bounce settings.");
     presetBox_.setTextWhenNothingSelected("Custom sound");
     presetBox_.onChange = [this] {
@@ -68,12 +69,12 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     }
     for (juce::Component* child : std::initializer_list<juce::Component*>{
              &presetBox_, &prevPresetBtn_, &nextPresetBtn_, &auditionBtn_, &hatTab_, &envelopeTab_,
-             &performanceTab_, &effectsTab_, &detailBtn_, &midiPanel_, &synthPanel_, &envelopePanel_,
-             &performancePanel_, &effectsPanel_ })
+             &performanceTab_, &effectsTab_, &detailBtn_, &midiPanel_, &synthPanel_, &outputPanel_,
+             &envelopePanel_, &performancePanel_, &effectsPanel_ })
         addAndMakeVisible(child);
     setPage(Page::hat);
     syncPresetBox();
-    setSize(1060, 672);
+    setSize(1060, 826);
     startTimerHz(15);
 }
 
@@ -96,6 +97,7 @@ void OpenHatterEditor::setPage(Page page) {
     detailBtn_.setVisible(hat);
     midiPanel_.setVisible(hat && !detailBtn_.getToggleState());
     synthPanel_.setVisible(hat);
+    outputPanel_.setVisible(hat);
     envelopePanel_.setVisible(page == Page::envelope);
     performancePanel_.setVisible(page == Page::performance);
     effectsPanel_.setVisible(page == Page::effects);
@@ -138,7 +140,9 @@ void OpenHatterEditor::resized() {
     performancePanel_.setBounds(body);
     if (!detailBtn_.getToggleState()) {
         midiPanel_.setBounds(body.removeFromTop(164));
-        body.removeFromTop(12);
+        body.removeFromTop(10);
     }
+    outputPanel_.setBounds(body.removeFromBottom(150));
+    body.removeFromBottom(10);
     synthPanel_.setBounds(body);
 }

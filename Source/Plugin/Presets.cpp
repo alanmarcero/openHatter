@@ -112,7 +112,8 @@ FactoryPreset makePreset(const Hat& hat, const Character& style) {
         { kLimiterCeiling, -1 }, { kLimiterRelease, 18 }, { kReverbSize, style.roomSize },
         { kReverbDecay, style.roomMs }, { kReverbDamp, .42f }, { kReverbGate, 95 },
         { kReverbMix, hat.roomMix }, { kReverseMode, 0 }, { kReverseMix, 0 },
-        { kStereoWidth, 1 }, { kOutputGain, 0 }
+        { kEqLowFreq, 80.0f }, { kEqLowDb, 0.0f }, { kEqMidFreq, 1000.0f }, { kEqMidDb, 0.0f },
+        { kEqHighFreq, 7500.0f }, { kEqHighDb, 0.0f }, { kStereoWidth, 1 }, { kOutputGain, 0 }
     } };
 }
 
@@ -124,7 +125,10 @@ FactoryPreset makePreset(const Hat& hat, const Character& style) {
         || id == kNoiseHPF || id == kNoiseLPF || id == kNoiseStereoWidth || id == kNoiseLevel || id == kDecayScale) return 2;
     if (id == kDistType || id == kDistDrive || id == kDistTone || id == kDistMix) return 3;
     if (id == kCompThresh || id == kCompRatio || id == kCompAttack || id == kCompRelease || id == kCompMakeup
-        || id == kCompMix || id == kLimiterCeiling || id == kLimiterRelease || id == kLimiterEnabled) return 4;
+        || id == kCompMix) return 4;
+    if (id == kEqLowFreq || id == kEqLowDb || id == kEqMidFreq || id == kEqMidDb || id == kEqHighFreq
+        || id == kEqHighDb || id == kStereoWidth || id == kOutputGain || id == kLimiterCeiling
+        || id == kLimiterRelease || id == kLimiterEnabled) return 6;
     return 5;
 }
 
@@ -142,12 +146,13 @@ const std::vector<FactoryPreset>& factoryPresets() {
 }
 
 void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
-           const std::array<bool, 6>& lockedSections) {
-    for (const auto& [paramId, value] : preset.values) {
-        if (lockedSections[static_cast<size_t>(sectionFor(paramId))]) continue;
+           const std::array<bool, 7>& lockedSections) {
+    std::ranges::for_each(preset.values, [&](const auto& entry) {
+        const auto& [paramId, value] = entry;
+        if (lockedSections[static_cast<size_t>(sectionFor(paramId))]) return;
         if (auto* param = state.getParameter(paramId))
             param->setValueNotifyingHost(param->convertTo0to1(value));
-    }
+    });
 }
 
 } // namespace openhatter::presets

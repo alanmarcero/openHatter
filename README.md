@@ -21,7 +21,7 @@ Choose a **Factory preset** or step through the bank with **Previous** and **Nex
 
 ## Shape the hit
 
-On **Hat**, set **Air tail** decay, low-pass cutoff and level for the length, brightness and weight of the hat. The air filters follow the knobs, not the played note, so every MIDI note keeps the same bright tail. **Stick & bounce** sets the contact type, strike count, frequency and level. **Detailed controls** opens air attack and hold, curve, high-pass, width and decay morph, plus bounce timing.
+On **Hat**, set **Air tail** decay, low-pass cutoff and level for the length, brightness and weight of the hat. The air filters follow the knobs, not the played note, so every MIDI note keeps the same bright tail. **Stick & bounce** sets the contact type, strike count, frequency and level. **Detailed controls** opens air attack and hold, curve, high-pass, width and decay morph, plus bounce timing. **Output** puts the dual-layer 3-band EQ (±12 dB inner cap, smoothly gliding outer frequency collar), stereo width, output gain, and brickwall limiter directly on the main page.
 
 The animated cymbal opens on the offbeat and follows the host through tempo changes and seeks. It rests when transport stops and uses a 138 BPM clock in Standalone. The decay bar shows the current air decay in milliseconds. The MIDI monitor shows the last played note, frequency and velocity. The factory hats use 113–242 ms air decay. Each section's **Lock** keeps its settings when browsing. The Envelope page has its own lock for the amplitude envelope. You can edit a locked control and save the lock state with your project.
 
@@ -35,7 +35,7 @@ Open **Envelope** and select **Hold notes**. Attack brings the air in, decay set
 
 On **Performance**, set separate velocity curves for air, stick and reverb. A note-off on the choke note (42 by default) or a high value on the choke CC (4) closes a ringing hat. CC 7 controls output volume and CC 74 controls air brightness. **Roll on** repeats the last hit at host-synced eighth, sixteenth or thirty-second notes. Set swing and a fourth-hit accent. Rolls pause with the host and end on a choke.
 
-On **Effects**, shape the exciter, parallel compressor, limiter and reverb, add a synced reverse swell, then set master width and gain. Three optional stereo buses carry air, stick and reverb for separate mixing. They include output gain and bypass shared effects and master width.
+On **Effects**, shape the exciter, parallel compressor and reverb, or add a synced reverse swell. Output EQ, master width, output gain and limiting live on the **Hat** page under **Output**. Three optional stereo buses carry air, stick and reverb for separate mixing. They include output gain and bypass shared effects and master width.
 
 [See the detailed Hat, Performance and Effects pages.](docs/SCREENSHOTS.md)
 
