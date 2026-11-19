@@ -3,6 +3,10 @@
 #include "EdmLookAndFeel.h"
 #include "Panels.h"
 #include "PluginProcessor.h"
+#include "PresetBrowser.h"
+#include "PresetLibrary.h"
+#include "WavDragButton.h"
+#include <memory>
 
 class OpenHatterEditor : public juce::AudioProcessorEditor, private juce::Timer {
 public:
@@ -10,19 +14,28 @@ public:
     ~OpenHatterEditor() override;
     void paint(juce::Graphics& g) override;
     void resized() override;
+    bool keyPressed(const juce::KeyPress& key) override;
 
 private:
     enum class Page { hat, envelope, performance, effects };
     void setPage(Page page);
     void timerCallback() override;
     void syncPresetBox();
+    void refreshHistoryButtons();
+    void showPresetBrowser(bool show);
 
     OpenHatterProcessor& processor_;
     openhatter::ui::EdmLookAndFeel lookAndFeel_;
+    suite::PresetLibrary presetLibrary_;
+    suite::PresetBrowser presetBrowser_;
     juce::ComboBox presetBox_;
     juce::TextButton prevPresetBtn_{ "Previous" }, nextPresetBtn_{ "Next" }, auditionBtn_{ "Preview hat" };
     juce::TextButton hatTab_{ "Hat" }, envelopeTab_{ "Envelope" }, performanceTab_{ "Performance" }, effectsTab_{ "Effects" };
     juce::TextButton detailBtn_{ "Detailed controls" };
+    juce::TextButton undoBtn_{ "Undo" }, redoBtn_{ "Redo" }, slotABtn_{ "A" }, slotBBtn_{ "B" }, copyBtn_{ "Copy" };
+    juce::TextButton lockBtn_{ "Lock in" }, presetsBtn_{ "Presets" };
+    suite::WavDragButton dragBtn_;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> lockAttachment_;
     openhatter::ui::MidiMonitorPanel midiPanel_;
     openhatter::ui::HatSynthPanel synthPanel_;
     openhatter::ui::OutputPanel outputPanel_;

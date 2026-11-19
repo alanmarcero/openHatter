@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <cstdlib>
 #include <new>
 #include <numeric>
@@ -663,7 +664,7 @@ TEST_CASE("The cymbal SVG follows playback, seeks, stop and the internal beat", 
         processor.processBlock(audio, midi);
         CHECK(std::abs(processor.displayBeatPhase.load() - expected) < .0001f);
         std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
-        return editor->createComponentSnapshot({ 28, 160, 295, 146 });
+        return editor->createComponentSnapshot({ 28, 196, 295, 146 });
     };
     const auto raised = frame(-2.52, 120.0, true, .50f);
     const auto closed = frame(14.24, 60.0, true, .25f);
@@ -1125,4 +1126,237 @@ TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the ma
         return box;
     }();
     REQUIRE(presets != nullptr);
+}
+
+namespace {
+
+void flushParameters(OpenHatterProcessor& processor) { processor.parameters.copyState(); }
+
+void gesture(juce::RangedAudioParameter& parameter, float plain) {
+    parameter.beginChangeGesture();
+    parameter.setValueNotifyingHost(parameter.convertTo0to1(plain));
+    parameter.endChangeGesture();
+}
+
+} // namespace
+
+TEST_CASE("Parameter edits undo and redo as grouped gestures", "[plugin][undo]") {
+    OpenHatterProcessor processor;
+    auto* gain = processor.parameters.getParameter(openhatter::params::kOutputGain);
+    auto* decay = processor.parameters.getParameter(openhatter::params::kNoiseDecay);
+    REQUIRE(gain != nullptr);
+    REQUIRE(decay != nullptr);
+    const float gain0 = processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load();
+    const float decay0 = processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load();
+
+    gain->beginChangeGesture();
+    decay->beginChangeGesture();
+    gain->setValueNotifyingHost(gain->convertTo0to1(4.0f));
+    decay->setValueNotifyingHost(decay->convertTo0to1(400.0f));
+    decay->endChangeGesture();
+    gain->endChangeGesture();
+    flushParameters(processor);
+
+    gesture(*gain, -6.0f);
+    flushParameters(processor);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() + 6.0f) < 0.05f);
+
+    processor.undo();
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - 4.0f) < 0.05f);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load() - 400.0f) < 0.5f);
+    processor.undo();
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - gain0) < 0.05f);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load() - decay0) < 0.5f);
+    processor.redo();
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - 4.0f) < 0.05f);
+    CHECK(processor.canRedo());
+}
+
+TEST_CASE("Editor shortcuts and buttons undo parameter changes", "[plugin][undo][gui]") {
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    auto* gain = processor.parameters.getParameter(openhatter::params::kOutputGain);
+    REQUIRE(gain != nullptr);
+    const float original = processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load();
+    gesture(*gain, 5.0f);
+    flushParameters(processor);
+    REQUIRE(editor->keyPressed(juce::KeyPress('z', juce::ModifierKeys::commandModifier, 'z')));
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - original) < 0.05f);
+    REQUIRE(editor->keyPressed(juce::KeyPress('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier, 'z')));
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - 5.0f) < 0.05f);
+
+    const auto findButton = [&](auto&& self, juce::Component& parent, const juce::String& text) -> juce::TextButton* {
+        for (auto* child : parent.getChildren()) {
+            if (!child->isVisible()) continue;
+            if (auto* button = dynamic_cast<juce::TextButton*>(child); button && button->getButtonText() == text)
+                return button;
+            if (auto* nested = self(self, *child, text)) return nested;
+        }
+        return nullptr;
+    };
+    const auto click = [](juce::Component& target) {
+        const auto pos = target.getLocalBounds().getCentre().toFloat();
+        const auto now = juce::Time::getCurrentTime();
+        const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), pos,
+            juce::ModifierKeys::leftButtonModifier, 1, 0, 0, 0, 0, &target, &target, now, pos, now, 1, false);
+        target.mouseDown(event);
+        target.mouseUp(event);
+    };
+    auto* undo = findButton(findButton, *editor, "Undo");
+    REQUIRE(undo != nullptr);
+    click(*undo);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - original) < 0.05f);
+}
+
+TEST_CASE("A/B compare restores full sound and section locks", "[plugin][ab]") {
+    OpenHatterProcessor processor;
+    auto* gain = processor.parameters.getParameter(openhatter::params::kOutputGain);
+    REQUIRE(gain != nullptr);
+    gain->setValueNotifyingHost(gain->convertTo0to1(3.5f));
+    processor.setSectionLocked(OpenHatterProcessor::PresetSection::envelope, true);
+    processor.copyAbToOther();
+    gain->setValueNotifyingHost(gain->convertTo0to1(-8.0f));
+    processor.setSectionLocked(OpenHatterProcessor::PresetSection::envelope, false);
+    processor.selectAbSlot(1);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - 3.5f) < 0.05f);
+    CHECK(processor.isSectionLocked(OpenHatterProcessor::PresetSection::envelope));
+    processor.selectAbSlot(0);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() + 8.0f) < 0.05f);
+    CHECK_FALSE(processor.isSectionLocked(OpenHatterProcessor::PresetSection::envelope));
+}
+
+TEST_CASE("Drag export uses the locked hit and otherwise renders a fresh WAV", "[plugin][wav]") {
+    OpenHatterProcessor processor;
+    processor.prepareToPlay(48000.0, 512);
+    auto fresh = processor.exportHatWav();
+    REQUIRE(fresh.getSize() > 44);
+    CHECK(std::memcmp(fresh.getData(), "RIFF", 4) == 0);
+    CHECK_FALSE(processor.isHatLockedIn());
+
+    auto* decay = processor.parameters.getParameter(openhatter::params::kNoiseDecay);
+    auto* lock = processor.parameters.getParameter(openhatter::params::kLockIn);
+    REQUIRE(decay != nullptr);
+    REQUIRE(lock != nullptr);
+    const auto fingerprint = [](const juce::MemoryBlock& block) {
+        uint32_t hash = 2166136261u;
+        const auto* bytes = static_cast<const uint8_t*>(block.getData());
+        for (size_t i = 0; i < block.getSize(); ++i)
+            hash = (hash ^ bytes[i]) * 16777619u;
+        return std::pair<size_t, uint32_t>{ block.getSize(), hash };
+    };
+    decay->setValueNotifyingHost(decay->convertTo0to1(80.0f));
+    auto shorter = processor.exportHatWav();
+    CHECK(shorter.getSize() > 44);
+    CHECK(fingerprint(shorter) != fingerprint(fresh));
+
+    lock->setValueNotifyingHost(1.0f);
+    auto locked = processor.exportHatWav();
+    CHECK(processor.isHatLockedIn());
+    decay->setValueNotifyingHost(decay->convertTo0to1(900.0f));
+    auto stillLocked = processor.exportHatWav();
+    CHECK(fingerprint(stillLocked) == fingerprint(locked));
+
+    juce::MemoryBlock state;
+    processor.getStateInformation(state);
+    OpenHatterProcessor restored;
+    restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+    CHECK(restored.isHatLockedIn());
+    CHECK(fingerprint(restored.exportHatWav()) == fingerprint(locked));
+
+    lock->setValueNotifyingHost(0.0f);
+    auto unlocked = processor.exportHatWav();
+    CHECK_FALSE(processor.isHatLockedIn());
+    CHECK(unlocked.getSize() > 44);
+    CHECK(fingerprint(unlocked) != fingerprint(locked));
+}
+
+TEST_CASE("User presets load through section locks and the editor size is part of the session", "[plugin][presets][resize]") {
+    OpenHatterProcessor processor;
+    processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, true);
+    auto* decay = processor.parameters.getParameter(openhatter::params::kNoiseDecay);
+    REQUIRE(decay != nullptr);
+    decay->setValueNotifyingHost(decay->convertTo0to1(180.0f));
+    auto tree = processor.currentPresetTree();
+    decay->setValueNotifyingHost(decay->convertTo0to1(900.0f));
+    processor.loadUserPreset(tree, "Saved Hat");
+    CHECK(processor.activeUserPreset() == "Saved Hat");
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load() - 900.0f) < 0.5f);
+
+    processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, false);
+    processor.loadUserPreset(tree, "Saved Hat");
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load() - 180.0f) < 0.5f);
+
+    processor.setEditorSize(1480, 1120);
+    juce::MemoryBlock state;
+    processor.getStateInformation(state);
+    OpenHatterProcessor restored;
+    restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+    CHECK(restored.editorSize() == juce::Point<int>(1480, 1120));
+    CHECK(restored.activeUserPreset() == "Saved Hat");
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor(restored.createEditor());
+    CHECK(editor->getWidth() == 1480);
+    CHECK(editor->getHeight() == 1120);
+    CHECK(editor->isResizable());
+    REQUIRE(editor->getConstrainer() != nullptr);
+    CHECK(editor->getConstrainer()->getFixedAspectRatio() == 0.0);
+    CHECK(editor->getConstrainer()->getMinimumWidth() == OpenHatterProcessor::kEditorWidth);
+    CHECK(editor->getConstrainer()->getMinimumHeight() == OpenHatterProcessor::kEditorHeight);
+    CHECK(editor->getConstrainer()->getMaximumWidth() > editor->getConstrainer()->getMinimumWidth());
+
+    editor->setSize(OpenHatterProcessor::kEditorWidth, OpenHatterProcessor::kEditorHeight);
+    std::vector<juce::Rectangle<int>> compact;
+    checkVisibleControls(*editor, *editor, compact);
+    editor->setSize(1600, 1200);
+    std::vector<juce::Rectangle<int>> wide;
+    checkVisibleControls(*editor, *editor, wide);
+
+    const auto findButton = [&](auto&& self, juce::Component& parent, const juce::String& text) -> juce::TextButton* {
+        for (auto* child : parent.getChildren()) {
+            if (!child->isVisible()) continue;
+            if (auto* button = dynamic_cast<juce::TextButton*>(child); button && button->getButtonText() == text)
+                return button;
+            if (auto* nested = self(self, *child, text)) return nested;
+        }
+        return nullptr;
+    };
+    auto* presets = findButton(findButton, *editor, "Presets");
+    REQUIRE(presets != nullptr);
+    const auto click = [](juce::Component& target) {
+        const auto pos = target.getLocalBounds().getCentre().toFloat();
+        const auto now = juce::Time::getCurrentTime();
+        const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), pos,
+            juce::ModifierKeys::leftButtonModifier, 1, 0, 0, 0, 0, &target, &target, now, pos, now, 1, false);
+        target.mouseDown(event);
+        target.mouseUp(event);
+    };
+    click(*presets);
+    std::vector<juce::Rectangle<int>> browser;
+    checkVisibleControls(*editor, *editor, browser);
+    auto* search = [&]() -> juce::TextEditor* {
+        const auto walk = [&](auto&& self, juce::Component& parent) -> juce::TextEditor* {
+            for (auto* child : parent.getChildren()) {
+                if (!child->isVisible()) continue;
+                if (auto* field = dynamic_cast<juce::TextEditor*>(child); field && field->getName() == "Preset search")
+                    return field;
+                if (auto* nested = self(self, *child)) return nested;
+            }
+            return nullptr;
+        };
+        return walk(walk, *editor);
+    }();
+    REQUIRE(search != nullptr);
+    suite::PresetBrowser* presetBrowser = nullptr;
+    const auto findBrowser = [&](auto&& self, juce::Component& parent) -> void {
+        if (presetBrowser != nullptr) return;
+        if (auto* candidate = dynamic_cast<suite::PresetBrowser*>(&parent)) presetBrowser = candidate;
+        for (auto* child : parent.getChildren())
+            if (child->isVisible()) self(self, *child);
+    };
+    findBrowser(findBrowser, *editor);
+    REQUIRE(presetBrowser != nullptr);
+    search->setText("Euphoria", false);
+    presetBrowser->refresh();
+    CHECK(presetBrowser->rowCount() >= 1);
+    CHECK(presetBrowser->rowCount() < restored.getNumPrograms());
 }

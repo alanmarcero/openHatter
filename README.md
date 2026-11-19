@@ -1,4 +1,4 @@
-# openHatter v4.6.1
+# openHatter v4.7.0
 
 [Install with OpenVST Manager](https://github.com/alanmarcero/alan-m-OpenVSTManager/releases/latest)
 
@@ -38,6 +38,10 @@ On **Performance**, set separate velocity curves for air, stick and reverb. A no
 On **Effects**, shape the exciter, parallel compressor and reverb, or add a synced reverse swell. Output EQ, master width, output gain and limiting live on the **Hat** page under **Output**. Three optional stereo buses carry air, stick and reverb for separate mixing. They include output gain and bypass shared effects and master width.
 
 [See the detailed Hat, Performance and Effects pages.](docs/SCREENSHOTS.md)
+
+## Changes in 4.7
+
+The window resizes freely and remembers its size. Undo and redo cover sound changes, including Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z. A and B each hold a full sound, and Copy writes the one you hear into the other. Presets searches factory hats and the sounds you save under Documents/Alan Marcero/openHatter/Presets. Factory hats stay read-only, and the star keeps favorites. Drag exports the locked hit, or a fresh render when nothing is locked.
 
 ## Changes in 4.6.1
 

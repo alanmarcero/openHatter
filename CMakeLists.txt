@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(OpenHatter VERSION 4.6.1 LANGUAGES C CXX)
+project(OpenHatter VERSION 4.7.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -46,7 +46,7 @@ if(OH_BUILD_PLUGIN)
         NEEDS_MIDI_INPUT TRUE
         NEEDS_MIDI_OUTPUT FALSE
         IS_MIDI_EFFECT FALSE
-        EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+        EDITOR_WANTS_KEYBOARD_FOCUS TRUE
         COPY_PLUGIN_AFTER_BUILD FALSE)
 
     target_sources(OpenHatter PRIVATE
@@ -56,11 +56,17 @@ if(OH_BUILD_PLUGIN)
         Source/Plugin/Controls.cpp
         Source/Plugin/Panels.cpp
         Source/Plugin/PluginProcessor.cpp
-        Source/Plugin/PluginEditor.cpp)
+        Source/Plugin/PluginEditor.cpp
+        Source/suite/AbCompare.cpp
+        Source/suite/ParameterUndo.cpp
+        Source/suite/PresetBrowser.cpp
+        Source/suite/PresetLibrary.cpp
+        Source/suite/WavDragButton.cpp)
 
     target_include_directories(OpenHatter PRIVATE
         Source/Core
-        Source/Plugin)
+        Source/Plugin
+        Source/suite)
 
     target_compile_definitions(OpenHatter PUBLIC
         JUCE_WEB_BROWSER=0
@@ -100,8 +106,8 @@ if(OH_BUILD_TESTS)
     catch_discover_tests(openhatter_tests)
 
     if(OH_BUILD_PLUGIN)
-        add_executable(openhatter_plugin_tests Tests/PluginTests.cpp)
-        target_include_directories(openhatter_plugin_tests PRIVATE Source/Plugin Source/Core)
+        add_executable(openhatter_plugin_tests Tests/PluginTests.cpp Tests/SuiteTests.cpp)
+        target_include_directories(openhatter_plugin_tests PRIVATE Source/Plugin Source/Core Source/suite)
         target_compile_definitions(openhatter_plugin_tests PRIVATE $<TARGET_PROPERTY:OpenHatter,COMPILE_DEFINITIONS>)
         target_link_libraries(openhatter_plugin_tests PRIVATE OpenHatter HatterAssets juce::juce_audio_utils Catch2::Catch2WithMain)
         catch_discover_tests(openhatter_plugin_tests)

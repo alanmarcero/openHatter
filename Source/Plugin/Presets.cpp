@@ -170,14 +170,20 @@ const std::vector<FactoryPreset>& factoryPresets() {
     return presets;
 }
 
-void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
-           const std::array<bool, 7>& lockedSections) {
-    std::ranges::for_each(preset.values, [&](const auto& entry) {
+void applyValues(const std::vector<std::pair<juce::String, float>>& values,
+                 juce::AudioProcessorValueTreeState& state,
+                 const std::array<bool, 7>& lockedSections) {
+    std::ranges::for_each(values, [&](const auto& entry) {
         const auto& [paramId, value] = entry;
         if (lockedSections[static_cast<size_t>(sectionFor(paramId))]) return;
         if (auto* param = state.getParameter(paramId))
             param->setValueNotifyingHost(param->convertTo0to1(value));
     });
+}
+
+void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
+           const std::array<bool, 7>& lockedSections) {
+    applyValues(preset.values, state, lockedSections);
 }
 
 } // namespace openhatter::presets

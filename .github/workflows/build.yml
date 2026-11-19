@@ -150,6 +150,6 @@ jobs:
           files: openHatter-*.zip
           generate_release_notes: true
           body: |
-            Noisy hi-hats. The pitched bronze ring stays only on Starlight Ride and Heavy Bronze Ride.
+            Resizable editor, undo, A/B compare, user presets, and WAV drag of the locked hat.
 
             ![openHatter native editor](https://raw.githubusercontent.com/alanmarcero/openHatter/${{ github.ref_name }}/docs/screenshots/preview.png)
