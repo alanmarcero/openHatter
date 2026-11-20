@@ -640,7 +640,7 @@ void HatSynth::updateFilterCaches(const HatSynthSettings& settings) noexcept {
                         const float modeHz = bronzeBaseHz * kBronzeRatios[modeIdx] * detune;
                         const float modeTau = std::max(
                             0.0035f, baseTau * std::pow(kBronzeRatios[modeIdx], -0.95f));
-                        const float modeQuality = std::clamp(pi() * modeHz * modeTau, 8.0f, 4000.0f);
+                        const float modeQuality = std::clamp(pi() * modeHz * modeTau, 8.0f, 240.0f);
                         bronzeModeCoeffs_[chIdx][modeIdx] = computeSvfCoeffs(modeHz, modeQuality, sampleRate_);
                     });
                 });
