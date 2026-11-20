@@ -185,6 +185,12 @@ void HatEngine::reset() noexcept {
     std::fill(echoBufferL_.begin(), echoBufferL_.end(), 0.0f);
     std::fill(echoBufferR_.begin(), echoBufferR_.end(), 0.0f);
     echoWriteIndex_ = 0;
+    echoHpL_ = 0.0f;
+    echoHpR_ = 0.0f;
+    echoLpL_ = 0.0f;
+    echoLpR_ = 0.0f;
+    echoAdaaL_.reset();
+    echoAdaaR_.reset();
     reversePreviewSynth_.reset();
     reversePreviewSamples_ = 0;
     reverseSourceSamplesAvailable_ = 0;
@@ -470,16 +476,24 @@ void HatEngine::process(
         const float echoMix = std::clamp(settings.effects.echoMix, 0.0f, 1.0f);
         if (!echoBufferL_.empty() && echoMix > 0.001f) {
             const size_t bufSize = echoBufferL_.size();
-            const double safeBpm = std::clamp(std::isfinite(transport.bpm) && transport.bpm > 0.0 ? transport.bpm : 138.0, 40.0, 260.0);
-            const size_t delaySamples = std::clamp<size_t>(static_cast<size_t>(0.375 * 60.0 / safeBpm * sampleRate_), 1, bufSize - 1);
+            const bool validBpm = std::isfinite(transport.bpm) && transport.bpm > 0.0;
+            const double safeBpm = std::clamp(validBpm ? transport.bpm : 138.0, 40.0, 260.0);
+            const double safeRate = std::max(1000.0, sampleRate_);
+            const size_t delaySamples = std::clamp<size_t>(static_cast<size_t>(0.375 * 60.0 / safeBpm * safeRate), 1, bufSize - 1);
             const size_t readIdx = (echoWriteIndex_ + bufSize - delaySamples) % bufSize;
             const float delayedL = echoBufferL_[readIdx];
             const float delayedR = echoBufferR_[readIdx];
-            echoBufferL_[echoWriteIndex_] = std::tanh(sL + delayedR * 0.35f);
-            echoBufferR_[echoWriteIndex_] = std::tanh(sR + delayedL * 0.35f);
+            const float hpAlpha = static_cast<float>(1.0 - std::exp(-6.283185307179586 * 260.0 / safeRate));
+            const float lpAlpha = static_cast<float>(1.0 - std::exp(-6.283185307179586 * std::min(8800.0, safeRate * 0.42) / safeRate));
+            echoHpL_ += hpAlpha * (delayedL - echoHpL_);
+            echoHpR_ += hpAlpha * (delayedR - echoHpR_);
+            echoLpL_ += lpAlpha * ((delayedL - echoHpL_) - echoLpL_);
+            echoLpR_ += lpAlpha * ((delayedR - echoHpR_) - echoLpR_);
+            echoBufferL_[echoWriteIndex_] = echoAdaaL_.process(sL + echoLpR_ * 0.38f);
+            echoBufferR_[echoWriteIndex_] = echoAdaaR_.process(sR + echoLpL_ * 0.38f);
             echoWriteIndex_ = (echoWriteIndex_ + 1) % bufSize;
-            sL += delayedL * echoMix * 0.65f;
-            sR += delayedR * echoMix * 0.65f;
+            sL += echoLpL_ * echoMix * 0.68f;
+            sR += echoLpR_ * echoMix * 0.68f;
         }
 
         if (settings.effects.stereoWidth != 1.0f) {

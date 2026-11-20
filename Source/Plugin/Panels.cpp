@@ -149,6 +149,7 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       preDecay_(processor.parameters, params::kPreDecay, "Decay", theme::kAccentCoral),
       preJitter_(processor.parameters, params::kPreJitter, "Humanize", theme::kAccentCoral),
       flamSpread_(processor.parameters, params::kFlamSpread, "Pan", theme::kAccentCoral),
+      keyTracking_(processor.parameters, params::kKeyTracking, "Key track", theme::kAccentCoral),
       preLevel_(processor.parameters, params::kPreLevel, "Bounce level", theme::kAccentCoral),
       clickType_(processor.parameters, params::kClickType, "Contact", theme::kAccentCoral),
       clickLevel_(processor.parameters, params::kClickLevel, "Strike level", theme::kAccentCoral),
@@ -166,11 +167,12 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
     bodyLevel_.setTooltip("Mix the spun-bronze cymbal shell resonators and low-mid chest punch.");
     bodyTone_.setTooltip("Sweep the bronze shell resonant chest modes from dark warm weight to biting bronze.");
     bodyDecay_.setTooltip("Set how long the bronze cymbal shell resonance sustains.");
-    std::ranges::for_each(std::array<juce::Component*, 27>{
+    keyTracking_.setTooltip("Tune metallic partials and shell modes to the played MIDI note. 0 keeps every note identical.");
+    std::ranges::for_each(std::array<juce::Component*, 28>{
              &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_,
              &noiseWidth_, &decayScale_, &noiseLevel_, &hissColor_, &hissDensity_, &hissDrive_,
              &bodyLevel_, &bodyTone_, &bodyDecay_, &preBursts_, &preSpread_, &preDecay_, &preJitter_,
-             &flamSpread_, &preLevel_, &clickType_, &clickLevel_, &clickFreq_,
+             &flamSpread_, &keyTracking_, &preLevel_, &clickType_, &clickLevel_, &clickFreq_,
              &articulationLock_, &airLock_ },
         [this](juce::Component* child) { addAndMakeVisible(child); });
     setAdvancedMode(false);
@@ -178,9 +180,9 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
 
 void HatSynthPanel::setAdvancedMode(bool advanced) {
     advanced_ = advanced;
-    std::ranges::for_each(std::array<juce::Component*, 11>{
+    std::ranges::for_each(std::array<juce::Component*, 12>{
              &noiseAttack_, &noiseHold_, &noiseCurve_, &noiseHPF_, &noiseWidth_, &decayScale_,
-             &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &preLevel_ },
+             &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &keyTracking_, &preLevel_ },
         [advanced](juce::Component* knob) { knob->setVisible(advanced); });
     resized();
 }
@@ -217,7 +219,7 @@ void HatSynthPanel::resized() {
             { &bodyLevel_, &bodyTone_, &bodyDecay_ },
             { &preBursts_, &clickFreq_, &clickLevel_ },
             { &preSpread_, &preDecay_, &preLevel_ },
-            { &preJitter_, &flamSpread_ }
+            { &preJitter_, &flamSpread_, &keyTracking_ }
         });
         return;
     }

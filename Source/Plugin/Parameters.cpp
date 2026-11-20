@@ -104,6 +104,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::AudioParameterFloatAttributes().withLabel("Hz")));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kVelocityChick, 1 }, "Chick Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ kKeyTracking, 1 }, "Key Tracking", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f));
 
     // Shimmer Saturation & Exciter
     juce::StringArray distTypes{ "Tape Warmth", "Tube Sheen", "Hard Clip", "Crystal Exciter" };
@@ -260,6 +262,7 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     s.synth.chickLevel = *apvts.getRawParameterValue(kClickLevel);
     s.synth.chickFreqHz = *apvts.getRawParameterValue(kClickFreq);
     s.synth.velocityChick = *apvts.getRawParameterValue(kVelocityChick);
+    if (const auto* pKeyTracking = apvts.getRawParameterValue(kKeyTracking)) s.synth.keyTracking = *pKeyTracking;
 
     s.synth.reverbSize = *apvts.getRawParameterValue(kReverbSize);
     s.synth.reverbDecayMs = *apvts.getRawParameterValue(kReverbDecay);

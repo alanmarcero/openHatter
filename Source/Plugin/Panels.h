@@ -61,6 +61,7 @@ private:
     Knob preDecay_;
     Knob preJitter_;
     Knob flamSpread_;
+    Knob keyTracking_;
     Knob preLevel_;
     Choice clickType_;
     Knob clickLevel_;

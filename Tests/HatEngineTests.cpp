@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <new>
+#include <ranges>
 
 namespace {
 std::atomic<uint64_t> callbackAllocations { 0 };
@@ -342,3 +343,68 @@ TEST_CASE("HatEngine routes each generated layer to its dedicated output buffers
         REQUIRE(std::abs(stemPeak) > 0.001f);
     }
 }
+
+TEST_CASE("HatEngine ping-pong echo feedback damps highs and clears low mud across repeats", "[core][engine][echo]") {
+    HatEngine engine;
+    constexpr double sampleRate = 48000.0;
+    engine.prepare(sampleRate);
+
+    EngineSettings settings;
+    settings.synth.noiseType = NoiseType::CrispWhite;
+    settings.synth.noiseHPF = 120.0f;
+    settings.synth.noiseLPF = 19000.0f;
+    settings.synth.noiseAttackMs = 0.1f;
+    settings.synth.noiseHoldMs = 0.0f;
+    settings.synth.noiseDecayMs = 25.0f;
+    settings.synth.bodyLevel = 0.85f;
+    settings.synth.bodyDecayMs = 30.0f;
+    settings.synth.reverbMix = 0.0f;
+    settings.effects.distMix = 0.0f;
+    settings.effects.compressor.mix = 0.0f;
+    settings.effects.limiter.enabled = false;
+    settings.effects.stereoWidth = 1.0f;
+    settings.effects.echoMix = 1.0f;
+
+    Transport transport;
+    transport.bpm = 138.0;
+    transport.ppqPosition = 0.0;
+    const std::array<MidiTrigger, 1> triggers{{
+        { .sampleOffset = 0, .noteNumber = 60, .velocity = 1.0f }
+    }};
+
+    constexpr int totalSamples = 24000;
+    std::vector<float> left(totalSamples, 0.0f);
+    std::vector<float> right(totalSamples, 0.0f);
+    float* channels[2] = { left.data(), right.data() };
+    engine.process(settings, transport, triggers, channels, 2, totalSamples);
+
+    const auto bandRatio = [&](const std::vector<float>& signal, int startSample) {
+        constexpr int nfft = 1024;
+        constexpr double twoPi = 6.28318530717958647692;
+        double midPower = 0.0;
+        double highPower = 0.0;
+        std::ranges::for_each(std::views::iota(1, nfft / 2), [&](int bin) {
+            double realPart = 0.0;
+            double imagPart = 0.0;
+            std::ranges::for_each(std::views::iota(0, nfft), [&](int idx) {
+                const double sample = static_cast<double>(signal[static_cast<size_t>(startSample + idx)]);
+                const double angle = twoPi * static_cast<double>(bin * idx) / static_cast<double>(nfft);
+                realPart += sample * std::cos(angle);
+                imagPart -= sample * std::sin(angle);
+            });
+            const double power = realPart * realPart + imagPart * imagPart;
+            const double hz = static_cast<double>(bin) * sampleRate / static_cast<double>(nfft);
+            if (hz >= 2000.0 && hz <= 5500.0) midPower += power;
+            if (hz >= 12000.0 && hz <= 20000.0) highPower += power;
+        });
+        return std::pair{ midPower, highPower / std::max(midPower, 1.0e-12) };
+    };
+
+    const int delaySamples = static_cast<int>(0.375 * 60.0 / transport.bpm * sampleRate);
+    const auto [firstMid, firstHighRatio] = bandRatio(left, delaySamples + 64);
+    const auto [secondMid, secondHighRatio] = bandRatio(right, delaySamples * 2 + 64);
+    REQUIRE(firstMid > 1.0e-4);
+    REQUIRE(secondMid > 1.0e-5);
+    CHECK(secondHighRatio < firstHighRatio * 0.72);
+}
+
