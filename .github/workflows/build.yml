@@ -141,6 +141,24 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Write release body
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          notes=$(python3 scripts/release_notes.py "$TAG")
+          screenshot="![openHatter native editor](https://raw.githubusercontent.com/alanmarcero/openHatter/${TAG}/docs/screenshots/preview.png)"
+          {
+            if [ -n "$notes" ]; then
+              printf '%s\n\n' "$notes"
+            fi
+            printf '%s\n' "$screenshot"
+          } > "$RUNNER_TEMP/release-body.md"
+
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
@@ -148,16 +166,8 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: openHatter-*.zip
+          body_path: ${{ runner.temp }}/release-body.md
           generate_release_notes: true
-          body: |
-            Upgrades the hat synth, effects DSP, and key-tracking control:
-
-            - **Oversampled metal & modal bronze/shell:** 4x PolyBLEP AnalogMetal ring-mod matrix, ZDF modal BronzeCymbal bank, and energy-storing shell resonators.
-            - **Filters, saturation & space:** TPT ZDF SVFs, split-band ADAA hiss saturation, Lagrange fractional-delay CombWash with HF damping, and Jot-style FDN reverb with modulated reads and smoothstep gating.
-            - **Stereo, distortion & echo:** Per-channel xorshift64* noise with L/R detune and orthogonal diffusion, 4x oversampled pre/de-emphasis distortion, and filtered ADAA echo loop.
-            - **Key Tracking:** New Key Tracking knob in the Hat Synth panel tuning metallic partials, bronze, and body modes to the played MIDI note.
-
-            ![openHatter native editor](https://raw.githubusercontent.com/alanmarcero/openHatter/${{ github.ref_name }}/docs/screenshots/preview.png)
 
   update-preview:
     # OpenVST Manager and the README read docs/screenshots/preview.png from main.
