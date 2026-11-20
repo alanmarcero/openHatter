@@ -58,14 +58,14 @@ constexpr std::array<Hat, 56> kDefinitions {{
     { "Uplifting / Sunlit Tight Closed",1, 5, 1600, 17500,   78, 1.04f, +.32f, .40f, .10f, .36f, .64f,  55, 0, .58f, 10400, 1, .03f, .00f, -.88f, 0.2f,  0, .08f, -2.30f },
     { "Uplifting / Driving Offbeat 140",1, 4,  860, 12400,  300, 1.08f, +.02f, .50f, .24f, .36f, .38f, 140, 0, .42f,  8400, 1, .05f, .00f, -.64f, 0.3f,  4, .12f, -1.60f },
     { "Uplifting / Crystal Ribbon",     1, 2, 1200, 18600,  480, 1.26f, +.28f, .58f, .12f, .20f, .60f, 150, 2, .32f, 10800, 1, .09f, .00f, -.46f, 0.8f, 10, .10f, -2.01f },
-    { "Uplifting / Cloudburst Swell",   1, 7,  480, 16600,  640, 1.30f, +.02f, .66f, .18f, .30f, .36f, 220, 0, .26f,  6400, 2, .12f, .10f, -.30f, 6.0f, 12, .12f, -1.79f },
+    { "Uplifting / Cloudburst Swell",   1, 7,  480, 16600,  640, 1.30f, +.02f, .66f, .18f, .30f, .36f, 220, 0, .26f,  6400, 2, .12f, .10f, -.30f, 6.0f, 12, .12f, -1.55f },
     { "Uplifting / Solar Pump",         1, 0,  760, 16000,  420, 1.14f, -.10f, .48f, .20f, .32f, .34f, 160, 1, .40f,  5600, 1, .07f, .00f, -.55f, 0.5f,  8, .14f, -3.15f },
     { "Uplifting / Afterglow Wide",     1, 1,  340, 14000,  820, 1.40f, -.18f, .34f, .14f, .34f, .30f, 260, 0, .22f,  5600, 1, .14f, .00f, -.28f, 2.2f, 24, .10f, -1.61f },
     { "Uplifting / Mainstage Splash",   1, 5,  300, 17200, 1080, 1.28f, +.08f, .44f, .20f, .68f, .40f, 320, 0, .30f,  7800, 1, .16f, .00f, -.20f, 0.8f, 14, .14f, -2.35f },
     { "Uplifting / Neon Sixteenth",     1, 0, 2800, 18400,   74, 1.00f, +.26f, .30f, .08f, .12f, .66f,  52, 0, .58f, 11800, 1, .03f, .00f, -.92f, 0.2f,  0, .06f, -2.04f },
     { "Uplifting / Pure 138 Bronze",    1, 5,  260, 14800,  480, 1.12f, -.20f, .44f, .24f, .68f, .32f, 220, 0, .32f,  6400, 1, .08f, .00f, -.42f, 0.5f,  8, .14f, -1.31f },
     { "Uplifting / Silver Comb Lift",   1, 7,  880, 17800,  500, 1.24f, +.24f, .60f, .14f, .22f, .52f, 160, 2, .30f, 10000, 1, .08f, .00f, -.44f, 0.5f,  6, .10f, -1.74f },
-    { "Uplifting / Arena Shaker Hat",   1, 2,  980, 17000,  260, 1.18f, +.14f, .64f, .16f, .24f, .56f, 110, 0, .34f,  7600, 2, .08f, .00f, -.70f, 0.3f,  2, .55f, -1.90f },
+    { "Uplifting / Arena Shaker Hat",   1, 2,  980, 17000,  260, 1.18f, +.14f, .64f, .16f, .24f, .56f, 110, 0, .34f,  7600, 2, .08f, .00f, -.70f, 0.3f,  2, .55f, -1.35f },
     { "Uplifting / Twilight Bronze",    1, 5,  280, 14000,  540, 1.14f, -.22f, .42f, .26f, .70f, .30f, 230, 1, .42f,  4800, 1, .10f, .00f, -.40f, 0.6f,  8, .16f, -1.79f },
     { "Uplifting / Peak Time Ride",     1, 6,  640, 18600,  860, 1.32f, +.30f, .46f, .14f, .20f, .64f, 220, 0, .28f,  9600, 1, .12f, .08f, -.26f, 0.8f, 12, .10f, -2.31f },
     { "Uplifting / Satin Closed Tick",  1, 2, 1800, 16800,   70, 1.08f, +.20f, .48f, .10f, .12f, .60f,  48, 0, .42f,  9800, 1, .02f, .00f, -.86f, 0.5f,  2, .10f, -1.4f },
@@ -111,7 +111,7 @@ constexpr std::array<Hat, 56> kDefinitions {{
     { "Classic / 808 Analog Open",      2, 4,  900, 14500,  680, 1.14f, +.16f, .40f, .18f, .26f, .48f, 160, 0, .30f,  8200, 1, .08f, .00f, -.38f, 0.5f, 10, .10f, -1.05f },
     { "Classic / Heavy Bronze Ride",    2, 5,  260, 16200,  880, 1.16f, -.04f, .92f, .20f, .74f, .36f, 340, 0, .28f,  7000, 1, .12f, .00f, -.24f, 0.6f, 12, .14f, -1.21f },
     { "Classic / Pedal Choke",          2, 1,  180,  7200,  110, 0.88f, -.36f, .28f, .20f, .70f, .24f,  90, 1, .60f,  2800, 1, .03f, .00f, -.80f, 0.2f,  1, .12f, -0.64f },
-    { "Classic / Studio Brass",         2, 5,  900, 17600,  360, 1.08f, +.30f, .28f, .10f, .30f, .66f, 120, 0, .36f, 10200, 1, .06f, .00f, -.62f, 0.3f,  4, .08f, -1.8f },
+    { "Classic / Studio Brass",         2, 5,  900, 13500,  360, 1.08f, +.30f, .28f, .10f, .30f, .66f, 120, 0, .36f, 10200, 1, .06f, .00f, -.62f, 0.3f,  4, .08f, -1.8f },
 }};
 
 FactoryPreset makePreset(const Hat& hat, const Character& style) {
@@ -128,7 +128,7 @@ FactoryPreset makePreset(const Hat& hat, const Character& style) {
         { kPreDecay, style.bounceDecay }, { kPreJitter, .03f }, { kFlamSpread, .22f },
         { kPreLevel, hat.bounce },
         { kClickType, static_cast<float>(hat.chickType) }, { kClickLevel, hat.chickLevel },
-        { kClickFreq, hat.chickHz },
+        { kClickFreq, hat.chickHz }, { kKeyTracking, 0 }, { kKeyTracking, 0 },
         { kDistType, 0 }, { kDistDrive, style.drive }, { kDistTone, 0.05f }, { kDistMix, .06f },
         { kCompThresh, -18 }, { kCompRatio, 2.0f }, { kCompAttack, 6 }, { kCompRelease, 80 },
         { kCompMakeup, 0.0f }, { kCompMix, style.compressorMix }, { kLimiterEnabled, 1 },
@@ -143,7 +143,8 @@ FactoryPreset makePreset(const Hat& hat, const Character& style) {
 [[nodiscard]] int sectionFor(const juce::String& id) {
     if (id == kPreBursts || id == kPreSpread || id == kPreDecay || id == kPreJitter
         || id == kFlamSpread || id == kPreLevel || id == kClickType || id == kClickLevel
-        || id == kClickFreq || id == kBodyLevel || id == kBodyTone || id == kBodyDecay) return 0;
+        || id == kClickFreq || id == kBodyLevel || id == kBodyTone || id == kBodyDecay
+        || id == kKeyTracking) return 0;
     if (id == kAmpAttack || id == kAmpDecay || id == kAmpSustain || id == kAmpRelease) return 1;
     if (id == kNoiseType || id == kNoiseAttack || id == kNoiseHold || id == kNoiseDecay || id == kNoiseCurve
         || id == kNoiseHPF || id == kNoiseLPF || id == kNoiseStereoWidth || id == kNoiseLevel

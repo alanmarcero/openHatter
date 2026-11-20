@@ -16,6 +16,9 @@ namespace {
 } // namespace
 
 void DistortionShaper::reset() noexcept {
+    oversampler_.reset();
+    preEmphasisState_ = 0.0f;
+    deEmphasisState_ = 0.0f;
     toneFilterState_ = 0.0f;
     exciterHpState_ = 0.0f;
 }
@@ -28,47 +31,67 @@ float DistortionShaper::processSample(float input, DistortionType type, float dr
     if (drive < 0.001f && std::abs(tone) < 0.001f)
         return input;
 
+    const double baseRate = std::max(1000.0, sampleRate);
+    const double osRate = baseRate * 4.0;
     const float preGain = std::exp2(drive * 4.0f);
-    const float x = std::clamp(input * preGain, -12.0f, 12.0f);
-    float saturated = x;
-    switch (type) {
-        case DistortionType::Tape: {
-            // Asymmetric around a bias, then remove the resting offset so the exciter
-            // does not print a DC step onto the hat.
-            const float bias = 0.10f * drive;
-            saturated = std::tanh(1.25f * (x + bias)) - std::tanh(1.25f * bias);
-            break;
-        }
-        case DistortionType::Tube: {
-            const float evenHarmonics = 0.12f * x * x / (1.0f + x * x);
-            saturated = std::tanh(1.1f * x) + evenHarmonics;
-            break;
-        }
-        case DistortionType::HardClip:
-            saturated = std::clamp(x, -0.92f, 0.92f);
-            break;
-        case DistortionType::Wavefold: {
-            const double sr = std::max(1000.0, sampleRate);
-            const float hpAlpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * 3200.0 / sr));
-            exciterHpState_ += hpAlpha * (x - exciterHpState_);
-            const float highBand = x - exciterHpState_;
-            const float folded = std::sin(std::clamp(x * (1.0f + 2.3f * drive), -pi(), pi()));
-            saturated = 0.68f * folded + 0.32f * std::tanh(highBand * (1.0f + 3.0f * drive));
-            break;
-        }
-    }
 
+    // Reciprocal TPT high-shelf pair boosts upper sheen into the waveshaper and cuts HF hash after.
+    const float shelfBoost = 1.0f + 0.85f * drive;
+    const float pivotHz = std::min(3200.0f, static_cast<float>(baseRate * 0.42));
+    const float preCoeff = std::tan(pi() * pivotHz / static_cast<float>(baseRate));
+    const float preStep = preCoeff * (input - preEmphasisState_) / (1.0f + preCoeff);
+    const float preLp = preStep + preEmphasisState_;
+    preEmphasisState_ = preLp + preStep;
+    const float preEmphasized = preLp + shelfBoost * (input - preLp);
+
+    const float hpAlpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * 3200.0 / osRate));
+    auto osSamples = oversampler_.upsample(preEmphasized);
+    std::ranges::for_each(osSamples, [&](float& sample) {
+        const float driven = std::clamp(sample * preGain, -12.0f, 12.0f);
+        switch (type) {
+            case DistortionType::Tape: {
+                // Remove resting bias offset so asymmetric saturation prints no DC step.
+                const float bias = 0.10f * drive;
+                sample = std::tanh(1.25f * (driven + bias)) - std::tanh(1.25f * bias);
+                break;
+            }
+            case DistortionType::Tube: {
+                const float evenHarmonics = 0.12f * driven * driven / (1.0f + driven * driven);
+                sample = std::tanh(1.1f * driven) + evenHarmonics;
+                break;
+            }
+            case DistortionType::HardClip:
+                sample = std::clamp(driven, -0.92f, 0.92f);
+                break;
+            case DistortionType::Wavefold: {
+                exciterHpState_ += hpAlpha * (driven - exciterHpState_);
+                const float highBand = driven - exciterHpState_;
+                const float foldPhase = 0.85f * pi() * std::tanh(driven * (0.18f + 0.28f * drive));
+                const float folded = std::sin(foldPhase);
+                sample = 0.68f * folded + 0.32f * std::tanh(highBand * (0.65f + 1.15f * drive));
+                break;
+            }
+        }
+    });
+
+    const float decimated = oversampler_.downsample(osSamples);
     const float driveExcess = preGain - 1.0f;
     const float trim = 1.0f / std::sqrt(1.0f + 0.08f * driveExcess * driveExcess);
-    float output = saturated * trim;
+    const float trimmed = decimated * trim;
+
+    const float deCoeff = preCoeff / shelfBoost;
+    const float deStep = deCoeff * (trimmed - deEmphasisState_) / (1.0f + deCoeff);
+    const float deLp = deStep + deEmphasisState_;
+    deEmphasisState_ = deLp + deStep;
+    float output = deLp + (trimmed - deLp) / shelfBoost;
+
     if (std::abs(tone) > 0.001f) {
-        const double sr = std::max(1000.0, sampleRate);
-        const float cutoff = 1450.0f * std::exp2(tone * 2.8f);
-        const float alpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * cutoff / sr));
+        const float cutoff = std::min(1450.0f * std::exp2(tone * 2.8f), static_cast<float>(baseRate * 0.45));
+        const float alpha = static_cast<float>(1.0 - std::exp(-2.0 * pi() * cutoff / baseRate));
         toneFilterState_ += alpha * (output - toneFilterState_);
         const float highBand = output - toneFilterState_;
-        output = tone < 0.0f ? toneFilterState_ + highBand * (1.0f + tone)
-                             : toneFilterState_ + highBand * (1.0f + 2.2f * tone);
+        const float tiltScale = tone < 0.0f ? (1.0f + tone) : (1.0f + 2.2f * tone);
+        output = toneFilterState_ + highBand * tiltScale;
     }
     return finiteOrZero(output);
 }

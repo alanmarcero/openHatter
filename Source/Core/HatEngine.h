@@ -148,6 +148,12 @@ private:
     std::vector<float> echoBufferL_;
     std::vector<float> echoBufferR_;
     size_t echoWriteIndex_ = 0;
+    float echoHpL_ = 0.0f;
+    float echoHpR_ = 0.0f;
+    float echoLpL_ = 0.0f;
+    float echoLpR_ = 0.0f;
+    AdaaTanh echoAdaaL_{};
+    AdaaTanh echoAdaaR_{};
 
     HatWavCache wavCache_;
 

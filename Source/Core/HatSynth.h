@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Effects.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -72,6 +73,7 @@ struct HatSynthSettings {
     float chickLevel = 0.45f;     // 0..1
     float chickFreqHz = 6800.0f;  // 1000..14000 Hz
     float velocityChick = 1.0f;
+    float keyTracking = 0.0f;     // 0..1 fractional MIDI pitch tracking across metallic & body modes
 
     // Shimmer Reverb & Choke Gate Tail
     float reverbSize = 0.55f;     // 0.1..1.0
@@ -89,24 +91,24 @@ struct HatSynthSettings {
     return 440.0f * std::pow(2.0f, static_cast<float>(midiNote - 69) / 12.0f);
 }
 
-// Biquad filter state & coefficients for audio filtering
-struct BiquadState {
-    float x1 = 0.0f;
-    float x2 = 0.0f;
-    float y1 = 0.0f;
-    float y2 = 0.0f;
+// Pre-warped trapezoidal ZDF state-variable filter state and coefficients.
+struct SvfState {
+    float ic1eq = 0.0f;
+    float ic2eq = 0.0f;
 
     void reset() noexcept {
-        x1 = x2 = y1 = y2 = 0.0f;
+        ic1eq = 0.0f;
+        ic2eq = 0.0f;
     }
 };
 
-struct BiquadCoeffs {
-    float b0 = 1.0f;
-    float b1 = 0.0f;
-    float b2 = 0.0f;
-    float a1 = 0.0f;
+struct SvfCoeffs {
+    float warp = 0.0f;
+    float damping = 1.0f;
+    float a1 = 1.0f;
     float a2 = 0.0f;
+    float a3 = 0.0f;
+    float modalScale = 1.0f;
 };
 
 // Clean stereo frame
@@ -151,7 +153,7 @@ struct AllpassDiffuser {
     }
 };
 
-// Algorithmic 4-line feedback delay network (FDN) shimmer reverb with gate choke
+// Jot-style 4-line feedback delay network (FDN) shimmer reverb with S-curve choke gate.
 class GatedStereoReverb {
 public:
     void prepare(double sampleRate);
@@ -167,8 +169,10 @@ private:
 
     std::array<std::vector<float>, 4> delayLines_;
     std::array<size_t, 4> writeIndices_{};
-    std::array<size_t, 4> delayLengths_{};
-    std::array<float, 4> dampStates_{};
+    std::array<float, 4> baseDelaySamples_{};
+    std::array<float, 4> hfStates_{};
+    std::array<float, 4> lfStates_{};
+    std::array<float, 4> lfoPhases_{{ 0.0f, 0.25f, 0.50f, 0.75f }};
 
     float hpfStateL_ = 0.0f;
     float hpfStateR_ = 0.0f;
@@ -208,15 +212,29 @@ public:
         const HatSynthSettings& settings,
         float velocity,
         int midiNoteNumber) noexcept;
-    void copyRandomStateFrom(const HatSynth& source) noexcept { prngState_ = source.prngState_; }
+    void copyRandomStateFrom(const HatSynth& source) noexcept {
+        burstPrng_ = source.burstPrng_;
+        channels_[0].prng = source.channels_[0].prng;
+        channels_[1].prng = source.channels_[1].prng;
+    }
 
 private:
+    static constexpr size_t kBronzeModeCount = 14;
+    static constexpr size_t kShellModeCount = 4;
+
     struct ChannelState {
-        BiquadState hpf1{};
-        BiquadState hpf2{};
-        BiquadState lpf1{};
-        BiquadState lpf2{};
-        std::array<BiquadState, 4> bodyModes{};
+        uint64_t prng = 0x853C49E6748FEA9BULL;
+        SvfState hpf1{};
+        SvfState hpf2{};
+        SvfState lpf1{};
+        SvfState lpf2{};
+        std::array<SvfState, kShellModeCount> bodyModes{};
+        std::array<SvfState, kBronzeModeCount> bronzeModes{};
+        Oversampler4x metalOversampler{};
+        AdaaTanh sizzleAdaa{};
+        AdaaTanh combAdaa{};
+        SvfState sizzleSplit{};
+        SvfState sizzlePostHp{};
         float tiltLp = 0.0f;
         float bodySubHp = 0.0f;
         float bodyWarmLp = 0.0f;
@@ -226,14 +244,13 @@ private:
         float lofiHeld = 0.0f;
         int lofiCounter = 0;
         std::array<float, 6> metalPhases{};
-        std::array<float, 24> partialPhases{};
         std::array<float, 8> sizzlePhases{};
         std::vector<float> combDelay;
         size_t combWrite = 0;
         float combFilter = 0.0f;
-        AllpassDiffuser diffuser{};
-        BiquadState modelBp{};
-        BiquadState modelHp{};
+        std::array<AllpassDiffuser, 2> diffusers{};
+        SvfState modelBp{};
+        SvfState modelHp{};
         float shade = 1.0f;
         float shadeLp = 0.0f;
         float ringEnv = 1.0f;
@@ -243,18 +260,21 @@ private:
         float dcY = 0.0f;
     };
 
-    void start(const HatSynthSettings& settings, float velocity) noexcept;
+    void start(const HatSynthSettings& settings, float velocity, float pitchRatio = 1.0f) noexcept;
     void updateFilterCaches(const HatSynthSettings& settings) noexcept;
+    [[nodiscard]] float trackedPitchRatio(const HatSynthSettings& settings) const noexcept;
     [[nodiscard]] float fullAdsrEnvelopeAt(int sample, const HatSynthSettings& settings) const noexcept;
-    [[nodiscard]] float generateHissChannel(ChannelState& ch, int channelIdx, const HatSynthSettings& settings) noexcept;
-    [[nodiscard]] float processBodyChannel(ChannelState& ch, int channelIdx, float excitation, float thump) noexcept;
+    [[nodiscard]] float generateHissChannel(
+        ChannelState& ch, int channelIdx, float strikeExcite, const HatSynthSettings& settings) noexcept;
+    [[nodiscard]] float processBodyChannel(
+        ChannelState& ch, int channelIdx, float shellImpulse, float transientBed, float thump) noexcept;
     [[nodiscard]] float generateNoiseSample(NoiseType type) noexcept;
     [[nodiscard]] float generateChickSample(ChickType type, float freqHz, int ageSamples, float level) noexcept;
 
     double sampleRate_ = 48000.0;
     bool isPlaying_ = false;
     float velocity_ = 1.0f;
-    float midiPitchRatio_ = 1.0f; // the stick strike follows the played note; the air/body layer never does
+    float midiPitchRatio_ = 1.0f; // the stick strike follows the played note; the air/body layer only with key tracking
     bool fullAdsrActive_ = false;
     int activeMidiNote_ = -1;
     int activeMidiChannel_ = 0;
@@ -275,27 +295,36 @@ private:
     std::array<float, 5> burstPans_{};
     int mainHitSample_ = 0;
 
-    // Filter caches for air cutoffs and spun-bronze body resonators
+    // Filter caches for air cutoffs, bronze cymbal modes, and shell resonators
     float lastNoiseHPF_ = -1.0f;
     float lastNoiseLPF_ = -1.0f;
     float lastBodyTone_ = -1.0f;
+    float lastBodyDecayMs_ = -1.0f;
+    float lastDecayScale_ = -1.0f;
+    float lastTrackedPitch_ = -1.0f;
     int lastModelType_ = -1;
     float lastModelColor_ = -10.0f;
     float lastModelDensity_ = -10.0f;
-    BiquadCoeffs nh1Coeffs_{};
-    BiquadCoeffs nh2Coeffs_{};
-    BiquadCoeffs nl1Coeffs_{};
-    BiquadCoeffs nl2Coeffs_{};
-    BiquadCoeffs modelBpCoeffs_{};
-    BiquadCoeffs modelHpCoeffs_{};
-    std::array<std::array<BiquadCoeffs, 4>, 2> bodyModeCoeffs_{};
+    SvfCoeffs nh1Coeffs_{};
+    SvfCoeffs nh2Coeffs_{};
+    SvfCoeffs nl1Coeffs_{};
+    SvfCoeffs nl2Coeffs_{};
+    SvfCoeffs sizzleSplitCoeffs_{};
+    SvfCoeffs sizzlePostCoeffs_{};
+    SvfCoeffs modelBpCoeffs_{};
+    SvfCoeffs modelHpCoeffs_{};
+    std::array<std::array<SvfCoeffs, kShellModeCount>, 2> bodyModeCoeffs_{};
+    std::array<std::array<SvfCoeffs, kBronzeModeCount>, 2> bronzeModeCoeffs_{};
     float stickHpAlpha_ = 0.3f;
     float stickLpAlpha_ = 0.6f;
 
-    // Unpitched bronze shell strike thump phase & PRNG state
+    // Bronze shell strike thump phase and uncorrelated PRNG seeds
     float chestPhase_ = 0.0f;
-    uint32_t prngState_ = 0x854378A1;
-    std::array<ChannelState, 2> channels_{};
+    uint64_t burstPrng_ = 0x9E3779B97F4A7C15ULL;
+    std::array<ChannelState, 2> channels_{
+        ChannelState{ .prng = 0x853C49E6748FEA9BULL },
+        ChannelState{ .prng = 0xDA3E39CB94B95BDBULL }
+    };
 
     // Gated Shimmer Reverb
     GatedStereoReverb reverb_;

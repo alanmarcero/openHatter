@@ -87,6 +87,7 @@ TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") 
     REQUIRE(processor.parameters.getParameter(openhatter::params::kBodyLevel) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kBodyTone) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kBodyDecay) != nullptr);
+    REQUIRE(processor.parameters.getParameter(openhatter::params::kKeyTracking) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kDistDrive) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kCompThresh) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kLimiterCeiling) != nullptr);

@@ -47,6 +47,7 @@ inline constexpr const char* kClickType = "click_type";
 inline constexpr const char* kClickLevel = "click_level";
 inline constexpr const char* kClickFreq = "click_freq";
 inline constexpr const char* kVelocityChick = "velocity_chick";
+inline constexpr const char* kKeyTracking = "key_tracking";
 
 // Shimmer Saturation & Exciter
 inline constexpr const char* kDistType = "dist_type";
