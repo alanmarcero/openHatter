@@ -8,6 +8,22 @@ namespace {
 constexpr float kArcThickness = 2.5f;
 constexpr float kCornerRadius = 4.5f;
 constexpr float kControlFontSize = 14.0f;
+constexpr float kDisabledAlpha = 0.4f;
+
+// Draws a disabled control into a layer at 40% opacity.
+class DisabledLayer {
+public:
+    DisabledLayer(juce::Graphics& g, const juce::Component& control) : g_(g), dimmed_(!control.isEnabled()) {
+        if (dimmed_) g_.beginTransparencyLayer(kDisabledAlpha);
+    }
+    ~DisabledLayer() {
+        if (dimmed_) g_.endTransparencyLayer();
+    }
+
+private:
+    juce::Graphics& g_;
+    const bool dimmed_;
+};
 
 } // namespace
 
@@ -49,6 +65,7 @@ void EdmLookAndFeel::drawRotarySlider(
     float startAngle,
     float endAngle,
     juce::Slider& slider) {
+    const DisabledLayer layer(g, slider);
     const auto accent = slider.findColour(juce::Slider::rotarySliderFillColourId);
     const auto bounds = juce::Rectangle<int>(x, y, width, height).toFloat().reduced(3.5f);
     const float radius = juce::jmin(bounds.getWidth(), bounds.getHeight()) / 2.0f;
@@ -105,6 +122,7 @@ void EdmLookAndFeel::drawComboBox(
     int,
     int,
     juce::ComboBox& box) {
+    const DisabledLayer layer(g, box);
     const auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)).reduced(0.5f);
     g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
     g.fillRoundedRectangle(bounds, kCornerRadius);
@@ -132,6 +150,7 @@ void EdmLookAndFeel::drawButtonBackground(
     const juce::Colour& backgroundColour,
     bool isHighlighted,
     bool isDown) {
+    const DisabledLayer layer(g, button);
     auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
     const auto onColour = button.findColour(juce::TextButton::buttonOnColourId);
     const bool isOn = button.getToggleState();
@@ -157,6 +176,7 @@ void EdmLookAndFeel::drawButtonText(
     juce::TextButton& button,
     bool,
     bool) {
+    const DisabledLayer layer(g, button);
     const auto colour = button.getToggleState()
         ? button.findColour(juce::TextButton::textColourOnId)
         : button.findColour(juce::TextButton::textColourOffId);

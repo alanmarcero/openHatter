@@ -48,6 +48,20 @@ void checkVisibleControls(juce::Component& component, juce::Component& editor,
         targets.push_back(bounds);
     }
 }
+
+// Alpha-weighted, so a control drawn at 40% opacity reads as 40% of its full value.
+float meanBrightness(juce::Component& control) {
+    const auto image = control.createComponentSnapshot(control.getLocalBounds());
+    const juce::Image::BitmapData pixels(image, juce::Image::BitmapData::readOnly);
+    double sum = 0.0;
+    std::ranges::for_each(std::views::iota(0, image.getHeight()), [&](int y) {
+        std::ranges::for_each(std::views::iota(0, image.getWidth()), [&](int x) {
+            const auto colour = pixels.getPixelColour(x, y);
+            sum += colour.getBrightness() * colour.getFloatAlpha();
+        });
+    });
+    return static_cast<float>(sum / (image.getWidth() * image.getHeight()));
+}
 }
 
 void* operator new(std::size_t size) {
@@ -773,6 +787,27 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
     click("Lock");
     CHECK(processor.isSectionLocked(OpenHatterProcessor::PresetSection::exciter));
     capture("effects");
+}
+
+TEST_CASE("The look-and-feel dims disabled buttons, knobs and menus", "[plugin][ui]") {
+    openhatter::ui::EdmLookAndFeel lookAndFeel;
+    juce::TextButton button("Undo");
+    juce::Slider knob(juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::NoTextBox);
+    juce::ComboBox menu;
+    menu.addItem("909 Crisp", 1);
+    menu.setSelectedId(1);
+    const auto disabledShare = [&](juce::Component& control, juce::Rectangle<int> bounds) {
+        control.setLookAndFeel(&lookAndFeel);
+        control.setBounds(bounds);
+        const float enabled = meanBrightness(control);
+        control.setEnabled(false);
+        const float disabled = meanBrightness(control);
+        control.setLookAndFeel(nullptr);
+        return disabled / enabled;
+    };
+    CHECK(disabledShare(button, { 120, 38 }) < 0.45f);
+    CHECK(disabledShare(knob, { 90, 90 }) < 0.45f);
+    CHECK(disabledShare(menu, { 160, 38 }) < 0.5f);
 }
 
 TEST_CASE("OpenHatter ADSR points drag interactively and update envelope knobs and parameters", "[plugin][gui][adsr]") {
