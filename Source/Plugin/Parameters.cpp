@@ -34,12 +34,6 @@ juce::String formatSignedPercent(float amount) {
     return juce::String(percent > 0 ? "+" : "") + juce::String(percent) + "%";
 }
 
-juce::String formatDb(float db) {
-    const int tenths = juce::roundToInt(db * 10.0f);
-    if (tenths == 0) return "0.0 dB";
-    return juce::String(tenths > 0 ? "+" : "") + juce::String(static_cast<float>(tenths) / 10.0f, 1) + " dB";
-}
-
 juce::String formatRatio(float ratio) {
     return juce::String(ratio, 1) + ":1";
 }
@@ -72,6 +66,12 @@ juce::String formatMs(float ms) {
     if (ms >= 999.5f) return juce::String(ms / 1000.0f, 2) + " s";
     if (ms >= 9.95f) return juce::String(juce::roundToInt(ms)) + " ms";
     return juce::String(ms, ms >= 0.995f ? 1 : 2) + " ms";
+}
+
+juce::String formatDb(float db) {
+    const int tenths = juce::roundToInt(db * 10.0f);
+    if (tenths == 0) return "0.0 dB";
+    return juce::String(tenths > 0 ? "+" : "") + juce::String(static_cast<float>(tenths) / 10.0f, 1) + " dB";
 }
 
 juce::String formatHz(float hz) {

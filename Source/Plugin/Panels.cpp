@@ -610,15 +610,85 @@ void EffectsPanel::resized() {
     });
 }
 
+PeakMeter::PeakMeter(std::atomic<float>& peak) : peak_(peak) {
+    // Start from silence, not from the loudest hit since the editor last closed.
+    peak_.store(0.0f);
+    setTooltip("Output peak in dBFS after Output gain. The light latches above 0 dBFS. Click the meter to clear it.");
+    startTimerHz(30);
+}
+
+void PeakMeter::timerCallback() {
+    pushPeak(peak_.exchange(0.0f), juce::Time::getMillisecondCounterHiRes());
+}
+
+void PeakMeter::pushPeak(float linearPeak, double nowMs) {
+    constexpr double kHoldMs = 1000.0;
+    constexpr float kFallDbPerSecond = 24.0f;
+    const float db = juce::Decibels::gainToDecibels(linearPeak, kFloorDb);
+    const float fallDb = static_cast<float>(nowMs - lastMs_) * 0.001f * kFallDbPerSecond;
+    lastMs_ = nowMs;
+    levelDb_ = std::max(db, levelDb_ - fallDb);
+    if (db >= heldDb_ || nowMs - heldAtMs_ >= kHoldMs) {
+        heldDb_ = db;
+        heldAtMs_ = nowMs;
+    }
+    clipped_ = clipped_ || linearPeak > 1.0f;
+    repaint();
+}
+
+void PeakMeter::mouseDown(const juce::MouseEvent&) {
+    clipped_ = false;
+    repaint();
+}
+
+void PeakMeter::paint(juce::Graphics& g) {
+    constexpr float kTopDb = 6.0f;
+    auto area = getLocalBounds();
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(12.5f, juce::Font::bold));
+    g.drawText("Peak", area.removeFromTop(19), juce::Justification::centred);
+    const auto readout = area.removeFromBottom(20).withSizeKeepingCentre(std::min(getWidth(), 64), 20);
+    const auto light = area.removeFromTop(8).withSizeKeepingCentre(16, 6).toFloat();
+    area.removeFromTop(4);
+    const auto bar = area.withSizeKeepingCentre(12, area.getHeight() - 4).toFloat();
+    const auto yFor = [&](float db) {
+        return juce::jmap(juce::jlimit(kFloorDb, kTopDb, db), kFloorDb, kTopDb, bar.getBottom(), bar.getY());
+    };
+
+    g.setColour(theme::kBackground);
+    g.fillRoundedRectangle(bar, 3.0f);
+    g.setColour(theme::kAccentAqua);
+    g.fillRoundedRectangle(bar.withTop(yFor(levelDb_)), 3.0f);
+    g.setColour(theme::kTextDim);
+    g.fillRect(bar.withY(yFor(0.0f)).withHeight(1.0f).expanded(3.0f, 0.0f));
+    if (heldDb_ > kFloorDb) {
+        g.setColour(theme::kText);
+        g.fillRect(bar.withY(yFor(heldDb_) - 1.0f).withHeight(2.0f));
+    }
+    g.setColour(clipped_ ? theme::kAccentBrass : theme::kPanelEdge);
+    g.fillRoundedRectangle(light, 2.0f);
+
+    auto text = params::formatDb(heldDb_);
+    if (heldDb_ <= kFloorDb) text = "-inf dB";
+    g.setColour(theme::kBackground);
+    g.fillRect(readout);
+    g.setColour(theme::kPanelEdge);
+    g.drawRect(readout);
+    g.setColour(clipped_ ? theme::kAccentBrass : theme::kText);
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.drawText(text, readout, juce::Justification::centred);
+}
+
 OutputPanel::OutputPanel(OpenHatterProcessor& processor)
     : eqLow_(processor.parameters, params::kEqLowFreq, params::kEqLowDb, "Low EQ", theme::kAccentAqua, theme::kAccentBrass),
       eqMid_(processor.parameters, params::kEqMidFreq, params::kEqMidDb, "Mid EQ", theme::kAccentAqua, theme::kAccentBrass),
       eqHigh_(processor.parameters, params::kEqHighFreq, params::kEqHighDb, "High EQ", theme::kAccentAqua, theme::kAccentBrass),
       masterWidth_(processor.parameters, params::kStereoWidth, "Width", theme::kAccentAqua),
-      outputGain_(processor.parameters, params::kOutputGain, "Output", theme::kAccentAqua),
-      limiterCeiling_(processor.parameters, params::kLimiterCeiling, "Ceiling", theme::kAccentBrass),
+      outputGain_(processor.parameters, params::kOutputGain, "Output gain", theme::kAccentAqua),
+      limiterCeiling_(processor.parameters, params::kLimiterCeiling, "Limiter ceiling", theme::kAccentBrass),
       limiterRelease_(processor.parameters, params::kLimiterRelease, "Limiter release", theme::kAccentBrass),
       limiterEnabled_(processor.parameters, params::kLimiterEnabled, "Limiter off", "Limiter on", theme::kAccentBrass),
+      peakMeter_(processor.displayPeak),
       outputLock_("Output", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::output); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::output, on); }),
@@ -631,9 +701,13 @@ OutputPanel::OutputPanel(OpenHatterProcessor& processor)
     eqMid_.setTooltip("Inner cap sets Mid peak gain (-12 to +12 dB); outer collar glides center frequency smoothly.");
     eqHigh_.setTooltip("Inner cap sets High shelf gain (-12 to +12 dB); outer collar glides cutoff frequency smoothly.");
     limiterEnabled_.setTooltip("Switch output peak limiting on or off.");
-    std::ranges::for_each(std::array<juce::Component*, 9>{
+    limiterCeiling_.setTooltip("Set the highest peak the limiter lets through. Output gain comes after the limiter, "
+                               "so a boost raises peaks above this ceiling.");
+    outputGain_.setTooltip("Set the level after the limiter. A boost raises peaks above the limiter ceiling. "
+                           "The peak meter shows the result.");
+    std::ranges::for_each(std::array<juce::Component*, 10>{
              &eqLow_, &eqMid_, &eqHigh_, &masterWidth_, &outputGain_,
-             &limiterCeiling_, &limiterRelease_, &limiterEnabled_, &outputLock_},
+             &limiterCeiling_, &limiterRelease_, &limiterEnabled_, &peakMeter_, &outputLock_},
         [this](juce::Component* component) { addAndMakeVisible(component); });
     limiterAttachment_.sendInitialUpdate();
 }
@@ -645,12 +719,13 @@ void OutputPanel::paint(juce::Graphics& g) {
 void OutputPanel::resized() {
     outputLock_.setBounds(getWidth() - 67, 7, 56, 36);
     auto row = getLocalBounds().reduced(10, 6).withTrimmedTop(36);
-    const std::array<std::pair<juce::Component*, float>, 8> items{{
-        { &eqLow_, 14.0f }, { &eqMid_, 14.0f }, { &eqHigh_, 14.0f },
-        { &masterWidth_, 9.5f }, { &outputGain_, 9.5f },
-        { &limiterCeiling_, 9.5f }, { &limiterRelease_, 9.5f }, { &limiterEnabled_, 10.0f }
+    // Left to right in signal order: width, EQ, limiter, output gain, then the meter.
+    const std::array<std::pair<juce::Component*, float>, 9> items{{
+        { &masterWidth_, 9.5f }, { &eqLow_, 14.0f }, { &eqMid_, 14.0f }, { &eqHigh_, 14.0f },
+        { &limiterEnabled_, 10.0f }, { &limiterCeiling_, 9.5f }, { &limiterRelease_, 9.5f },
+        { &outputGain_, 9.5f }, { &peakMeter_, 6.0f }
     }};
-    const float total = 90.0f;
+    const float total = 96.0f;
     const int gap = 4;
     const int avail = std::max(0, row.getWidth() - gap * static_cast<int>(items.size() - 1));
     std::ranges::for_each(items, [&](const auto& item) {
