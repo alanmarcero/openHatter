@@ -1618,12 +1618,20 @@ TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboa
     REQUIRE(controls.size() == 95);
     std::ranges::for_each(controls, [](juce::Component* control) {
         INFO(control->getName() << " " << control->getComponentID());
-        CHECK(control->getTitle().isNotEmpty());
+        // JUCE speaks a button's text when the button has no title.
+        auto* button = dynamic_cast<juce::Button*>(control);
+        CHECK((control->getTitle().isNotEmpty() || (button != nullptr && button->getButtonText().isNotEmpty())));
         auto* tooltip = dynamic_cast<juce::SettableTooltipClient*>(control);
         REQUIRE(tooltip != nullptr);
         CHECK(tooltip->getTooltip().isNotEmpty());
         CHECK((dynamic_cast<juce::Slider*>(control) == nullptr || control->getWantsKeyboardFocus()));
     });
+    std::vector<juce::String> sliderTitles;
+    std::ranges::transform(findAll(*editor, false, [](juce::Component& component) {
+        return dynamic_cast<juce::Slider*>(&component) != nullptr;
+    }), std::back_inserter(sliderTitles), [](juce::Component* slider) { return slider->getTitle(); });
+    std::ranges::sort(sliderTitles);
+    CHECK(std::ranges::adjacent_find(sliderTitles) == sliderTitles.end());
     auto* copy = findButton(*editor, "Copy");
     REQUIRE(copy != nullptr);
     CHECK(copy->getTitle() == "Copy A to B");

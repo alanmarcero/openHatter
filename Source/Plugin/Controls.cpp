@@ -8,7 +8,6 @@ namespace openhatter::ui {
 
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     slider_.setName(title);
-    slider_.setTitle(title);
     slider_.setWantsKeyboardFocus(true);
     slider_.setComponentID(parameterId);
     slider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
@@ -27,7 +26,7 @@ Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& ti
 
 void Knob::bind(Apvts& state, const juce::String& parameterId) {
     if (auto* param = state.getParameter(parameterId))
-        slider_.setDoubleClickReturnValue(true, param->convertFrom0to1(param->getDefaultValue()));
+        slider_.setTitle(param->getName(64));
     attachment_ = std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_);
 }
 
@@ -259,7 +258,6 @@ void DualEqKnob::setTooltip(const juce::String& text) {
 
 Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     box_.setName(title);
-    box_.setTitle(title);
     box_.setComponentID(parameterId);
     box_.setColour(juce::ComboBox::arrowColourId, accent);
     box_.setColour(juce::ComboBox::backgroundColourId, theme::kBackground);
@@ -280,6 +278,7 @@ void Choice::bind(Apvts& state, const juce::String& parameterId) {
     box_.clear(juce::dontSendNotification);
     if (auto* param = dynamic_cast<juce::AudioParameterChoice*>(state.getParameter(parameterId))) {
         box_.addItemList(param->choices, 1);
+        box_.setTitle(param->getName(64));
         attachment_ = std::make_unique<Apvts::ComboBoxAttachment>(state, parameterId, box_);
     }
 }
@@ -310,7 +309,6 @@ Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String
     button_.setComponentID(parameterId);
     button_.onStateChange = [this, offText, onText] {
         button_.setButtonText(button_.getToggleState() ? onText : offText);
-        button_.setTitle(button_.getButtonText());
     };
     button_.onStateChange();
     button_.setClickingTogglesState(true);
