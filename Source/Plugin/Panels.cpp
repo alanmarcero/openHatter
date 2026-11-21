@@ -509,9 +509,12 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
              &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_})
         addAndMakeVisible(component);
 
-    velocityAir_.setTooltip("Velocity curve for the filtered noise layer.");
-    velocityChick_.setTooltip("Velocity curve for the chick and stick transient layer.");
-    velocityReverb_.setTooltip("Velocity curve for the reverb return.");
+    velocityAir_.setTooltip("Shape the air level against velocity. Below 1.00 lifts soft hits. Above 1.00 makes them quieter.");
+    velocityChick_.setTooltip("Shape the stick level against velocity. Below 1.00 lifts soft hits. Above 1.00 makes them quieter.");
+    velocityReverb_.setTooltip("Shape the reverb send against velocity. Below 1.00 lifts soft hits. Above 1.00 makes them quieter.");
+    std::ranges::for_each(std::array{ &velocityAir_, &velocityChick_, &velocityReverb_ }, [this](Knob* knob) {
+        knob->slider().onValueChange = [this] { repaint(); };
+    });
     chokeNote_.setTooltip("A note-off for this MIDI note chokes the current hat and stops the roll.");
     chokeCc_.setTooltip("A value of 64 or higher on this CC chokes the current hat and stops the roll.");
     rollEnabled_.setTooltip("Start a host-tempo hat roll after the next MIDI note-on.");
@@ -524,13 +527,46 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
 void PerformancePanel::paint(juce::Graphics& g) {
     drawSection(g, velocityBounds_, "Velocity response", theme::kAccentAqua);
     drawSection(g, rollBounds_, "Host roll & MIDI choke", theme::kAccentCoral);
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(15.0f));
+    g.drawText("Each curve plots level against velocity. Below 1.00 lifts soft hits. Above 1.00 makes them quieter.",
+               velocityBounds_.getX() + 22, velocityBounds_.getY() + 40, velocityBounds_.getWidth() - 44, 22,
+               juce::Justification::left);
+
+    const std::array knobs{ &velocityAir_, &velocityChick_, &velocityReverb_ };
+    std::ranges::for_each(std::views::iota(size_t{0}, knobs.size()), [&](size_t i) {
+        const auto plot = curveBounds_[i].toFloat();
+        g.setColour(theme::kBackground);
+        g.fillRoundedRectangle(plot, 6.0f);
+        g.setColour(theme::kPanelEdge);
+        g.drawRoundedRectangle(plot, 6.0f, 1.0f);
+        const auto inner = plot.reduced(10.0f);
+        g.drawLine({ inner.getBottomLeft(), inner.getTopRight() }, 1.0f);
+        const float exponent = static_cast<float>(knobs[i]->slider().getValue());
+        juce::Path curve;
+        curve.startNewSubPath(inner.getBottomLeft());
+        std::ranges::for_each(std::views::iota(1, 41), [&](int step) {
+            const float velocity = static_cast<float>(step) / 40.0f;
+            curve.lineTo(inner.getX() + inner.getWidth() * velocity,
+                         inner.getBottom() - inner.getHeight() * std::pow(velocity, exponent));
+        });
+        g.setColour(knobs[i]->slider().findColour(juce::Slider::rotarySliderFillColourId));
+        g.strokePath(curve, juce::PathStrokeType(2.4f));
+    });
 }
 
 void PerformancePanel::resized() {
-    auto top = getLocalBounds().removeFromTop(229);
-    velocityBounds_ = top.removeFromLeft(397);
-    rollBounds_ = top.withTrimmedLeft(10);
-    layoutRow(velocityBounds_.reduced(10, 9).withTrimmedTop(40), { &velocityAir_, &velocityChick_, &velocityReverb_ });
+    auto area = getLocalBounds();
+    velocityBounds_ = area.removeFromTop(410);
+    rollBounds_ = area.withTrimmedTop(10);
+    auto velocity = velocityBounds_.reduced(10, 9).withTrimmedTop(64);
+    layoutRow(velocity.removeFromBottom(150), { &velocityAir_, &velocityChick_, &velocityReverb_ });
+    const int column = velocity.getWidth() / 3;
+    std::ranges::for_each(std::views::iota(size_t{0}, curveBounds_.size()), [&](size_t i) {
+        const auto cell = juce::Rectangle<int>(velocity.getX() + static_cast<int>(i) * column, velocity.getY(),
+                                               column, velocity.getHeight());
+        curveBounds_[i] = cell.withSizeKeepingCentre(std::min(column - 40, 240), velocity.getHeight() - 16);
+    });
     auto roll = rollBounds_.reduced(11, 9).withTrimmedTop(34);
     auto modes = roll.removeFromLeft(144);
     layoutRows(modes, { { &rollEnabled_ }, { &rollDivision_ } });

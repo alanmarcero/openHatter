@@ -49,6 +49,22 @@ float parseGate(const juce::String& text) {
     return parseMs(text);
 }
 
+// Reads F#2, Gb2, 42 or F#2 (42). Middle C is C4, as in the MIDI monitor.
+int parseNote(const juce::String& text) {
+    const auto trimmed = text.trim();
+    if (trimmed.containsChar('('))
+        return trimmed.fromFirstOccurrenceOf("(", false, false).getIntValue();
+    // Each letter's index in this string is its semitone above C.
+    const int letter = juce::String("C D EF G A B").indexOfChar(juce::CharacterFunctions::toUpperCase(trimmed[0]));
+    if (letter < 0)
+        return trimmed.getIntValue();
+    const auto rest = trimmed.substring(1);
+    const bool sharp = rest.startsWithChar('#');
+    const bool flat = rest.startsWithChar('b');
+    const int octave = rest.substring(sharp || flat ? 1 : 0).getIntValue();
+    return (octave + 1) * 12 + letter + (sharp ? 1 : 0) - (flat ? 1 : 0);
+}
+
 FloatAttributes withText(std::function<juce::String(float)> format, std::function<float(const juce::String&)> parse) {
     return FloatAttributes()
         .withStringFromValueFunction([formatValue = std::move(format)](float value, int maximumLength) {
@@ -310,7 +326,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kEqHighDb, 1 }, "High EQ Gain", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f,
         dbText));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID{ kMidiChokeNote, 1 }, "MIDI Choke Note", 0, 127, 42));
+        juce::ParameterID{ kMidiChokeNote, 1 }, "MIDI Choke Note", 0, 127, 42,
+        juce::AudioParameterIntAttributes()
+            .withStringFromValueFunction([](int note, int) {
+                return juce::MidiMessage::getMidiNoteName(note, true, true, 4) + " (" + juce::String(note) + ")";
+            })
+            .withValueFromStringFunction(parseNote)));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID{ kMidiChokeCc, 1 }, "MIDI Choke CC", 0, 119, 4));
     params.push_back(std::make_unique<juce::AudioParameterBool>(

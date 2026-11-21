@@ -1613,6 +1613,48 @@ TEST_CASE("The Output strip meters peaks after Output gain in signal order", "[p
     CHECK(ceiling.front()->getName() == "Limiter ceiling");
 }
 
+TEST_CASE("Performance draws velocity curves and names the choke note", "[plugin][ui][performance]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    auto* chokeNote = processor.parameters.getParameter(ids::kMidiChokeNote);
+    CHECK(chokeNote->getText(chokeNote->convertTo0to1(42.0f), 0) == "F#2 (42)");
+    const auto typedNote = [&](const char* text) {
+        return juce::roundToInt(chokeNote->convertFrom0to1(chokeNote->getValueForText(text)));
+    };
+    CHECK(typedNote("F#2") == 42);
+    CHECK(typedNote("Gb2") == 42);
+    CHECK(typedNote("42") == 42);
+    CHECK(typedNote("F#2 (42)") == 42);
+    CHECK(typedNote("c4") == 60);
+    CHECK(typedNote("Bb2") == 46);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    click(*findButton(*editor, "Performance"));
+    const auto panels = findAll(*editor, true, [](juce::Component& component) {
+        return dynamic_cast<openhatter::ui::PerformancePanel*>(&component) != nullptr;
+    });
+    REQUIRE(panels.size() == 1);
+    auto* panel = panels.front();
+    const auto curves = panel->getLocalBounds().withHeight(400);
+    const auto before = panel->createComponentSnapshot(curves);
+    auto* airCurve = processor.parameters.getParameter(ids::kVelocityAir);
+    airCurve->setValueNotifyingHost(airCurve->convertTo0to1(4.0f));
+    const auto after = panel->createComponentSnapshot(curves);
+    int changed = 0;
+    std::ranges::for_each(std::views::iota(0, curves.getHeight()), [&](int y) {
+        std::ranges::for_each(std::views::iota(0, curves.getWidth() / 3), [&](int x) {
+            changed += before.getPixelAt(x, y) != after.getPixelAt(x, y);
+        });
+    });
+    CHECK(changed > 300);
+
+    const auto choke = findAll(*panel, true, [](juce::Component& component) {
+        return component.getComponentID() == ids::kMidiChokeNote;
+    });
+    REQUIRE(choke.size() == 1);
+    CHECK(panel->getLocalArea(choke.front(), choke.front()->getLocalBounds()).getY() > 420);
+}
+
 TEST_CASE("Tabs and Escape close the preset browser", "[plugin][ui][browser]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
