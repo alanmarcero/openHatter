@@ -1484,6 +1484,36 @@ TEST_CASE("A/B compare restores full sound and section locks", "[plugin][ab]") {
     CHECK_FALSE(processor.isSectionLocked(OpenHatterProcessor::PresetSection::envelope));
 }
 
+TEST_CASE("Each A/B slot keeps its own undo history", "[plugin][undo][ab]") {
+    OpenHatterProcessor processor;
+    auto* gain = processor.parameters.getParameter(openhatter::params::kOutputGain);
+    REQUIRE(gain != nullptr);
+    const auto gainNow = [&] { return processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load(); };
+    const float start = gainNow();
+
+    gesture(*gain, 3.0f);
+    processor.selectAbSlot(1);
+    CHECK_FALSE(processor.canUndo());
+    gesture(*gain, -6.0f);
+    REQUIRE(processor.canUndo());
+    processor.undo();
+    CHECK(std::abs(gainNow() - start) < 0.05f);
+    CHECK_FALSE(processor.canUndo());
+    CHECK(processor.canRedo());
+
+    processor.selectAbSlot(0);
+    CHECK(std::abs(gainNow() - 3.0f) < 0.05f);
+    REQUIRE(processor.canUndo());
+    CHECK_FALSE(processor.canRedo());
+    processor.undo();
+    CHECK(std::abs(gainNow() - start) < 0.05f);
+
+    processor.copyAbToOther();
+    processor.selectAbSlot(1);
+    CHECK_FALSE(processor.canUndo());
+    CHECK_FALSE(processor.canRedo());
+}
+
 TEST_CASE("Drag export uses the locked hit and otherwise renders a fresh WAV", "[plugin][wav]") {
     OpenHatterProcessor processor;
     processor.prepareToPlay(48000.0, 512);

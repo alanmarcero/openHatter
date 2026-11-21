@@ -21,15 +21,27 @@ OpenHatterProcessor::OpenHatterProcessor()
           .withOutput("Air", juce::AudioChannelSet::stereo(), false)
           .withOutput("Chick", juce::AudioChannelSet::stereo(), false)
           .withOutput("Reverb", juce::AudioChannelSet::stereo(), false)),
-      parameters(*this, &undoManager_, "PARAMETERS", openhatter::params::createParameterLayout()) {
+      parameters(*this, nullptr, "PARAMETERS", openhatter::params::createParameterLayout()) {
     for (auto& lock : sectionLocks_) lock.store(false, std::memory_order_relaxed);
+    parameterUndo_ = std::make_unique<suite::ParameterUndo>(*this,
+        [this] {
+            auto state = parameters.copyState();
+            state.setProperty("legacy_sound", hasLegacySound(), nullptr);
+            state.setProperty("preset_edited", presetEdited_.load(), nullptr);
+            return state;
+        },
+        [this](const juce::ValueTree& state) {
+            parameters.replaceState(state.createCopy());
+            legacySound_.store(static_cast<bool>(state.getProperty("legacy_sound")));
+            presetEdited_.store(static_cast<bool>(state.getProperty("preset_edited")));
+            if (auto* presetParam = parameters.getRawParameterValue(openhatter::params::kPreset))
+                currentProgram_ = std::clamp(static_cast<int>(*presetParam), 0, getNumPrograms() - 1);
+        });
     setCurrentProgram(0);
     std::ranges::for_each(getParameters(), [this](juce::AudioProcessorParameter* parameter) {
         parameters.addParameterListener(dynamic_cast<juce::RangedAudioParameter*>(parameter)->getParameterID(), this);
     });
-    parameterUndo_ = std::make_unique<suite::ParameterUndo>(*this, undoManager_, [this] { flushUndo(); });
-    parameters.copyState();
-    undoManager_.clearUndoHistory();
+    parameterUndo_->clearAll();
     ab_.prime(captureSlotState());
 }
 
@@ -227,13 +239,13 @@ void OpenHatterProcessor::setCurrentProgram(int index) {
     if (index >= 0 && index < static_cast<int>(presets.size())) {
         currentProgram_ = index;
         legacySound_.store(false);
-        undoManager_.beginNewTransaction("Preset");
+        parameterUndo_->beginChange();
         openhatter::presets::apply(presets[static_cast<size_t>(index)], parameters, sectionLockSnapshot());
         if (auto* param = parameters.getParameter(openhatter::params::kPreset))
             param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(index)));
         setUserPresetName({});
         presetEdited_.store(false);
-        flushUndo();
+        parameterUndo_->endChange();
     }
 }
 
@@ -264,6 +276,7 @@ void OpenHatterProcessor::getStateInformation(juce::MemoryBlock& destData) {
 
 void OpenHatterProcessor::setStateInformation(const void* data, int sizeInBytes) {
     applyBinaryState(data, sizeInBytes, true);
+    parameterUndo_->clearAll();
 }
 
 bool OpenHatterProcessor::isSectionLocked(PresetSection section) const noexcept {
@@ -284,26 +297,13 @@ OpenHatterProcessor::sectionLockSnapshot() const {
     return locks;
 }
 
-void OpenHatterProcessor::flushUndo() {
-    auto* manager = juce::MessageManager::getInstanceWithoutCreating();
-    if (manager != nullptr && !manager->isThisTheMessageThread())
-        return;
-    parameters.copyState();
-}
+void OpenHatterProcessor::undo() { parameterUndo_->undo(); }
 
-void OpenHatterProcessor::undo() {
-    flushUndo();
-    undoManager_.undo();
-}
+void OpenHatterProcessor::redo() { parameterUndo_->redo(); }
 
-void OpenHatterProcessor::redo() {
-    flushUndo();
-    undoManager_.redo();
-}
+bool OpenHatterProcessor::canUndo() const { return parameterUndo_->canUndo(); }
 
-bool OpenHatterProcessor::canUndo() const { return undoManager_.canUndo(); }
-
-bool OpenHatterProcessor::canRedo() const { return undoManager_.canRedo(); }
+bool OpenHatterProcessor::canRedo() const { return parameterUndo_->canRedo(); }
 
 void OpenHatterProcessor::selectAbSlot(int slot) {
     slot = slot == 1 ? 1 : 0;
@@ -312,11 +312,13 @@ void OpenHatterProcessor::selectAbSlot(int slot) {
     ab_.storeActive(captureSlotState());
     ab_.setActive(slot);
     restoreSlotState(ab_.slot(slot));
+    parameterUndo_->selectSlot(slot);
 }
 
 void OpenHatterProcessor::copyAbToOther() {
     ab_.storeActive(captureSlotState());
     ab_.copyActiveToInactive();
+    parameterUndo_->clearSlot(1 - ab_.active());
 }
 
 void OpenHatterProcessor::setEditorSize(int width, int height) noexcept {
@@ -351,7 +353,7 @@ juce::String OpenHatterProcessor::activeUserPreset() const {
 }
 
 void OpenHatterProcessor::setUserPresetName(const juce::String& name) {
-    parameters.state.setProperty("user_preset", name, &undoManager_);
+    parameters.state.setProperty("user_preset", name, nullptr);
 }
 
 void OpenHatterProcessor::loadUserPreset(const juce::ValueTree& state, const juce::String& name) {
@@ -362,12 +364,12 @@ void OpenHatterProcessor::loadUserPreset(const juce::ValueTree& state, const juc
             continue;
         values.emplace_back(id, static_cast<float>(child.getProperty("value")));
     }
-    undoManager_.beginNewTransaction("Preset");
+    parameterUndo_->beginChange();
     openhatter::presets::applyValues(values, parameters, sectionLockSnapshot());
     legacySound_.store(false);
     setUserPresetName(name);
     presetEdited_.store(false);
-    flushUndo();
+    parameterUndo_->endChange();
 }
 
 void OpenHatterProcessor::markPresetSaved(const juce::String& name) {
@@ -499,7 +501,6 @@ void OpenHatterProcessor::applyBinaryState(const void* data, int sizeInBytes, bo
         else
             ab_.prime(captureSlotState());
     }
-    undoManager_.clearUndoHistory();
 }
 
 juce::MemoryBlock OpenHatterProcessor::captureSlotState() {
