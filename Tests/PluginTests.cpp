@@ -330,6 +330,50 @@ TEST_CASE("Switched-off sections dim the controls they disable", "[plugin][ui][i
     });
 }
 
+TEST_CASE("Controls dim while the level they depend on is at zero", "[plugin][ui][inactive]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto control = [&](const char* id) {
+        return findOne(*editor, false, [&](juce::Component& component) { return component.getComponentID() == id; });
+    };
+    const auto set = [&](const char* id, float value) {
+        auto* parameter = processor.parameters.getParameter(id);
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    };
+    const std::array<std::pair<const char*, std::vector<const char*>>, 6> levels{{
+        { ids::kReverbMix, { ids::kReverbSize, ids::kReverbDecay, ids::kReverbDamp, ids::kReverbGate, ids::kVelocityReverb } },
+        { ids::kDistMix, { ids::kDistType, ids::kDistDrive, ids::kDistTone } },
+        { ids::kCompMix, { ids::kCompThresh, ids::kCompRatio, ids::kCompAttack, ids::kCompRelease, ids::kCompMakeup } },
+        { ids::kReverseMix, { ids::kReverseMode } },
+        { ids::kNoiseLevel, { ids::kNoiseDecay, ids::kNoiseCurve } },
+        { ids::kBodyLevel, { ids::kBodyTone, ids::kBodyDecay } }
+    }};
+    std::ranges::for_each(levels, [&](const auto& level) {
+        INFO(level.first);
+        set(level.first, 0.0f);
+        std::ranges::for_each(level.second, [&](const char* id) {
+            INFO(id);
+            CHECK(control(id)->getParentComponent()->getAlpha() < 0.5f);
+        });
+        set(level.first, 0.5f);
+        std::ranges::for_each(level.second, [&](const char* id) {
+            INFO(id);
+            CHECK(control(id)->getParentComponent()->getAlpha() > 0.99f);
+        });
+    });
+
+    set(ids::kAmpEnabled, 1.0f);
+    set(ids::kNoiseLevel, 0.0f);
+    const auto decayTip = dynamic_cast<juce::SettableTooltipClient*>(control(ids::kNoiseDecay))->getTooltip();
+    CHECK(decayTip.contains("One-shot"));
+    CHECK(decayTip.contains("Raise Air level"));
+    set(ids::kAmpEnabled, 0.0f);
+    CHECK(control(ids::kNoiseDecay)->getParentComponent()->getAlpha() < 0.5f);
+    set(ids::kNoiseLevel, 0.5f);
+    CHECK(control(ids::kNoiseDecay)->getParentComponent()->getAlpha() > 0.99f);
+}
+
 TEST_CASE("OpenHatter decay scale and tempo-synced echo shape output", "[plugin][dsp]") {
     OpenHatterProcessor dryProc, enhancedProc;
     dryProc.prepareToPlay(48000.0, 16000);

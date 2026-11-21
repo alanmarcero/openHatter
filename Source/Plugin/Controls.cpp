@@ -6,6 +6,29 @@
 
 namespace openhatter::ui {
 
+void Control::setTooltip(const juce::String& text) {
+    tooltip_ = text;
+    showTooltip((tooltip_ + " " + inactiveHints_.joinIntoString(" ")).trim());
+}
+
+void Control::setActive(bool active, const juce::String& howToEnable) {
+    if (active)
+        inactiveHints_.removeString(howToEnable);
+    if (!active)
+        inactiveHints_.addIfNotAlreadyThere(howToEnable);
+    setAlpha(inactiveHints_.isEmpty() ? 1.0f : theme::kDimAlpha);
+    showTooltip((tooltip_ + " " + inactiveHints_.joinIntoString(" ")).trim());
+}
+
+DependsOn::DependsOn(juce::RangedAudioParameter& source, juce::String howToEnable, std::vector<Control*> controls)
+    : howToEnable_(std::move(howToEnable)), controls_(std::move(controls)),
+      attachment_(source, [this, &source](float value) {
+          const bool active = source.convertTo0to1(value) > 0.0f;
+          std::ranges::for_each(controls_, [&](Control* control) { control->setActive(active, howToEnable_); });
+      }) {
+    attachment_.sendInitialUpdate();
+}
+
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     slider_.setName(title);
     slider_.setWantsKeyboardFocus(true);
@@ -36,16 +59,7 @@ void Knob::resized() {
     slider_.setBounds(area);
 }
 
-void Knob::setTooltip(const juce::String& text) {
-    tooltip_ = text;
-    slider_.setTooltip(text);
-    title_.setTooltip(text);
-}
-
-void Knob::setActive(bool active, const juce::String& howToEnable) {
-    setAlpha(active ? 1.0f : theme::kDimAlpha);
-    auto text = tooltip_;
-    if (!active) text = (text + " " + howToEnable).trimStart();
+void Knob::showTooltip(const juce::String& text) {
     slider_.setTooltip(text);
     title_.setTooltip(text);
 }
@@ -289,16 +303,7 @@ void Choice::resized() {
     box_.setBounds(area.reduced(1, 3));
 }
 
-void Choice::setTooltip(const juce::String& text) {
-    tooltip_ = text;
-    box_.setTooltip(text);
-    title_.setTooltip(text);
-}
-
-void Choice::setActive(bool active, const juce::String& howToEnable) {
-    setAlpha(active ? 1.0f : theme::kDimAlpha);
-    auto text = tooltip_;
-    if (!active) text = (text + " " + howToEnable).trimStart();
+void Choice::showTooltip(const juce::String& text) {
     box_.setTooltip(text);
     title_.setTooltip(text);
 }
