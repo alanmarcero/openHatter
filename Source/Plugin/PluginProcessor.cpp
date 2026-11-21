@@ -124,6 +124,7 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
             const float vel = msg.getFloatVelocity();
             auditionNote = msg.getNoteNumber();
             displayMidiNoteNumber.store(auditionNote, std::memory_order_relaxed);
+            displayNoteCount.fetch_add(1);
             displayMidiFrequency.store(openhatter::core::midiNoteToHz(auditionNote), std::memory_order_relaxed);
             displayMidiNoteReceived.store(true, std::memory_order_relaxed);
             displayVelocity.store(vel, std::memory_order_relaxed);
@@ -154,6 +155,11 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
                 .controller = msg.getControllerNumber(),
                 .value = msg.getControllerValue()
             });
+            // Hosts send CC 120 and up on stop, so Learn skips them.
+            if (msg.getControllerNumber() < 120) {
+                displayLastController.store(msg.getControllerNumber());
+                displayControllerCount.fetch_add(1);
+            }
         }
     }
 

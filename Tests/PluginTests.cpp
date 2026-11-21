@@ -1608,6 +1608,59 @@ TEST_CASE("Performance draws velocity curves and names the choke note", "[plugin
     CHECK(panel->getLocalArea(choke, choke->getLocalBounds()).getY() > 420);
 }
 
+TEST_CASE("Learn sets the choke note and CC from the next MIDI event and can be cancelled", "[plugin][ui][learn]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    processor.prepareToPlay(48000.0, 512);
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    juce::AudioBuffer<float> audio(2, 512);
+    const auto send = [&](const juce::MidiMessage& message) {
+        juce::MidiBuffer midi;
+        midi.addEvent(message, 0);
+        processor.processBlock(audio, midi);
+    };
+    const auto learnFor = [&](const char* titleWord) {
+        return dynamic_cast<openhatter::ui::LearnControl*>(findOne(*editor, false, [&](juce::Component& component) {
+            return dynamic_cast<openhatter::ui::LearnControl*>(&component) != nullptr
+                && component.getChildComponent(0)->getTitle().contains(titleWord);
+        }));
+    };
+    const auto value = [&](const char* id) { return processor.parameters.getRawParameterValue(id)->load(); };
+    auto* noteLearn = learnFor("Note");
+    auto* ccLearn = learnFor("CC");
+    auto* noteButton = dynamic_cast<juce::TextButton*>(noteLearn->getChildComponent(0));
+    auto* ccButton = dynamic_cast<juce::TextButton*>(ccLearn->getChildComponent(0));
+    REQUIRE(noteButton != nullptr);
+    REQUIRE(ccButton != nullptr);
+
+    click(*noteButton);
+    CHECK(noteButton->getButtonText() == "Listening");
+    CHECK(noteButton->getToggleState());
+    send(juce::MidiMessage::noteOn(1, 49, 0.8f));
+    noteLearn->timerCallback();
+    CHECK(std::abs(value(ids::kMidiChokeNote) - 49.0f) < 0.5f);
+    CHECK(noteButton->getButtonText() == "Learn");
+    processor.undo();
+    CHECK(std::abs(value(ids::kMidiChokeNote) - 42.0f) < 0.5f);
+
+    click(*ccButton);
+    send(juce::MidiMessage::controllerEvent(1, 21, 100));
+    ccLearn->timerCallback();
+    CHECK(std::abs(value(ids::kMidiChokeCc) - 21.0f) < 0.5f);
+
+    click(*ccButton);
+    click(*ccButton);
+    CHECK_FALSE(ccLearn->isTimerRunning());
+    click(*ccButton);
+    CHECK(ccLearn->keyPressed(juce::KeyPress(juce::KeyPress::escapeKey)));
+    CHECK_FALSE(ccLearn->isTimerRunning());
+    click(*ccButton);
+    std::ranges::for_each(std::views::iota(0, 200), [&](int) { ccLearn->timerCallback(); });
+    CHECK_FALSE(ccLearn->isTimerRunning());
+    CHECK(ccButton->getButtonText() == "Learn");
+    CHECK(std::abs(value(ids::kMidiChokeCc) - 21.0f) < 0.5f);
+}
+
 TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboard focus", "[plugin][ui][a11y]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
@@ -1615,7 +1668,7 @@ TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboa
         return dynamic_cast<juce::Slider*>(&component) != nullptr || dynamic_cast<juce::ComboBox*>(&component) != nullptr
             || dynamic_cast<juce::Button*>(&component) != nullptr;
     });
-    REQUIRE(controls.size() == 95);
+    REQUIRE(controls.size() == 97);
     std::ranges::for_each(controls, [](juce::Component* control) {
         INFO(control->getName() << " " << control->getComponentID());
         // JUCE speaks a button's text when the button has no title.
