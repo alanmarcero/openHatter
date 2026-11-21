@@ -4,6 +4,9 @@
 
 namespace openhatter::ui {
 
+// Slider property: the proportion of the range where the setting stops acting. The arc past it draws grey.
+inline constexpr const char* kArcLimitProperty = "arcLimit";
+
 class EdmLookAndFeel : public juce::LookAndFeel_V4 {
 public:
     EdmLookAndFeel();

@@ -31,7 +31,7 @@ The animated cymbal opens on the offbeat and follows the host through tempo chan
 
 ## Play sustained notes
 
-Open **Envelope** and select **Hold notes**. Attack brings the air in, decay settles them at the sustain level, and a matching note-off on the same MIDI channel starts release. Release runs from zero to 20 seconds. Select **One-shot** to let the sound finish on its own. The four envelope controls also shape the one-shot within its natural tail. The selected play mode stays active when you browse presets.
+Open **Envelope** and select **Hold notes**. Attack brings the air in, decay settles them at the sustain level, and a matching note-off on the same MIDI channel starts release. Release runs from zero to 20 seconds. Select **One-shot** to let the sound finish on its own. The four envelope controls also shape the one-shot within its natural tail. With **Hold notes** on, the Hat page shows **Held** and dims Attack, Hold, Decay and Curve, because they only shape **Preview hat**. One-shot hits cap Release at 800 ms, so the Release arc turns grey past that point. The selected play mode stays active when you browse presets.
 
 ![Native Envelope page in Hold notes mode with editable attack, decay, sustain and release](assets/openHatter-envelope.png)
 

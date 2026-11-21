@@ -12,6 +12,9 @@
 
 namespace openhatter::core {
 
+// A one-shot hit ends its release here, whatever the Release setting.
+inline constexpr float kOneShotMaxReleaseMs = 800.0f;
+
 enum class NoiseType {
     CrispWhite = 0,
     PinkSilk = 1,

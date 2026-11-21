@@ -6,6 +6,10 @@
 
 namespace openhatter::ui {
 
+namespace {
+constexpr float kInactiveAlpha = 0.4f;
+} // namespace
+
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     slider_.setName(title);
     slider_.setComponentID(parameterId);
@@ -36,6 +40,15 @@ void Knob::resized() {
 }
 
 void Knob::setTooltip(const juce::String& text) {
+    tooltip_ = text;
+    slider_.setTooltip(text);
+    title_.setTooltip(text);
+}
+
+void Knob::setActive(bool active, const juce::String& howToEnable) {
+    setAlpha(active ? 1.0f : kInactiveAlpha);
+    auto text = tooltip_;
+    if (!active) text = (text + " " + howToEnable).trimStart();
     slider_.setTooltip(text);
     title_.setTooltip(text);
 }
@@ -279,6 +292,15 @@ void Choice::resized() {
 }
 
 void Choice::setTooltip(const juce::String& text) {
+    tooltip_ = text;
+    box_.setTooltip(text);
+    title_.setTooltip(text);
+}
+
+void Choice::setActive(bool active, const juce::String& howToEnable) {
+    setAlpha(active ? 1.0f : kInactiveAlpha);
+    auto text = tooltip_;
+    if (!active) text = (text + " " + howToEnable).trimStart();
     box_.setTooltip(text);
     title_.setTooltip(text);
 }
