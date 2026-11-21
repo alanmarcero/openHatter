@@ -232,7 +232,7 @@ TEST_CASE("Control labels name the right controls and match the host names", "[p
             && processor.parameters.getParameter(component.getComponentID()) != nullptr;
     };
     const auto everyControl = findAll(*editor, false, isBound);
-    REQUIRE(everyControl.size() == 63);
+    REQUIRE(everyControl.size() == 66);
     std::ranges::for_each(everyControl, [&](juce::Component* control) {
         const auto hostName = processor.parameters.getParameter(control->getComponentID())->getName(64);
         INFO(control->getName() << " is " << hostName << " in the host");
@@ -255,7 +255,7 @@ TEST_CASE("Control labels name the right controls and match the host names", "[p
     std::vector<juce::String> names;
     std::ranges::transform(findAll(*editor, true, isBound), std::back_inserter(names),
                            [](juce::Component* control) { return control->getName(); });
-    REQUIRE(names.size() == 33);
+    REQUIRE(names.size() == 36);
     std::ranges::sort(names);
     CHECK(std::ranges::adjacent_find(names) == names.end());
 }
@@ -1712,7 +1712,7 @@ TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboa
         return dynamic_cast<juce::Slider*>(&component) != nullptr || dynamic_cast<juce::ComboBox*>(&component) != nullptr
             || dynamic_cast<juce::Button*>(&component) != nullptr;
     });
-    REQUIRE(controls.size() == 97);
+    REQUIRE(controls.size() == 100);
     std::ranges::for_each(controls, [](juce::Component* control) {
         INFO(control->getName() << " " << control->getComponentID());
         // JUCE speaks a button's text when the button has no title.
@@ -1732,6 +1732,41 @@ TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboa
     auto* copy = findButton(*editor, "Copy");
     REQUIRE(copy != nullptr);
     CHECK(copy->getTitle() == "Copy A to B");
+}
+
+TEST_CASE("The EQ frequency ring takes keyboard focus and speaks its frequency", "[plugin][ui][a11y]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto slider = [&](const char* id) {
+        return dynamic_cast<juce::Slider*>(findOne(*editor, false, [&](juce::Component& component) {
+            return dynamic_cast<juce::Slider*>(&component) != nullptr && component.getComponentID() == id;
+        }));
+    };
+    auto* ring = slider(ids::kEqLowFreq);
+    CHECK(ring->getTitle() == "Low EQ frequency");
+    CHECK(ring->getWantsKeyboardFocus());
+    CHECK(ring->getTextFromValue(ring->getValue()) == "90 Hz");
+
+    const auto frequency = [&] { return processor.parameters.getRawParameterValue(ids::kEqLowFreq)->load(); };
+    const float start = frequency();
+    CHECK(ring->keyPressed(juce::KeyPress(juce::KeyPress::upKey)));
+    const float coarse = frequency() - start;
+    CHECK(coarse > 0.0f);
+    CHECK(processor.canUndo());
+    CHECK(ring->keyPressed(juce::KeyPress(juce::KeyPress::upKey, juce::ModifierKeys::shiftModifier, 0)));
+    const float fine = frequency() - start - coarse;
+    CHECK(fine > 0.0f);
+    CHECK(fine < coarse * 0.5f);
+    CHECK(ring->keyPressed(juce::KeyPress(juce::KeyPress::downKey)));
+    CHECK(frequency() < start + coarse + fine);
+
+    slider(ids::kEqLowDb)->setValue(3.0, juce::sendNotificationSync);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(ids::kEqLowDb)->load() - 3.0f) < 0.01f);
+    CHECK(findAll(*editor, false, [](juce::Component& component) {
+        auto* label = dynamic_cast<juce::Label*>(&component);
+        return label != nullptr && label->getText() == "+3.0 dB";
+    }).size() == 1);
 }
 
 TEST_CASE("Tabs and Escape close the preset browser", "[plugin][ui][browser]") {

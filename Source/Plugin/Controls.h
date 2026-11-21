@@ -73,6 +73,15 @@ private:
         bool hitTest(int x, int y) override;
     };
 
+    // Gives the frequency collar keyboard focus and a spoken value. DualEqKnob keeps the collar's mouse handling.
+    class FreqSlider final : public juce::Slider {
+    public:
+        bool keyPressed(const juce::KeyPress& key) override;
+        void paint(juce::Graphics& g) override;
+        void focusGained(FocusChangeType) override { repaint(); }
+        void focusLost(FocusChangeType) override { repaint(); }
+    };
+
     [[nodiscard]] juce::Rectangle<float> dialBounds() const;
     [[nodiscard]] juce::Rectangle<int> dbPillBounds() const;
     [[nodiscard]] juce::Rectangle<int> freqPillBounds() const;
@@ -88,6 +97,8 @@ private:
     juce::Label dbReadout_;
     GainSlider dbSlider_;
     std::unique_ptr<Apvts::SliderAttachment> dbAttachment_;
+    FreqSlider freqSlider_;
+    std::unique_ptr<Apvts::SliderAttachment> freqSliderAttachment_;
     std::unique_ptr<juce::ParameterAttachment> freqAttachment_;
     float freqHz_ = 1000.0f;
     float dragStartNorm_ = 0.5f;
