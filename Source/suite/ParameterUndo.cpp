@@ -15,8 +15,8 @@ bool onMessageThread() {
 } // namespace
 
 ParameterUndo::ParameterUndo(juce::AudioProcessor& processor, std::function<juce::ValueTree()> capture,
-                             std::function<void(const juce::ValueTree&)> restore)
-    : processor_(processor), capture_(std::move(capture)), restore_(std::move(restore)) {
+                             std::function<void(const juce::ValueTree&)> restore, std::function<size_t()> activeSlot)
+    : processor_(processor), capture_(std::move(capture)), restore_(std::move(restore)), activeSlot_(std::move(activeSlot)) {
     for (auto* parameter : processor_.getParameters())
         parameter->addListener(this);
 }
@@ -48,7 +48,7 @@ void ParameterUndo::endChange() {
         return;
     if (before_.isEquivalentTo(capture_()))
         return;
-    auto& history = histories_[slot_];
+    auto& history = histories_[activeSlot_()];
     history.undo.push_back(before_);
     if (history.undo.size() > kMaxSteps)
         history.undo.erase(history.undo.begin());
@@ -56,7 +56,7 @@ void ParameterUndo::endChange() {
 }
 
 void ParameterUndo::undo() {
-    auto& history = histories_[slot_];
+    auto& history = histories_[activeSlot_()];
     if (history.undo.empty())
         return;
     history.redo.push_back(capture_());
@@ -65,7 +65,7 @@ void ParameterUndo::undo() {
 }
 
 void ParameterUndo::redo() {
-    auto& history = histories_[slot_];
+    auto& history = histories_[activeSlot_()];
     if (history.redo.empty())
         return;
     history.undo.push_back(capture_());
@@ -73,11 +73,9 @@ void ParameterUndo::redo() {
     history.redo.pop_back();
 }
 
-bool ParameterUndo::canUndo() const { return !histories_[slot_].undo.empty(); }
+bool ParameterUndo::canUndo() const { return !histories_[activeSlot_()].undo.empty(); }
 
-bool ParameterUndo::canRedo() const { return !histories_[slot_].redo.empty(); }
-
-void ParameterUndo::selectSlot(int slot) { slot_ = slot == 1 ? 1u : 0u; }
+bool ParameterUndo::canRedo() const { return !histories_[activeSlot_()].redo.empty(); }
 
 void ParameterUndo::clearSlot(int slot) { histories_[slot == 1 ? 1u : 0u] = {}; }
 

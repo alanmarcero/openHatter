@@ -36,7 +36,8 @@ OpenHatterProcessor::OpenHatterProcessor()
             presetEdited_.store(static_cast<bool>(state.getProperty("preset_edited")));
             if (auto* presetParam = parameters.getRawParameterValue(openhatter::params::kPreset))
                 currentProgram_ = std::clamp(static_cast<int>(*presetParam), 0, getNumPrograms() - 1);
-        });
+        },
+        [this] { return static_cast<size_t>(ab_.active()); });
     setCurrentProgram(0);
     std::ranges::for_each(getParameters(), [this](juce::AudioProcessorParameter* parameter) {
         parameters.addParameterListener(dynamic_cast<juce::RangedAudioParameter*>(parameter)->getParameterID(), this);
@@ -315,7 +316,6 @@ void OpenHatterProcessor::selectAbSlot(int slot) {
     ab_.storeActive(captureSlotState());
     ab_.setActive(slot);
     restoreSlotState(ab_.slot(slot));
-    parameterUndo_->selectSlot(slot);
 }
 
 void OpenHatterProcessor::copyAbToOther() {

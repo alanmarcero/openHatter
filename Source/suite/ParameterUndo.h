@@ -11,7 +11,7 @@ namespace suite {
 class ParameterUndo : private juce::AudioProcessorParameter::Listener {
 public:
     ParameterUndo(juce::AudioProcessor& processor, std::function<juce::ValueTree()> capture,
-                  std::function<void(const juce::ValueTree&)> restore);
+                  std::function<void(const juce::ValueTree&)> restore, std::function<size_t()> activeSlot);
     ~ParameterUndo() override;
 
     // Wraps a change that is not a gesture, such as a preset load, as one undo step.
@@ -23,7 +23,6 @@ public:
     [[nodiscard]] bool canUndo() const;
     [[nodiscard]] bool canRedo() const;
 
-    void selectSlot(int slot);
     void clearSlot(int slot);
     void clearAll();
 
@@ -39,8 +38,8 @@ private:
     juce::AudioProcessor& processor_;
     std::function<juce::ValueTree()> capture_;
     std::function<void(const juce::ValueTree&)> restore_;
+    std::function<size_t()> activeSlot_;
     std::array<History, 2> histories_{};
-    size_t slot_ = 0;
     int openChanges_ = 0;
     juce::ValueTree before_;
 };
