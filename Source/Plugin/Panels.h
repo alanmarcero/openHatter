@@ -74,6 +74,8 @@ private:
     SectionLockButton airLock_;
     juce::Label playModeBadge_;
     juce::ParameterAttachment holdAttachment_;
+    DependsOn airLevelDependents_;
+    DependsOn bodyLevelDependents_;
     std::array<juce::Rectangle<int>, 2> sectionBounds_{};
     bool advanced_ = false;
 };
@@ -151,7 +153,8 @@ private:
     Knob rollAccent_;
     LearnControl chokeNoteLearn_;
     LearnControl chokeCcLearn_;
-    juce::ParameterAttachment rollAttachment_;
+    DependsOn rollDependents_;
+    DependsOn reverbMixDependents_;
     juce::Rectangle<int> velocityBounds_, rollBounds_;
     std::array<juce::Rectangle<int>, 3> curveBounds_{};
 };
@@ -184,7 +187,11 @@ private:
     SectionLockButton exciterLock_;
     SectionLockButton dynamicsLock_;
     SectionLockButton spaceLock_;
-    juce::ParameterAttachment reverseAttachment_;
+    DependsOn reverseModeDependents_;
+    DependsOn reverseMixDependents_;
+    DependsOn reverbMixDependents_;
+    DependsOn exciterMixDependents_;
+    DependsOn compMixDependents_;
     std::array<juce::Rectangle<int>, 3> sectionBounds_{};
 };
 
@@ -229,7 +236,7 @@ private:
     Toggle limiterEnabled_;
     PeakMeter peakMeter_;
     SectionLockButton outputLock_;
-    juce::ParameterAttachment limiterAttachment_;
+    DependsOn limiterDependents_;
 };
 
 } // namespace openhatter::ui

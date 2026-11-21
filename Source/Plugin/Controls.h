@@ -3,25 +3,49 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <functional>
+#include <vector>
 
 namespace openhatter::ui {
 
 using Apvts = juce::AudioProcessorValueTreeState;
 
-class Knob : public juce::Component {
+// A labelled control. It draws dim and stays editable while any caller marks it inactive.
+class Control : public juce::Component {
+public:
+    void setTooltip(const juce::String& text);
+    // Each caller passes its own howToEnable text, and the tooltip lists every current one.
+    void setActive(bool active, const juce::String& howToEnable);
+
+private:
+    virtual void showTooltip(const juce::String& text) = 0;
+
+    juce::String tooltip_;
+    juce::StringArray inactiveHints_;
+};
+
+// Dims the controls while the source parameter is at its minimum, such as a switch that is off or a level at zero.
+class DependsOn {
+public:
+    DependsOn(juce::RangedAudioParameter& source, juce::String howToEnable, std::vector<Control*> controls);
+
+private:
+    juce::String howToEnable_;
+    std::vector<Control*> controls_;
+    juce::ParameterAttachment attachment_;
+};
+
+class Knob : public Control {
 public:
     Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent);
     void resized() override;
     void bind(Apvts& state, const juce::String& parameterId);
-    void setTooltip(const juce::String& text);
-    // An inactive knob draws dim, stays editable, and adds howToEnable to its tooltip.
-    void setActive(bool active, const juce::String& howToEnable);
     [[nodiscard]] juce::Slider& slider() noexcept { return slider_; }
 
 private:
+    void showTooltip(const juce::String& text) override;
+
     juce::Slider slider_;
     juce::Label title_;
-    juce::String tooltip_;
     std::unique_ptr<Apvts::SliderAttachment> attachment_;
 };
 
@@ -72,19 +96,18 @@ private:
     bool hoveringFreq_ = false;
 };
 
-class Choice : public juce::Component {
+class Choice : public Control {
 public:
     Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent);
     void resized() override;
     void bind(Apvts& state, const juce::String& parameterId);
-    void setTooltip(const juce::String& text);
-    void setActive(bool active, const juce::String& howToEnable);
     [[nodiscard]] juce::ComboBox& box() noexcept { return box_; }
 
 private:
+    void showTooltip(const juce::String& text) override;
+
     juce::ComboBox box_;
     juce::Label title_;
-    juce::String tooltip_;
     std::unique_ptr<Apvts::ComboBoxAttachment> attachment_;
 };
 
