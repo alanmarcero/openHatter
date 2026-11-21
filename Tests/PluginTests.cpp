@@ -117,6 +117,76 @@ TEST_CASE("OpenHatter decay morph and echo controls are automatable", "[plugin][
     }
 }
 
+TEST_CASE("Every float parameter reads back the text it displays", "[plugin][parameters][text]") {
+    OpenHatterProcessor processor;
+    std::ranges::for_each(processor.getParameters(), [](juce::AudioProcessorParameter* parameter) {
+        if (dynamic_cast<juce::AudioParameterFloat*>(parameter) == nullptr) return;
+        auto& floatParameter = *dynamic_cast<juce::RangedAudioParameter*>(parameter);
+        std::ranges::for_each(std::array{ 0.0f, 0.13f, 0.37f, 0.5f, 0.71f, 1.0f, floatParameter.getDefaultValue() },
+            [&](float normalised) {
+                const auto text = floatParameter.getText(normalised, 0);
+                INFO(floatParameter.getName(64) << " shows " << text);
+                const float readBack = floatParameter.getValueForText(text);
+                CHECK(floatParameter.getText(readBack, 0) == text);
+                const float shown = floatParameter.convertTo0to1(floatParameter.convertFrom0to1(normalised));
+                // Whole-ms text moves a 2-35 ms range by up to 1.5%.
+                CHECK(std::abs(readBack - shown) < 0.02f);
+            });
+    });
+}
+
+TEST_CASE("Readouts use one format per unit and accept typed units", "[plugin][parameters][text]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    const auto shown = [&](const char* id, float value) {
+        auto* parameter = processor.parameters.getParameter(id);
+        return parameter->getText(parameter->convertTo0to1(value), 0);
+    };
+    const auto typed = [&](const char* id, const char* entry) {
+        auto* parameter = processor.parameters.getParameter(id);
+        return parameter->convertFrom0to1(parameter->getValueForText(entry));
+    };
+    CHECK(shown(ids::kNoiseLevel, 0.86f) == "86%");
+    CHECK(shown(ids::kHissColor, -0.08f) == "-8%");
+    CHECK(shown(ids::kHissColor, 0.2f) == "+20%");
+    CHECK(shown(ids::kNoiseLPF, 17000.0f) == "17.0 kHz");
+    CHECK(shown(ids::kEqMidFreq, 3200.0f) == "3.20 kHz");
+    CHECK(shown(ids::kNoiseHPF, 850.0f) == "850 Hz");
+    CHECK(shown(ids::kAmpAttack, 0.35f) == "0.35 ms");
+    CHECK(shown(ids::kAmpAttack, 9.0f) == "9.0 ms");
+    CHECK(shown(ids::kAmpDecay, 160.0f) == "160 ms");
+    CHECK(shown(ids::kAmpRelease, 1200.0f) == "1.20 s");
+    CHECK(shown(ids::kAmpRelease, 20000.0f) == "20.00 s");
+    CHECK(shown(ids::kCompRatio, 2.5f) == "2.5:1");
+    CHECK(shown(ids::kOutputGain, 3.0f) == "+3.0 dB");
+    CHECK(shown(ids::kEqLowDb, 0.0f) == "0.0 dB");
+    CHECK(shown(ids::kCompThresh, -14.0f) == "-14.0 dB");
+    CHECK(shown(ids::kReverbGate, 0.0f) == "Off");
+
+    CHECK(std::abs(typed(ids::kNoiseLPF, "17 kHz") - 17000.0f) < 1.0f);
+    CHECK(std::abs(typed(ids::kNoiseLPF, "17k") - 17000.0f) < 1.0f);
+    CHECK(std::abs(typed(ids::kNoiseLPF, "17000") - 17000.0f) < 1.0f);
+    CHECK(std::abs(typed(ids::kNoiseLevel, "50%") - 0.5f) < 0.001f);
+    CHECK(std::abs(typed(ids::kNoiseLevel, "50") - 0.5f) < 0.001f);
+    CHECK(std::abs(typed(ids::kAmpRelease, "1.2 s") - 1200.0f) < 1.0f);
+    CHECK(std::abs(typed(ids::kAmpRelease, "1200 ms") - 1200.0f) < 1.0f);
+    CHECK(std::abs(typed(ids::kOutputGain, "+3 dB") - 3.0f) < 0.01f);
+    CHECK(std::abs(typed(ids::kCompRatio, "4:1") - 4.0f) < 0.01f);
+    CHECK(typed(ids::kReverbGate, "off") < 0.001f);
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto findSlider = [](auto&& self, juce::Component& parent, const juce::String& id) -> juce::Slider* {
+        if (auto* slider = dynamic_cast<juce::Slider*>(&parent); slider && parent.getComponentID() == id) return slider;
+        for (auto* child : parent.getChildren())
+            if (auto* found = self(self, *child, id)) return found;
+        return nullptr;
+    };
+    auto* lowPass = findSlider(findSlider, *editor, ids::kNoiseLPF);
+    REQUIRE(lowPass != nullptr);
+    CHECK(std::abs(lowPass->getValueFromText("17 kHz") - 17000.0) < 1.0);
+    CHECK(lowPass->getTextFromValue(17000.0) == "17.0 kHz");
+}
+
 TEST_CASE("OpenHatter decay scale and tempo-synced echo shape output", "[plugin][dsp]") {
     OpenHatterProcessor dryProc, enhancedProc;
     dryProc.prepareToPlay(48000.0, 16000);
