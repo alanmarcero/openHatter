@@ -1745,6 +1745,14 @@ TEST_CASE("The editor scales its whole layout at a fixed aspect ratio", "[plugin
     CHECK(std::abs(largest.getHeight() / design.getHeight() - 2.0f) < 0.03f);
     CHECK(std::abs(largest.getX() / design.getX() - 2.0f) < 0.02f);
     CHECK(processor.editorSize() == juce::Point<int>(2120, 1808));
+
+    OpenHatterProcessor freeAspect;
+    freeAspect.setEditorSize(1480, 1120);
+    juce::MemoryBlock session;
+    freeAspect.getStateInformation(session);
+    OpenHatterProcessor restored;
+    restored.setStateInformation(session.getData(), static_cast<int>(session.getSize()));
+    CHECK(restored.editorSize() == juce::Point<int>(1313, 1120));
 }
 
 TEST_CASE("User presets load through section locks and the editor size is part of the session", "[plugin][presets][resize]") {
