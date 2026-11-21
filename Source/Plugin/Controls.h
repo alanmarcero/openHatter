@@ -138,6 +138,7 @@ class SectionLockButton : public juce::Component, private juce::Timer {
 public:
     SectionLockButton(const juce::String& sectionName, juce::Colour accent,
                       std::function<bool()> isLocked, std::function<void(bool)> setLocked);
+    ~SectionLockButton() override;
     void resized() override;
     void refresh();
 

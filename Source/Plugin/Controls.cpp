@@ -377,6 +377,10 @@ SectionLockButton::SectionLockButton(const juce::String& sectionName, juce::Colo
     startTimerHz(8);
 }
 
+SectionLockButton::~SectionLockButton() {
+    stopTimer();
+}
+
 void SectionLockButton::resized() {
     button_.setBounds(getLocalBounds());
 }

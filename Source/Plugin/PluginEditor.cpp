@@ -264,8 +264,8 @@ void OpenHatterEditor::resized() {
 void OpenHatterEditor::layoutContent() {
     const int width = content_.getWidth();
     presetBox_.setBounds(308, 33, 350, 38);
-    prevPresetBtn_.setBounds(667, 33, 82, 38);
-    nextPresetBtn_.setBounds(753, 33, 65, 38);
+    prevPresetBtn_.setBounds(667, 32, 82, 40);
+    nextPresetBtn_.setBounds(753, 32, 65, 40);
     auditionBtn_.setBounds(width - 155, 25, 133, 43);
 
     auto suite = juce::Rectangle<int>(22, 92, std::max(0, width - 44), 38);
