@@ -1514,6 +1514,17 @@ TEST_CASE("Each A/B slot keeps its own undo history", "[plugin][undo][ab]") {
     processor.selectAbSlot(1);
     CHECK_FALSE(processor.canUndo());
     CHECK_FALSE(processor.canRedo());
+
+    juce::MemoryBlock session;
+    processor.getStateInformation(session);
+    OpenHatterProcessor restored;
+    restored.setStateInformation(session.getData(), static_cast<int>(session.getSize()));
+    REQUIRE(restored.abSlot() == 1);
+    gesture(*restored.parameters.getParameter(openhatter::params::kOutputGain), 2.0f);
+    restored.selectAbSlot(0);
+    CHECK_FALSE(restored.canUndo());
+    restored.selectAbSlot(1);
+    CHECK(restored.canUndo());
 }
 
 TEST_CASE("Drag export uses the locked hit and otherwise renders a fresh WAV", "[plugin][wav]") {
