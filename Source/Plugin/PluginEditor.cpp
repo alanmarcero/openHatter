@@ -29,6 +29,8 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
       tooltipWindow_(this, 500) {
     setLookAndFeel(&lookAndFeel_);
     setWantsKeyboardFocus(true);
+    content_.setBounds(0, 0, OpenHatterProcessor::kEditorWidth, OpenHatterProcessor::kEditorHeight);
+    addAndMakeVisible(content_);
     std::vector<juce::String> factoryNames;
     const auto& presets = openhatter::presets::factoryPresets();
     factoryNames.reserve(presets.size());
@@ -127,15 +129,20 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
              &undoBtn_, &redoBtn_, &slotABtn_, &slotBBtn_, &copyBtn_, &lockBtn_, &dragBtn_, &presetsBtn_,
              &hatTab_, &envelopeTab_, &performanceTab_, &effectsTab_, &detailBtn_,
              &midiPanel_, &synthPanel_, &outputPanel_, &envelopePanel_, &performancePanel_, &effectsPanel_ })
-        addAndMakeVisible(child);
-    addChildComponent(presetBrowser_);
+        content_.addAndMakeVisible(child);
+    content_.addChildComponent(presetBrowser_);
     const auto restoredSize = processor_.editorSize();
     setPage(Page::hat);
     syncPresetBox();
-    setResizeLimits(OpenHatterProcessor::kEditorWidth, OpenHatterProcessor::kEditorHeight,
+    setResizeLimits(OpenHatterProcessor::kEditorMinWidth, OpenHatterProcessor::kEditorMinHeight,
                     OpenHatterProcessor::kEditorMaxWidth, OpenHatterProcessor::kEditorMaxHeight);
+    const double designWidth = OpenHatterProcessor::kEditorWidth;
+    const double designHeight = OpenHatterProcessor::kEditorHeight;
+    getConstrainer()->setFixedAspectRatio(designWidth / designHeight);
     setResizable(true, true);
-    setSize(restoredSize.x, restoredSize.y);
+    // Sessions from the free-resize versions can hold any aspect ratio.
+    const double scale = std::min(restoredSize.x / designWidth, restoredSize.y / designHeight);
+    setSize(juce::roundToInt(designWidth * scale), juce::roundToInt(designHeight * scale));
     refreshHistoryButtons();
     startTimerHz(15);
 }
@@ -175,7 +182,7 @@ void OpenHatterEditor::setPage(Page page) {
     performancePanel_.setVisible(page == Page::performance && !browser);
     effectsPanel_.setVisible(page == Page::effects && !browser);
     presetBrowser_.toFront(false);
-    resized();
+    layoutContent();
 }
 
 void OpenHatterEditor::refreshHistoryButtons() {
@@ -213,8 +220,9 @@ bool OpenHatterEditor::keyPressed(const juce::KeyPress& key) {
 
 void OpenHatterEditor::paint(juce::Graphics& g) {
     g.fillAll(theme::kBackground);
+    g.addTransform(content_.getTransform());
     g.setColour(theme::kPanel);
-    g.fillRect(0, 0, getWidth(), 136);
+    g.fillRect(0, 0, content_.getWidth(), 136);
     g.setColour(theme::kAccentBrass);
     for (int i = 0; i < 3; ++i)
         g.drawEllipse(22.0f, 27.0f + static_cast<float>(i) * 6.0f, 39.0f, 14.0f, 1.8f);
@@ -230,13 +238,23 @@ void OpenHatterEditor::paint(juce::Graphics& g) {
 }
 
 void OpenHatterEditor::resized() {
-    const int extra = std::max(0, getWidth() - OpenHatterProcessor::kEditorWidth);
-    presetBox_.setBounds(308, 33, 350 + extra, 38);
-    prevPresetBtn_.setBounds(667 + extra, 33, 82, 38);
-    nextPresetBtn_.setBounds(753 + extra, 33, 65, 38);
-    auditionBtn_.setBounds(getWidth() - 155, 25, 133, 43);
+    const float scale = std::min(static_cast<float>(getWidth()) / static_cast<float>(content_.getWidth()),
+                                 static_cast<float>(getHeight()) / static_cast<float>(content_.getHeight()));
+    const float left = (static_cast<float>(getWidth()) - static_cast<float>(content_.getWidth()) * scale) * 0.5f;
+    const float top = (static_cast<float>(getHeight()) - static_cast<float>(content_.getHeight()) * scale) * 0.5f;
+    content_.setTransform(juce::AffineTransform::scale(scale).translated(left, top));
+    processor_.setEditorSize(getWidth(), getHeight());
+    juce::AudioProcessorEditor::resized();
+}
 
-    auto suite = juce::Rectangle<int>(22, 92, std::max(0, getWidth() - 44), 38);
+void OpenHatterEditor::layoutContent() {
+    const int width = content_.getWidth();
+    presetBox_.setBounds(308, 33, 350, 38);
+    prevPresetBtn_.setBounds(667, 33, 82, 38);
+    nextPresetBtn_.setBounds(753, 33, 65, 38);
+    auditionBtn_.setBounds(width - 155, 25, 133, 43);
+
+    auto suite = juce::Rectangle<int>(22, 92, std::max(0, width - 44), 38);
     juce::Component* buttons[] = {
         &undoBtn_, &redoBtn_, &slotABtn_, &slotBBtn_, &copyBtn_, &lockBtn_, &dragBtn_, &presetsBtn_
     };
@@ -255,8 +273,8 @@ void OpenHatterEditor::resized() {
     envelopeTab_.setBounds(109, 140, 112, 38);
     performanceTab_.setBounds(225, 140, 130, 38);
     effectsTab_.setBounds(359, 140, 92, 38);
-    detailBtn_.setBounds(getWidth() - 177, 140, 155, 38);
-    auto body = getLocalBounds().reduced(22, 0).withTrimmedTop(186).withTrimmedBottom(20);
+    detailBtn_.setBounds(width - 177, 140, 155, 38);
+    auto body = content_.getLocalBounds().reduced(22, 0).withTrimmedTop(186).withTrimmedBottom(20);
     presetBrowser_.setBounds(body);
     envelopePanel_.setBounds(body);
     effectsPanel_.setBounds(body);
@@ -268,6 +286,4 @@ void OpenHatterEditor::resized() {
     outputPanel_.setBounds(body.removeFromBottom(150));
     body.removeFromBottom(10);
     synthPanel_.setBounds(body);
-    processor_.setEditorSize(getWidth(), getHeight());
-    juce::AudioProcessorEditor::resized();
 }

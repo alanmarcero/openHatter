@@ -314,7 +314,7 @@ void OpenHatterProcessor::copyAbToOther() {
 }
 
 void OpenHatterProcessor::setEditorSize(int width, int height) noexcept {
-    if (width < kEditorWidth || height < kEditorHeight)
+    if (width < kEditorMinWidth || height < kEditorMinHeight)
         return;
     editorWidth_ = std::min(width, kEditorMaxWidth);
     editorHeight_ = std::min(height, kEditorMaxHeight);
@@ -458,7 +458,7 @@ void OpenHatterProcessor::applyBinaryState(const void* data, int sizeInBytes, bo
     }
 
     if (loadSessionExtras) {
-        if (editorW >= kEditorWidth && editorH >= kEditorHeight) {
+        if (editorW >= kEditorMinWidth && editorH >= kEditorMinHeight) {
             editorWidth_ = std::min(editorW, kEditorMaxWidth);
             editorHeight_ = std::min(editorH, kEditorMaxHeight);
         }

@@ -43,7 +43,7 @@ void checkVisibleControls(juce::Component& component, juce::Component& editor,
             checkVisibleControls(*child, editor, targets);
             continue;
         }
-        const auto bounds = editor.getLocalArea(child, child->getLocalBounds());
+        const auto bounds = editor.getLocalArea(child, child->getLocalBounds().toFloat()).toNearestIntEdges();
         REQUIRE(editor.getLocalBounds().contains(bounds));
         CHECK(std::none_of(targets.begin(), targets.end(), [&](const auto& other) { return other.intersects(bounds); }));
         targets.push_back(bounds);
@@ -1053,7 +1053,7 @@ TEST_CASE("OpenHatter ADSR points drag interactively and update envelope knobs a
     envTab->mouseUp(tabDown);
 
     openhatter::ui::EnvelopePanel* envPanel = nullptr;
-    std::ranges::for_each(editor->getChildren(), [&](juce::Component* child) {
+    std::ranges::for_each(findAll(*editor, false, [](juce::Component&) { return true; }), [&](juce::Component* child) {
         if (auto* candidate = dynamic_cast<openhatter::ui::EnvelopePanel*>(child)) envPanel = candidate;
     });
     REQUIRE(envPanel != nullptr);
@@ -1352,7 +1352,7 @@ TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the ma
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     auto* outputPanel = [&] {
         openhatter::ui::OutputPanel* found = nullptr;
-        std::ranges::for_each(editor->getChildren(), [&](juce::Component* child) {
+        std::ranges::for_each(findAll(*editor, false, [](juce::Component&) { return true; }), [&](juce::Component* child) {
             if (auto* candidate = dynamic_cast<openhatter::ui::OutputPanel*>(child)) found = candidate;
         });
         return found;
@@ -1378,7 +1378,7 @@ TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the ma
 
     auto* presets = [&] {
         juce::ComboBox* box = nullptr;
-        std::ranges::for_each(editor->getChildren(), [&](juce::Component* child) {
+        std::ranges::for_each(findAll(*editor, false, [](juce::Component&) { return true; }), [&](juce::Component* child) {
             if (auto* candidate = dynamic_cast<juce::ComboBox*>(child); candidate && candidate->getName() == "Factory preset")
                 box = candidate;
         });
@@ -1529,6 +1529,34 @@ TEST_CASE("Drag export uses the locked hit and otherwise renders a fresh WAV", "
     CHECK(fingerprint(unlocked) != fingerprint(locked));
 }
 
+TEST_CASE("The editor scales its whole layout at a fixed aspect ratio", "[plugin][ui][resize]") {
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    auto* constrainer = editor->getConstrainer();
+    REQUIRE(constrainer != nullptr);
+    CHECK(std::abs(constrainer->getFixedAspectRatio() - 1060.0 / 904.0) < 1.0e-9);
+    CHECK(constrainer->getMinimumWidth() == 742);
+    CHECK(constrainer->getMinimumHeight() == 632);
+    CHECK(constrainer->getMaximumWidth() == 2120);
+    CHECK(constrainer->getMaximumHeight() == 1808);
+
+    auto* preview = findButton(*editor, "Preview hat");
+    REQUIRE(preview != nullptr);
+    const auto previewAt = [&](int width, int height) {
+        editor->setSize(width, height);
+        return editor->getLocalArea(preview, preview->getLocalBounds()).toFloat();
+    };
+    const auto design = previewAt(1060, 904);
+    const auto smallest = previewAt(742, 632);
+    const auto largest = previewAt(2120, 1808);
+    CHECK(std::abs(smallest.getWidth() / design.getWidth() - 0.7f) < 0.02f);
+    CHECK(std::abs(smallest.getHeight() / design.getHeight() - 0.7f) < 0.03f);
+    CHECK(std::abs(largest.getWidth() / design.getWidth() - 2.0f) < 0.02f);
+    CHECK(std::abs(largest.getHeight() / design.getHeight() - 2.0f) < 0.03f);
+    CHECK(std::abs(largest.getX() / design.getX() - 2.0f) < 0.02f);
+    CHECK(processor.editorSize() == juce::Point<int>(2120, 1808));
+}
+
 TEST_CASE("User presets load through section locks and the editor size is part of the session", "[plugin][presets][resize]") {
     OpenHatterProcessor processor;
     processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, true);
@@ -1545,25 +1573,20 @@ TEST_CASE("User presets load through section locks and the editor size is part o
     processor.loadUserPreset(tree, "Saved Hat");
     CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load() - 180.0f) < 0.5f);
 
-    processor.setEditorSize(1480, 1120);
+    processor.setEditorSize(1590, 1356);
     juce::MemoryBlock state;
     processor.getStateInformation(state);
     OpenHatterProcessor restored;
     restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
-    CHECK(restored.editorSize() == juce::Point<int>(1480, 1120));
+    CHECK(restored.editorSize() == juce::Point<int>(1590, 1356));
     CHECK(restored.activeUserPreset() == "Saved Hat");
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(restored.createEditor());
-    CHECK(editor->getWidth() == 1480);
-    CHECK(editor->getHeight() == 1120);
+    CHECK(editor->getWidth() == 1590);
+    CHECK(editor->getHeight() == 1356);
     CHECK(editor->isResizable());
-    REQUIRE(editor->getConstrainer() != nullptr);
-    CHECK(editor->getConstrainer()->getFixedAspectRatio() == 0.0);
-    CHECK(editor->getConstrainer()->getMinimumWidth() == OpenHatterProcessor::kEditorWidth);
-    CHECK(editor->getConstrainer()->getMinimumHeight() == OpenHatterProcessor::kEditorHeight);
-    CHECK(editor->getConstrainer()->getMaximumWidth() > editor->getConstrainer()->getMinimumWidth());
 
-    editor->setSize(OpenHatterProcessor::kEditorWidth, OpenHatterProcessor::kEditorHeight);
+    editor->setSize(OpenHatterProcessor::kEditorMinWidth, OpenHatterProcessor::kEditorMinHeight);
     std::vector<juce::Rectangle<int>> compact;
     checkVisibleControls(*editor, *editor, compact);
     editor->setSize(1600, 1200);

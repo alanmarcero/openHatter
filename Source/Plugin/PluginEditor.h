@@ -19,6 +19,7 @@ public:
 private:
     enum class Page { hat, envelope, performance, effects };
     void setPage(Page page);
+    void layoutContent();
     void timerCallback() override;
     void syncPresetBox();
     void refreshHistoryButtons();
@@ -26,6 +27,8 @@ private:
 
     OpenHatterProcessor& processor_;
     openhatter::ui::EdmLookAndFeel lookAndFeel_;
+    // Holds every control at the design size. The editor scales it as one unit.
+    juce::Component content_;
     suite::PresetLibrary presetLibrary_;
     suite::PresetBrowser presetBrowser_;
     juce::ComboBox presetBox_;
