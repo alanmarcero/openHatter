@@ -50,8 +50,8 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     presetBox_.getRootMenu()->addSubMenu(family, sounds);
     presetLibrary_.setFactoryNames(std::move(factoryNames));
     presetBrowser_.refresh();
-    presetBox_.setName("Factory preset");
-    presetBox_.setTooltip("Choose a factory hat across six dance styles.");
+    presetBox_.setName("Preset");
+    presetBox_.setTooltip("Choose a factory hat. The box names the loaded factory or user preset, with * after an edit.");
     prevPresetBtn_.setTooltip("Load the previous factory hat.");
     nextPresetBtn_.setTooltip("Load the next factory hat.");
     hatTab_.setTooltip("Shape the air tail and stick strike.");
@@ -109,6 +109,10 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     });
     presetBrowser_.setCaptureState([this] { return processor_.currentPresetTree(); });
     presetBrowser_.setDismiss([this] { showPresetBrowser(false); });
+    presetBrowser_.setSaved([this](const juce::String& name) {
+        processor_.markPresetSaved(name);
+        syncPresetBox();
+    });
 
     hatTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::hat); };
     envelopeTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::envelope); };
@@ -154,10 +158,13 @@ OpenHatterEditor::~OpenHatterEditor() {
 }
 
 void OpenHatterEditor::syncPresetBox() {
-    if (processor_.hasLegacySound() || processor_.activeUserPreset().isNotEmpty())
+    const auto name = processor_.presetDisplayName();
+    if (name.isEmpty()) {
         presetBox_.setSelectedId(0, juce::dontSendNotification);
-    else
-        presetBox_.setSelectedId(processor_.getCurrentProgram() + 1, juce::dontSendNotification);
+        return;
+    }
+    if (presetBox_.getText() != name)
+        presetBox_.setText(name, juce::dontSendNotification);
 }
 
 void OpenHatterEditor::showPresetBrowser(bool show) {
@@ -239,7 +246,7 @@ void OpenHatterEditor::paint(juce::Graphics& g) {
     g.drawText("v" JucePlugin_VersionString, 250, 22, 56, 22, juce::Justification::left);
     g.setFont(juce::FontOptions(14.0f));
     g.drawText("Bronze & air hi-hat synth", 74, 49, 210, 22, juce::Justification::left);
-    g.drawText("Factory preset", 309, 8, 220, 19, juce::Justification::left);
+    g.drawText("Preset", 309, 8, 220, 19, juce::Justification::left);
 }
 
 void OpenHatterEditor::resized() {

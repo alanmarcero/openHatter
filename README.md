@@ -12,7 +12,7 @@ openHatter is a spun-bronze and air hi-hat synthesizer built for trance and club
 
 ## Find a hat
 
-Choose a **Factory preset** or step through the bank with **Previous** and **Next**. **Preview hat** plays a one-shot at the last incoming pitch, or C4 before the first note. The 56 factory sounds span six dance styles led by **24 Uplifting Trance** presets alongside 8 Rolling, 8 Progressive, 6 Psy, 5 Tech, and 5 Classic hats.
+Choose a factory hat under **Preset** or step through the bank with **Previous** and **Next**. The box names the loaded factory or user preset and adds an asterisk after the first edit. **Preview hat** plays a one-shot at the last incoming pitch, or C4 before the first note. The 56 factory sounds span six dance styles led by **24 Uplifting Trance** presets alongside 8 Rolling, 8 Progressive, 6 Psy, 5 Tech, and 5 Classic hats.
 
 | Style | Try | What to listen for |
 | --- | --- | --- |
