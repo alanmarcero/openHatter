@@ -66,6 +66,8 @@ public:
     void copyAbToOther();
 
     void setEditorSize(int width, int height) noexcept;
+    // The largest size at the design aspect ratio that fits in width x height, from 70% to 200%.
+    [[nodiscard]] static juce::Point<int> fitEditorSize(int width, int height) noexcept;
     [[nodiscard]] juce::Point<int> editorSize() const noexcept { return { editorWidth_, editorHeight_ }; }
 
     // Locked render when Lock In is on, otherwise a fresh offline hit that is not stored.

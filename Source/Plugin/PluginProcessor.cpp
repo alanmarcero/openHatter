@@ -325,8 +325,16 @@ void OpenHatterProcessor::copyAbToOther() {
 void OpenHatterProcessor::setEditorSize(int width, int height) noexcept {
     if (width < kEditorMinWidth || height < kEditorMinHeight)
         return;
-    editorWidth_ = std::min(width, kEditorMaxWidth);
-    editorHeight_ = std::min(height, kEditorMaxHeight);
+    const auto fitted = fitEditorSize(width, height);
+    editorWidth_ = fitted.x;
+    editorHeight_ = fitted.y;
+}
+
+juce::Point<int> OpenHatterProcessor::fitEditorSize(int width, int height) noexcept {
+    const double designWidth = kEditorWidth;
+    const double scale = std::clamp(std::min(width / designWidth, height / static_cast<double>(kEditorHeight)),
+                                    kEditorMinWidth / designWidth, kEditorMaxWidth / designWidth);
+    return { juce::roundToInt(kEditorWidth * scale), juce::roundToInt(kEditorHeight * scale) };
 }
 
 juce::MemoryBlock OpenHatterProcessor::exportHatWav() {
@@ -484,13 +492,7 @@ void OpenHatterProcessor::applyBinaryState(const void* data, int sizeInBytes, bo
     }
 
     if (loadSessionExtras) {
-        // Sessions from the free-resize versions can hold any aspect ratio.
-        if (editorW >= kEditorMinWidth && editorH >= kEditorMinHeight) {
-            const double scale = std::min(editorW / static_cast<double>(kEditorWidth),
-                                          editorH / static_cast<double>(kEditorHeight));
-            editorWidth_ = std::min(juce::roundToInt(kEditorWidth * scale), kEditorMaxWidth);
-            editorHeight_ = std::min(juce::roundToInt(kEditorHeight * scale), kEditorMaxHeight);
-        }
+        setEditorSize(editorW, editorH);
         juce::MemoryBlock slotA;
         juce::MemoryBlock slotB;
         if (encodedA.isNotEmpty() && encodedB.isNotEmpty() && slotA.fromBase64Encoding(encodedA)
