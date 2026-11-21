@@ -1655,6 +1655,27 @@ TEST_CASE("Performance draws velocity curves and names the choke note", "[plugin
     CHECK(panel->getLocalArea(choke.front(), choke.front()->getLocalBounds()).getY() > 420);
 }
 
+TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboard focus", "[plugin][ui][a11y]") {
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto controls = findAll(*editor, false, [](juce::Component& component) {
+        return dynamic_cast<juce::Slider*>(&component) != nullptr || dynamic_cast<juce::ComboBox*>(&component) != nullptr
+            || dynamic_cast<juce::Button*>(&component) != nullptr;
+    });
+    REQUIRE(controls.size() == 95);
+    std::ranges::for_each(controls, [](juce::Component* control) {
+        INFO(control->getName() << " " << control->getComponentID());
+        CHECK(control->getTitle().isNotEmpty());
+        auto* tooltip = dynamic_cast<juce::SettableTooltipClient*>(control);
+        REQUIRE(tooltip != nullptr);
+        CHECK(tooltip->getTooltip().isNotEmpty());
+        CHECK((dynamic_cast<juce::Slider*>(control) == nullptr || control->getWantsKeyboardFocus()));
+    });
+    auto* copy = findButton(*editor, "Copy");
+    REQUIRE(copy != nullptr);
+    CHECK(copy->getTitle() == "Copy A to B");
+}
+
 TEST_CASE("Tabs and Escape close the preset browser", "[plugin][ui][browser]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());

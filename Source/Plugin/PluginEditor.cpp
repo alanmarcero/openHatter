@@ -51,6 +51,16 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     presetLibrary_.setFactoryNames(std::move(factoryNames));
     presetBrowser_.refresh();
     presetBox_.setName("Preset");
+    presetBox_.setTitle("Preset");
+    std::ranges::for_each(std::array<juce::Button*, 10>{ &auditionBtn_, &hatTab_, &envelopeTab_, &performanceTab_,
+                                                         &effectsTab_, &detailBtn_, &undoBtn_, &redoBtn_, &lockBtn_,
+                                                         &presetsBtn_ },
+        [](juce::Button* button) { button->setTitle(button->getButtonText()); });
+    prevPresetBtn_.setTitle("Previous preset");
+    nextPresetBtn_.setTitle("Next preset");
+    slotABtn_.setTitle("Slot A");
+    slotBBtn_.setTitle("Slot B");
+    dragBtn_.setTitle("Drag WAV");
     presetBox_.setTooltip("Choose a factory hat. The box names the loaded factory or user preset, with * after an edit.");
     prevPresetBtn_.setTooltip("Load the previous factory hat.");
     nextPresetBtn_.setTooltip("Load the next factory hat.");
@@ -198,6 +208,7 @@ void OpenHatterEditor::refreshHistoryButtons() {
     redoBtn_.setEnabled(processor_.canRedo());
     slotABtn_.setToggleState(processor_.abSlot() == 0, juce::dontSendNotification);
     slotBBtn_.setToggleState(processor_.abSlot() == 1, juce::dontSendNotification);
+    copyBtn_.setTitle(processor_.abSlot() == 0 ? "Copy A to B" : "Copy B to A");
 }
 
 void OpenHatterEditor::timerCallback() {
