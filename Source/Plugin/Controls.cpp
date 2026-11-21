@@ -6,13 +6,6 @@
 
 namespace openhatter::ui {
 
-namespace {
-juce::String formatHz(float hz) {
-    if (hz >= 1000.0f) return juce::String(hz / 1000.0f, hz >= 10000.0f ? 1 : 2) + " kHz";
-    return juce::String(juce::roundToInt(hz)) + " Hz";
-}
-} // namespace
-
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     slider_.setName(title);
     slider_.setComponentID(parameterId);
@@ -31,10 +24,8 @@ Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& ti
 }
 
 void Knob::bind(Apvts& state, const juce::String& parameterId) {
-    if (auto* param = state.getParameter(parameterId)) {
-        slider_.setTextValueSuffix(param->getLabel().isEmpty() ? juce::String{} : " " + param->getLabel());
+    if (auto* param = state.getParameter(parameterId))
         slider_.setDoubleClickReturnValue(true, param->convertFrom0to1(param->getDefaultValue()));
-    }
     attachment_ = std::make_unique<Apvts::SliderAttachment>(state, parameterId, slider_);
 }
 
@@ -101,9 +92,9 @@ DualEqKnob::DualEqKnob(Apvts& state, const juce::String& freqId, const juce::Str
 }
 
 void DualEqKnob::updateDbReadout() {
-    const double val = dbSlider_.getValue();
-    const juce::String prefix = val > 0.05 ? "+" : "";
-    dbReadout_.setText(prefix + juce::String(val, 1) + " dB", juce::dontSendNotification);
+    if (auto* dbParam = state_.getParameter(dbId_))
+        dbReadout_.setText(dbParam->getText(dbParam->convertTo0to1(static_cast<float>(dbSlider_.getValue())), 0),
+                           juce::dontSendNotification);
 }
 
 juce::Rectangle<float> DualEqKnob::dialBounds() const {
@@ -172,7 +163,8 @@ void DualEqKnob::paint(juce::Graphics& g) {
     g.drawRoundedRectangle(freqPill.reduced(0.5f), 4.0f, 1.0f);
     g.setColour(theme::kText);
     g.setFont(juce::FontOptions(11.5f, juce::Font::bold));
-    g.drawFittedText(formatHz(freqHz_), freqPill.toNearestInt(), juce::Justification::centred, 1);
+    if (freqParam != nullptr)
+        g.drawFittedText(freqParam->getText(norm, 0), freqPill.toNearestInt(), juce::Justification::centred, 1);
 }
 
 void DualEqKnob::resized() {

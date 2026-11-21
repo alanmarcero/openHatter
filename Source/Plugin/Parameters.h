@@ -98,6 +98,10 @@ inline constexpr const char* kRollDivision = "roll_division";
 inline constexpr const char* kRollSwing = "roll_swing";
 inline constexpr const char* kRollAccent = "roll_accent";
 
+// Display text that the editor readouts share with the parameters.
+juce::String formatMs(float ms);
+juce::String formatHz(float hz);
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTreeState& apvts);
 

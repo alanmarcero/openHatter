@@ -98,7 +98,7 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
         g.drawText(label, 326, y, 90, 22, juce::Justification::left);
         g.setColour(theme::kText);
         g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
-        g.drawText(juce::String(juce::roundToInt(value)) + " ms", pitchX - 131, y, 70, 22, juce::Justification::right);
+        g.drawText(params::formatMs(value), pitchX - 131, y, 70, 22, juce::Justification::right);
         const juce::Rectangle<float> track(326, static_cast<float>(y + 27), static_cast<float>(pitchX - 387), 4);
         g.setColour(theme::kPanelEdge);
         g.fillRoundedRectangle(track, 2);
@@ -119,7 +119,7 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
     g.setColour(theme::kTextDim);
     g.setFont(juce::FontOptions(15.0f));
     if (received) {
-        g.drawText(juce::String(processor_.displayMidiFrequency.load(), 1) + " Hz", pitchX, 98, 211, 20, juce::Justification::left);
+        g.drawText(params::formatHz(processor_.displayMidiFrequency.load()), pitchX, 98, 211, 20, juce::Justification::left);
         g.drawText("Note " + juce::String(lastNote_) + "   /   Velocity " + juce::String(juce::roundToInt(lastVelocity_ * 127)),
                    pitchX, 120, 212, 21, juce::Justification::left);
     } else {
