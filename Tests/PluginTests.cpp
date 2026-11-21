@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
+#include <functional>
 #include <new>
 #include <numeric>
 #include <ranges>
@@ -61,6 +62,39 @@ float meanBrightness(juce::Component& control) {
         });
     });
     return static_cast<float>(sum / (image.getWidth() * image.getHeight()));
+}
+
+void click(juce::Component& target) {
+    const auto pos = target.getLocalBounds().getCentre().toFloat();
+    const auto now = juce::Time::getCurrentTime();
+    const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), pos,
+        juce::ModifierKeys::leftButtonModifier, 1, 0, 0, 0, 0, &target, &target, now, pos, now, 1, false);
+    target.mouseDown(event);
+    target.mouseUp(event);
+}
+
+// Descendants that pass the filter. A hidden branch is skipped when visibleOnly is true.
+std::vector<juce::Component*> findAll(juce::Component& root, bool visibleOnly,
+                                      const std::function<bool(juce::Component&)>& keep) {
+    std::vector<juce::Component*> found;
+    const std::function<void(juce::Component&)> walk = [&](juce::Component& parent) {
+        std::ranges::for_each(parent.getChildren(), [&](juce::Component* child) {
+            if (visibleOnly && !child->isVisible()) return;
+            if (keep(*child)) found.push_back(child);
+            walk(*child);
+        });
+    };
+    walk(root);
+    return found;
+}
+
+juce::TextButton* findButton(juce::Component& root, const juce::String& text) {
+    const auto matches = findAll(root, true, [&](juce::Component& component) {
+        auto* button = dynamic_cast<juce::TextButton*>(&component);
+        return button != nullptr && button->getButtonText() == text;
+    });
+    if (matches.empty()) return nullptr;
+    return dynamic_cast<juce::TextButton*>(matches.front());
 }
 }
 
@@ -185,6 +219,43 @@ TEST_CASE("Readouts use one format per unit and accept typed units", "[plugin][p
     REQUIRE(lowPass != nullptr);
     CHECK(std::abs(lowPass->getValueFromText("17 kHz") - 17000.0) < 1.0);
     CHECK(lowPass->getTextFromValue(17000.0) == "17.0 kHz");
+}
+
+TEST_CASE("Control labels name the right controls and match the host names", "[plugin][ui][names]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto isBound = [&](juce::Component& component) {
+        return (dynamic_cast<juce::Slider*>(&component) != nullptr || dynamic_cast<juce::ComboBox*>(&component) != nullptr)
+            && processor.parameters.getParameter(component.getComponentID()) != nullptr;
+    };
+    const auto everyControl = findAll(*editor, false, isBound);
+    REQUIRE(everyControl.size() == 63);
+    std::ranges::for_each(everyControl, [&](juce::Component* control) {
+        const auto hostName = processor.parameters.getParameter(control->getComponentID())->getName(64);
+        INFO(control->getName() << " is " << hostName << " in the host");
+        CHECK(hostName.containsIgnoreCase(control->getName()));
+    });
+
+    const auto editorBounds = [&](const char* id) {
+        const auto match = std::ranges::find_if(everyControl, [&](juce::Component* control) {
+            return control->getComponentID() == id;
+        });
+        REQUIRE(match != everyControl.end());
+        return editor->getLocalArea(*match, (*match)->getLocalBounds());
+    };
+    CHECK(editorBounds(ids::kBodyLevel).getBottom() <= editorBounds(ids::kClickType).getY());
+    CHECK(editorBounds(ids::kClickType).getBottom() <= editorBounds(ids::kPreBursts).getY());
+
+    auto* detail = findButton(*editor, "Detailed controls");
+    REQUIRE(detail != nullptr);
+    click(*detail);
+    std::vector<juce::String> names;
+    std::ranges::transform(findAll(*editor, true, isBound), std::back_inserter(names),
+                           [](juce::Component* control) { return control->getName(); });
+    REQUIRE(names.size() == 33);
+    std::ranges::sort(names);
+    CHECK(std::ranges::adjacent_find(names) == names.end());
 }
 
 TEST_CASE("OpenHatter decay scale and tempo-synced echo shape output", "[plugin][dsp]") {

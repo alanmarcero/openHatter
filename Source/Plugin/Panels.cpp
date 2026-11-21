@@ -105,7 +105,7 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
         g.setColour(colour);
         g.fillRoundedRectangle(track.withWidth(track.getWidth() * value / scale), 2);
     };
-    decayBar(58, "Hiss", airMs_, theme::kAccentAqua);
+    decayBar(58, "Air", airMs_, theme::kAccentAqua);
     decayBar(104, "Body", bodyMs_, theme::kAccentBrass);
 
     g.setColour(theme::kTextDim);
@@ -128,32 +128,32 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
 }
 
 HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
-    : noiseType_(processor.parameters, params::kNoiseType, "Hiss type", theme::kAccentAqua),
+    : noiseType_(processor.parameters, params::kNoiseType, "Air type", theme::kAccentAqua),
       noiseAttack_(processor.parameters, params::kNoiseAttack, "Attack", theme::kAccentAqua),
       noiseHold_(processor.parameters, params::kNoiseHold, "Hold", theme::kAccentAqua),
       noiseDecay_(processor.parameters, params::kNoiseDecay, "Decay", theme::kAccentAqua),
       noiseCurve_(processor.parameters, params::kNoiseCurve, "Curve", theme::kAccentAqua),
       noiseHPF_(processor.parameters, params::kNoiseHPF, "High-pass", theme::kAccentAqua),
       noiseLPF_(processor.parameters, params::kNoiseLPF, "Low-pass", theme::kAccentAqua),
-      noiseWidth_(processor.parameters, params::kNoiseStereoWidth, "Width", theme::kAccentAqua),
+      noiseWidth_(processor.parameters, params::kNoiseStereoWidth, "Air width", theme::kAccentAqua),
       decayScale_(processor.parameters, params::kDecayScale, "Decay morph", theme::kAccentAqua),
-      noiseLevel_(processor.parameters, params::kNoiseLevel, "Hiss level", theme::kAccentAqua),
-      hissColor_(processor.parameters, params::kHissColor, "Hiss color", theme::kAccentAqua),
+      noiseLevel_(processor.parameters, params::kNoiseLevel, "Air level", theme::kAccentAqua),
+      hissColor_(processor.parameters, params::kHissColor, "Air color", theme::kAccentAqua),
       hissDensity_(processor.parameters, params::kHissDensity, "Density", theme::kAccentAqua),
       hissDrive_(processor.parameters, params::kHissDrive, "Saturation", theme::kAccentAqua),
       bodyLevel_(processor.parameters, params::kBodyLevel, "Body level", theme::kAccentBrass),
       bodyTone_(processor.parameters, params::kBodyTone, "Body tone", theme::kAccentBrass),
       bodyDecay_(processor.parameters, params::kBodyDecay, "Body decay", theme::kAccentBrass),
       preBursts_(processor.parameters, params::kPreBursts, "Strikes", theme::kAccentCoral),
-      preSpread_(processor.parameters, params::kPreSpread, "Spread", theme::kAccentCoral),
-      preDecay_(processor.parameters, params::kPreDecay, "Decay", theme::kAccentCoral),
+      preSpread_(processor.parameters, params::kPreSpread, "Bounce spread", theme::kAccentCoral),
+      preDecay_(processor.parameters, params::kPreDecay, "Bounce decay", theme::kAccentCoral),
       preJitter_(processor.parameters, params::kPreJitter, "Humanize", theme::kAccentCoral),
-      flamSpread_(processor.parameters, params::kFlamSpread, "Pan", theme::kAccentCoral),
-      keyTracking_(processor.parameters, params::kKeyTracking, "Key track", theme::kAccentCoral),
+      flamSpread_(processor.parameters, params::kFlamSpread, "Bounce pan", theme::kAccentCoral),
+      keyTracking_(processor.parameters, params::kKeyTracking, "Key tracking", theme::kAccentCoral),
       preLevel_(processor.parameters, params::kPreLevel, "Bounce level", theme::kAccentCoral),
       clickType_(processor.parameters, params::kClickType, "Contact", theme::kAccentCoral),
-      clickLevel_(processor.parameters, params::kClickLevel, "Strike level", theme::kAccentCoral),
-      clickFreq_(processor.parameters, params::kClickFreq, "Frequency", theme::kAccentCoral),
+      clickLevel_(processor.parameters, params::kClickLevel, "Stick level", theme::kAccentCoral),
+      clickFreq_(processor.parameters, params::kClickFreq, "Stick tone", theme::kAccentCoral),
       articulationLock_("Articulation", theme::kAccentCoral,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::articulation); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::articulation, on); }),
@@ -188,7 +188,7 @@ void HatSynthPanel::setAdvancedMode(bool advanced) {
 }
 
 void HatSynthPanel::paint(juce::Graphics& g) {
-    drawSection(g, sectionBounds_[0], "Hiss & air tail", theme::kAccentAqua);
+    drawSection(g, sectionBounds_[0], "Air tail", theme::kAccentAqua);
     drawSection(g, sectionBounds_[1], "Bronze body & stick", theme::kAccentCoral);
 }
 
@@ -203,10 +203,11 @@ void HatSynthPanel::resized() {
         [](const auto& pair) {
             pair.second->setBounds(pair.first->removeFromTop(36).removeFromRight(56));
         });
-    std::ranges::for_each(std::array{ std::pair{ &air, &noiseType_ }, std::pair{ &stick, &clickType_ } },
-        [](const auto& pair) {
-            pair.second->setBounds(pair.first->removeFromTop(64));
-        });
+    noiseType_.setBounds(air.removeFromTop(64));
+    // Contact sets the stick sound, so it sits between the body row and the stick row.
+    const int rowHeight = (stick.getHeight() - 64) / (advanced_ ? 4 : 2);
+    layoutRow(stick.removeFromTop(rowHeight), { &bodyLevel_, &bodyTone_, &bodyDecay_ });
+    clickType_.setBounds(stick.removeFromTop(64));
 
     if (advanced_) {
         layoutRows(air, {
@@ -216,7 +217,6 @@ void HatSynthPanel::resized() {
             { &noiseHPF_, &noiseWidth_, &decayScale_ }
         });
         layoutRows(stick, {
-            { &bodyLevel_, &bodyTone_, &bodyDecay_ },
             { &preBursts_, &clickFreq_, &clickLevel_ },
             { &preSpread_, &preDecay_, &preLevel_ },
             { &preJitter_, &flamSpread_, &keyTracking_ }
@@ -227,10 +227,7 @@ void HatSynthPanel::resized() {
         { &noiseDecay_, &noiseLPF_, &noiseLevel_ },
         { &hissColor_, &hissDensity_, &hissDrive_ }
     });
-    layoutRows(stick, {
-        { &bodyLevel_, &bodyTone_, &bodyDecay_ },
-        { &preBursts_, &clickFreq_, &clickLevel_ }
-    });
+    layoutRows(stick, { { &preBursts_, &clickFreq_, &clickLevel_ } });
 }
 
 EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
@@ -516,7 +513,7 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
       reverbSize_(processor.parameters, params::kReverbSize, "Size", theme::kAccentAqua),
       reverbDecay_(processor.parameters, params::kReverbDecay, "Decay", theme::kAccentAqua),
       reverbDamp_(processor.parameters, params::kReverbDamp, "Damping", theme::kAccentAqua),
-      reverbGate_(processor.parameters, params::kReverbGate, "Choke", theme::kAccentAqua),
+      reverbGate_(processor.parameters, params::kReverbGate, "Reverb gate", theme::kAccentAqua),
       reverbMix_(processor.parameters, params::kReverbMix, "Mix", theme::kAccentAqua),
       echoMix_(processor.parameters, params::kEchoMix, "Echo mix", theme::kAccentAqua),
       reverseMode_(processor.parameters, params::kReverseMode, "Reverse sync", theme::kAccentAqua),
@@ -578,7 +575,7 @@ OutputPanel::OutputPanel(OpenHatterProcessor& processor)
       masterWidth_(processor.parameters, params::kStereoWidth, "Width", theme::kAccentAqua),
       outputGain_(processor.parameters, params::kOutputGain, "Output", theme::kAccentAqua),
       limiterCeiling_(processor.parameters, params::kLimiterCeiling, "Ceiling", theme::kAccentBrass),
-      limiterRelease_(processor.parameters, params::kLimiterRelease, "Limit release", theme::kAccentBrass),
+      limiterRelease_(processor.parameters, params::kLimiterRelease, "Limiter release", theme::kAccentBrass),
       limiterEnabled_(processor.parameters, params::kLimiterEnabled, "Limiter off", "Limiter on", theme::kAccentBrass),
       outputLock_("Output", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::output); },

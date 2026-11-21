@@ -91,7 +91,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     // Stick Bounce / Pre-Chick Articulation
     params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID{ kPreBursts, 1 }, "Stick Bounces", 1, 5, 1));
+        juce::ParameterID{ kPreBursts, 1 }, "Stick Strikes", 1, 5, 1));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kPreSpread, 1 }, "Bounce Spread", juce::NormalisableRange<float>(2.0f, 45.0f, 0.1f), 8.0f,
         msText));
@@ -110,13 +110,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     // Open / closed decay morph and tempo-synced echo
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kDecayScale, 1 }, "Decay Scale", juce::NormalisableRange<float>(0.25f, 2.0f, 0.01f), 1.0f,
+        juce::ParameterID{ kDecayScale, 1 }, "Decay Morph", juce::NormalisableRange<float>(0.25f, 2.0f, 0.01f), 1.0f,
         percentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kEchoMix, 1 }, "Echo Mix", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f,
         percentText));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
-        juce::ParameterID{ kAmpEnabled, 1 }, "Full ADSR", false));
+        juce::ParameterID{ kAmpEnabled, 1 }, "Hold Notes", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kAmpAttack, 1 }, "Amp Attack", juce::NormalisableRange<float>(0.05f, 20.0f, 0.05f), 0.35f,
         msText));
@@ -142,27 +142,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         "Spectral Wash"
     };
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID{ kNoiseType, 1 }, "Hiss Type", noiseTypes, 0));
+        juce::ParameterID{ kNoiseType, 1 }, "Air Type", noiseTypes, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kNoiseAttack, 1 }, "Off-Beat Swell", juce::NormalisableRange<float>(0.0f, 40.0f, 0.1f), 1.5f,
+        juce::ParameterID{ kNoiseAttack, 1 }, "Air Attack", juce::NormalisableRange<float>(0.0f, 40.0f, 0.1f), 1.5f,
         msText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kNoiseHold, 1 }, "Air Hold", juce::NormalisableRange<float>(0.0f, 120.0f, 0.1f), 12.0f,
         msText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kNoiseDecay, 1 }, "Open Decay", juce::NormalisableRange<float>(20.0f, 2400.0f, 1.0f, 0.38f), 420.0f,
+        juce::ParameterID{ kNoiseDecay, 1 }, "Air Decay", juce::NormalisableRange<float>(20.0f, 2400.0f, 1.0f, 0.38f), 420.0f,
         msText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kNoiseCurve, 1 }, "Tail Curve", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), -0.35f,
+        juce::ParameterID{ kNoiseCurve, 1 }, "Air Curve", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), -0.35f,
         signedPercentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kNoiseHPF, 1 }, "Air HPF", juce::NormalisableRange<float>(60.0f, 6000.0f, 1.0f, 0.35f), 480.0f,
+        juce::ParameterID{ kNoiseHPF, 1 }, "Air High-pass", juce::NormalisableRange<float>(60.0f, 6000.0f, 1.0f, 0.35f), 480.0f,
         hzText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kNoiseLPF, 1 }, "Air LPF", juce::NormalisableRange<float>(1500.0f, 20000.0f, 1.0f, 0.35f), 16500.0f,
+        juce::ParameterID{ kNoiseLPF, 1 }, "Air Low-pass", juce::NormalisableRange<float>(1500.0f, 20000.0f, 1.0f, 0.35f), 16500.0f,
         hzText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kNoiseStereoWidth, 1 }, "Shimmer Width", juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f), 1.2f,
+        juce::ParameterID{ kNoiseStereoWidth, 1 }, "Air Width", juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f), 1.2f,
         percentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kNoiseLevel, 1 }, "Air Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.88f,
@@ -170,13 +170,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kVelocityAir, 1 }, "Air Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kHissColor, 1 }, "Hiss Color", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.0f,
+        juce::ParameterID{ kHissColor, 1 }, "Air Color", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.0f,
         signedPercentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kHissDensity, 1 }, "Hiss Density", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.35f,
+        juce::ParameterID{ kHissDensity, 1 }, "Air Density", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.35f,
         percentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kHissDrive, 1 }, "Hiss Saturation", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f,
+        juce::ParameterID{ kHissDrive, 1 }, "Air Saturation", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f,
         percentText));
 
     // Spun Bronze Cymbal Body
@@ -193,15 +193,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     // Stick Chick / Transient
     juce::StringArray clickTypes{ "Crisp Stick", "Pedal Foot", "Laser Tick" };
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID{ kClickType, 1 }, "Chick Type", clickTypes, 0));
+        juce::ParameterID{ kClickType, 1 }, "Stick Contact", clickTypes, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kClickLevel, 1 }, "Chick Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.45f,
+        juce::ParameterID{ kClickLevel, 1 }, "Stick Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.45f,
         percentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kClickFreq, 1 }, "Chick Freq", juce::NormalisableRange<float>(1000.0f, 14000.0f, 10.0f, 0.35f), 6800.0f,
+        juce::ParameterID{ kClickFreq, 1 }, "Stick Tone", juce::NormalisableRange<float>(1000.0f, 14000.0f, 10.0f, 0.35f), 6800.0f,
         hzText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kVelocityChick, 1 }, "Chick Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
+        juce::ParameterID{ kVelocityChick, 1 }, "Stick Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kKeyTracking, 1 }, "Key Tracking", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f,
         percentText));
@@ -214,7 +214,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kDistDrive, 1 }, "Exciter Drive", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.08f,
         percentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kDistTone, 1 }, "Exciter Tilt", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.15f,
+        juce::ParameterID{ kDistTone, 1 }, "Exciter Sheen", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.15f,
         signedPercentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kDistMix, 1 }, "Exciter Mix", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.15f,
@@ -258,10 +258,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kReverbDecay, 1 }, "Reverb Decay", juce::NormalisableRange<float>(50.0f, 2500.0f, 10.0f, 0.35f), 620.0f,
         msText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kReverbDamp, 1 }, "Reverb Damp", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f,
+        juce::ParameterID{ kReverbDamp, 1 }, "Reverb Damping", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f,
         percentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kReverbGate, 1 }, "Choke Gate", juce::NormalisableRange<float>(0.0f, 1500.0f, 5.0f), 320.0f,
+        juce::ParameterID{ kReverbGate, 1 }, "Reverb Gate", juce::NormalisableRange<float>(0.0f, 1500.0f, 5.0f), 320.0f,
         withText(formatGate, parseGate)));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kReverbMix, 1 }, "Reverb Mix", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.24f,
@@ -272,7 +272,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     // Reverse & Sync
     juce::StringArray revModes{ "Off", "Beat End (Sync)", "Beat 4 Auto", "1/2 Beat", "1/4 Beat" };
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID{ kReverseMode, 1 }, "Reverse Mode", revModes, 0));
+        juce::ParameterID{ kReverseMode, 1 }, "Reverse Sync", revModes, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kReverseMix, 1 }, "Reverse Mix", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f,
         percentText));
@@ -281,7 +281,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{ kLockIn, 1 }, "Lock In (WAV)", false));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kStereoWidth, 1 }, "Master Width", juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f), 1.15f,
+        juce::ParameterID{ kStereoWidth, 1 }, "Output Width", juce::NormalisableRange<float>(0.0f, 2.0f, 0.01f), 1.15f,
         percentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kOutputGain, 1 }, "Output Gain", juce::NormalisableRange<float>(-36.0f, 12.0f, 0.5f), 0.0f,
@@ -292,22 +292,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         return range;
     };
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kEqLowFreq, 1 }, "EQ Low Freq", makeFreqRange(25.0f, 400.0f, 100.0f), 80.0f,
+        juce::ParameterID{ kEqLowFreq, 1 }, "Low EQ Freq", makeFreqRange(25.0f, 400.0f, 100.0f), 80.0f,
         hzText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kEqLowDb, 1 }, "EQ Low", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f,
+        juce::ParameterID{ kEqLowDb, 1 }, "Low EQ Gain", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f,
         dbText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kEqMidFreq, 1 }, "EQ Mid Freq", makeFreqRange(200.0f, 6000.0f, 1100.0f), 1000.0f,
+        juce::ParameterID{ kEqMidFreq, 1 }, "Mid EQ Freq", makeFreqRange(200.0f, 6000.0f, 1100.0f), 1000.0f,
         hzText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kEqMidDb, 1 }, "EQ Mid", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f,
+        juce::ParameterID{ kEqMidDb, 1 }, "Mid EQ Gain", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f,
         dbText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kEqHighFreq, 1 }, "EQ High Freq", makeFreqRange(2000.0f, 18000.0f, 6000.0f), 7500.0f,
+        juce::ParameterID{ kEqHighFreq, 1 }, "High EQ Freq", makeFreqRange(2000.0f, 18000.0f, 6000.0f), 7500.0f,
         hzText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kEqHighDb, 1 }, "EQ High", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f,
+        juce::ParameterID{ kEqHighDb, 1 }, "High EQ Gain", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f,
         dbText));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID{ kMidiChokeNote, 1 }, "MIDI Choke Note", 0, 127, 42));
