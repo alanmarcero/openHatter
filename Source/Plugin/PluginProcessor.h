@@ -60,7 +60,6 @@ public:
     void redo();
     [[nodiscard]] bool canUndo() const;
     [[nodiscard]] bool canRedo() const;
-    [[nodiscard]] juce::UndoManager& undoManager() noexcept { return undoManager_; }
 
     [[nodiscard]] int abSlot() const noexcept { return ab_.active(); }
     void selectAbSlot(int slot);
@@ -80,7 +79,6 @@ public:
     // The loaded preset's name, with " *" after an edit. Empty for a sound from an earlier bank.
     [[nodiscard]] juce::String presetDisplayName();
 
-    juce::UndoManager undoManager_;
     juce::AudioProcessorValueTreeState parameters;
 
     std::atomic<float> displayPeak{ 0.0f };
@@ -98,7 +96,6 @@ public:
 private:
     void parameterChanged(const juce::String& parameterID, float newValue) override;
     void handleAsyncUpdate() override;
-    void flushUndo();
     void applyBinaryState(const void* data, int sizeInBytes, bool loadSessionExtras);
     [[nodiscard]] juce::MemoryBlock captureSlotState();
     void restoreSlotState(const juce::MemoryBlock& block);
