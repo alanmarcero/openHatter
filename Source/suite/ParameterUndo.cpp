@@ -6,12 +6,6 @@ namespace {
 
 constexpr size_t kMaxSteps = 100;
 
-// The callbacks touch the parameter tree, which belongs to the message thread.
-bool onMessageThread() {
-    auto* manager = juce::MessageManager::getInstanceWithoutCreating();
-    return manager == nullptr || manager->isThisTheMessageThread();
-}
-
 } // namespace
 
 ParameterUndo::ParameterUndo(juce::AudioProcessor& processor, std::function<juce::ValueTree()> capture,
@@ -37,14 +31,17 @@ void ParameterUndo::parameterGestureChanged(int, bool gestureIsStarting) {
 }
 
 void ParameterUndo::beginChange() {
-    if (!onMessageThread())
+    // The callbacks touch the parameter tree, which belongs to the message thread.
+    if (auto* manager = juce::MessageManager::getInstanceWithoutCreating(); manager != nullptr && !manager->isThisTheMessageThread())
         return;
     if (openChanges_++ == 0)
         before_ = capture_();
 }
 
 void ParameterUndo::endChange() {
-    if (!onMessageThread() || openChanges_ == 0 || --openChanges_ > 0)
+    if (auto* manager = juce::MessageManager::getInstanceWithoutCreating(); manager != nullptr && !manager->isThisTheMessageThread())
+        return;
+    if (openChanges_ == 0 || --openChanges_ > 0)
         return;
     if (before_.isEquivalentTo(capture_()))
         return;

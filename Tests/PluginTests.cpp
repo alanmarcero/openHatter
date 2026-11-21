@@ -160,8 +160,9 @@ TEST_CASE("OpenHatter decay morph and echo controls are automatable", "[plugin][
 TEST_CASE("Every float parameter reads back the text it displays", "[plugin][parameters][text]") {
     OpenHatterProcessor processor;
     std::ranges::for_each(processor.getParameters(), [](juce::AudioProcessorParameter* parameter) {
-        if (dynamic_cast<juce::AudioParameterFloat*>(parameter) == nullptr) return;
-        auto& floatParameter = *dynamic_cast<juce::RangedAudioParameter*>(parameter);
+        auto* floatType = dynamic_cast<juce::AudioParameterFloat*>(parameter);
+        if (floatType == nullptr) return;
+        juce::RangedAudioParameter& floatParameter = *floatType;
         std::ranges::for_each(std::array{ 0.0f, 0.13f, 0.37f, 0.5f, 0.71f, 1.0f, floatParameter.getDefaultValue() },
             [&](float normalised) {
                 const auto text = floatParameter.getText(normalised, 0);
@@ -1331,14 +1332,9 @@ TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the ma
         [&](const char* id) { REQUIRE(processor.parameters.getParameter(id) != nullptr); });
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
-    auto* outputPanel = [&] {
-        openhatter::ui::OutputPanel* found = nullptr;
-        std::ranges::for_each(findAll(*editor, false, [](juce::Component&) { return true; }), [&](juce::Component* child) {
-            if (auto* candidate = dynamic_cast<openhatter::ui::OutputPanel*>(child)) found = candidate;
-        });
-        return found;
-    }();
-    REQUIRE(outputPanel != nullptr);
+    auto* outputPanel = findOne(*editor, false, [](juce::Component& component) {
+        return dynamic_cast<openhatter::ui::OutputPanel*>(&component) != nullptr;
+    });
     CHECK(outputPanel->isVisible());
 
     const auto findById = [](auto&& self, juce::Component& parent, const juce::String& id) -> juce::Component* {
@@ -1357,20 +1353,12 @@ TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the ma
             CHECK(control->isVisible());
         });
 
-    auto* presets = [&] {
-        juce::ComboBox* box = nullptr;
-        std::ranges::for_each(findAll(*editor, false, [](juce::Component&) { return true; }), [&](juce::Component* child) {
-            if (auto* candidate = dynamic_cast<juce::ComboBox*>(child); candidate && candidate->getName() == "Preset")
-                box = candidate;
-        });
-        return box;
-    }();
-    REQUIRE(presets != nullptr);
+    CHECK(findOne(*editor, false, [](juce::Component& component) {
+        return dynamic_cast<juce::ComboBox*>(&component) != nullptr && component.getName() == "Preset";
+    })->isVisible());
 }
 
 namespace {
-
-void flushParameters(OpenHatterProcessor& processor) { processor.parameters.copyState(); }
 
 void gesture(juce::RangedAudioParameter& parameter, float plain) {
     parameter.beginChangeGesture();
@@ -1395,10 +1383,8 @@ TEST_CASE("Parameter edits undo and redo as grouped gestures", "[plugin][undo]")
     decay->setValueNotifyingHost(decay->convertTo0to1(400.0f));
     decay->endChangeGesture();
     gain->endChangeGesture();
-    flushParameters(processor);
 
     gesture(*gain, -6.0f);
-    flushParameters(processor);
     CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() + 6.0f) < 0.05f);
 
     processor.undo();
@@ -1419,7 +1405,6 @@ TEST_CASE("Editor shortcuts and buttons undo parameter changes", "[plugin][undo]
     REQUIRE(gain != nullptr);
     const float original = processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load();
     gesture(*gain, 5.0f);
-    flushParameters(processor);
     REQUIRE(editor->keyPressed(juce::KeyPress('z', juce::ModifierKeys::commandModifier, 'z')));
     CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - original) < 0.05f);
     REQUIRE(editor->keyPressed(juce::KeyPress('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier, 'z')));
@@ -1694,7 +1679,7 @@ TEST_CASE("The header names the loaded preset and marks edits per slot and sessi
     CHECK(processor.presetDisplayName() == "Room Hat");
     edit(500.0f);
     CHECK(processor.presetDisplayName() == "Room Hat *");
-    processor.markPresetSaved("Room Hat 2");
+    processor.setLoadedPreset("Room Hat 2");
     CHECK(processor.presetDisplayName() == "Room Hat 2");
 
     edit(600.0f);

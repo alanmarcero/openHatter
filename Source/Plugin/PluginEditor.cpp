@@ -120,7 +120,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     presetBrowser_.setCaptureState([this] { return processor_.currentPresetTree(); });
     presetBrowser_.setDismiss([this] { showPresetBrowser(false); });
     presetBrowser_.setSaved([this](const juce::String& name) {
-        processor_.markPresetSaved(name);
+        processor_.setLoadedPreset(name);
         syncPresetBox();
     });
 

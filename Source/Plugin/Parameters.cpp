@@ -49,7 +49,7 @@ float parseGate(const juce::String& text) {
     return parseMs(text);
 }
 
-// Reads F#2, Gb2, 42 or F#2 (42). Middle C is C4, as in the MIDI monitor.
+// Reads F#2, Gb2, 42 or F#2 (42).
 int parseNote(const juce::String& text) {
     const auto trimmed = text.trim();
     if (trimmed.containsChar('('))
@@ -62,7 +62,7 @@ int parseNote(const juce::String& text) {
     const bool sharp = rest.startsWithChar('#');
     const bool flat = rest.startsWithChar('b');
     const int octave = rest.substring(sharp || flat ? 1 : 0).getIntValue();
-    return (octave + 1) * 12 + letter + (sharp ? 1 : 0) - (flat ? 1 : 0);
+    return (octave + 5 - kMiddleCOctave) * 12 + letter + (sharp ? 1 : 0) - (flat ? 1 : 0);
 }
 
 FloatAttributes withText(std::function<juce::String(float)> format, std::function<float(const juce::String&)> parse) {
@@ -329,7 +329,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kMidiChokeNote, 1 }, "MIDI Choke Note", 0, 127, 42,
         juce::AudioParameterIntAttributes()
             .withStringFromValueFunction([](int note, int) {
-                return juce::MidiMessage::getMidiNoteName(note, true, true, 4) + " (" + juce::String(note) + ")";
+                return juce::MidiMessage::getMidiNoteName(note, true, true, kMiddleCOctave) + " (" + juce::String(note) + ")";
             })
             .withValueFromStringFunction(parseNote)));
     params.push_back(std::make_unique<juce::AudioParameterInt>(

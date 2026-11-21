@@ -42,10 +42,12 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, Style style)
 
     for (auto* button : { &favoritesBtn_, &saveBtn_, &renameBtn_, &deleteBtn_ }) {
         button->setColour(juce::TextButton::buttonOnColourId, style_.accent);
-        button->setTitle(button->getButtonText() + " preset");
         addAndMakeVisible(button);
     }
     favoritesBtn_.setTitle("Favorites only");
+    saveBtn_.setTitle("Save preset");
+    renameBtn_.setTitle("Rename preset");
+    deleteBtn_.setTitle("Delete preset");
     favoritesBtn_.setClickingTogglesState(true);
     favoritesBtn_.setTooltip("Show only starred presets.");
     favoritesBtn_.onClick = [this] {

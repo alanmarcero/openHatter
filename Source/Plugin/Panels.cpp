@@ -5,6 +5,7 @@
 #include "PluginProcessor.h"
 #include "Theme.h"
 #include <algorithm>
+#include <numeric>
 #include <ranges>
 
 namespace openhatter::ui {
@@ -125,7 +126,7 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
     const bool received = lastNote_ >= 0;
     g.setColour(theme::kText);
     g.setFont(juce::FontOptions(received ? 43.0f : 25.0f, juce::Font::bold));
-    g.drawText(received ? juce::MidiMessage::getMidiNoteName(lastNote_, true, true, 4) : juce::String("Waiting for MIDI"),
+    g.drawText(received ? juce::MidiMessage::getMidiNoteName(lastNote_, true, true, params::kMiddleCOctave) : juce::String("Waiting for MIDI"),
                pitchX, 45, 222, 54, juce::Justification::left);
     g.setColour(theme::kTextDim);
     g.setFont(juce::FontOptions(15.0f));
@@ -539,8 +540,9 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
     velocityAir_.setTooltip(juce::String("Shape the air level against velocity. ") + kVelocityCurveHint);
     velocityChick_.setTooltip(juce::String("Shape the stick level against velocity. ") + kVelocityCurveHint);
     velocityReverb_.setTooltip(juce::String("Shape the reverb send against velocity. ") + kVelocityCurveHint);
-    std::ranges::for_each(std::array{ &velocityAir_, &velocityChick_, &velocityReverb_ }, [this](Knob* knob) {
-        knob->slider().onValueChange = [this] { repaint(); };
+    const std::array knobs{ &velocityAir_, &velocityChick_, &velocityReverb_ };
+    std::ranges::for_each(std::views::iota(size_t{0}, knobs.size()), [&](size_t i) {
+        knobs[i]->slider().onValueChange = [this, i] { repaint(curveBounds_[i]); };
     });
     chokeNote_.setTooltip("A note-off for this MIDI note chokes the current hat and stops the roll.");
     chokeCc_.setTooltip("A value of 64 or higher on this CC chokes the current hat and stops the roll.");
@@ -589,10 +591,8 @@ void PerformancePanel::resized() {
     auto velocity = velocityBounds_.reduced(10, 9).withTrimmedTop(64);
     layoutRow(velocity.removeFromBottom(150), { &velocityAir_, &velocityChick_, &velocityReverb_ });
     const int column = velocity.getWidth() / 3;
-    std::ranges::for_each(std::views::iota(size_t{0}, curveBounds_.size()), [&](size_t i) {
-        const auto cell = juce::Rectangle<int>(velocity.getX() + static_cast<int>(i) * column, velocity.getY(),
-                                               column, velocity.getHeight());
-        curveBounds_[i] = cell.withSizeKeepingCentre(std::min(column - 40, 240), velocity.getHeight() - 16);
+    std::ranges::for_each(curveBounds_, [&](juce::Rectangle<int>& plot) {
+        plot = velocity.removeFromLeft(column).withSizeKeepingCentre(std::min(column - 40, 240), velocity.getHeight() - 16);
     });
     auto roll = rollBounds_.reduced(11, 9).withTrimmedTop(34);
     auto modes = roll.removeFromLeft(144);
@@ -705,6 +705,9 @@ void PeakMeter::timerCallback() {
 void PeakMeter::pushPeak(float linearPeak, double nowMs) {
     constexpr double kHoldMs = 1000.0;
     constexpr float kFallDbPerSecond = 24.0f;
+    const float levelBefore = levelDb_;
+    const float heldBefore = heldDb_;
+    const bool clippedBefore = clipped_;
     const float db = juce::Decibels::gainToDecibels(linearPeak, kFloorDb);
     const float fallDb = static_cast<float>(nowMs - lastMs_) * 0.001f * kFallDbPerSecond;
     lastMs_ = nowMs;
@@ -714,7 +717,9 @@ void PeakMeter::pushPeak(float linearPeak, double nowMs) {
         heldAtMs_ = nowMs;
     }
     clipped_ = clipped_ || linearPeak > 1.0f;
-    repaint();
+    if (!juce::approximatelyEqual(levelDb_, levelBefore) || !juce::approximatelyEqual(heldDb_, heldBefore)
+        || clipped_ != clippedBefore)
+        repaint();
 }
 
 void PeakMeter::mouseDown(const juce::MouseEvent&) {
@@ -809,7 +814,8 @@ void OutputPanel::resized() {
         { &limiterEnabled_, 10.0f }, { &limiterCeiling_, 9.5f }, { &limiterRelease_, 9.5f },
         { &outputGain_, 9.5f }, { &peakMeter_, 6.0f }
     }};
-    const float total = 96.0f;
+    const float total = std::accumulate(items.begin(), items.end(), 0.0f,
+                                        [](float sum, const auto& item) { return sum + item.second; });
     const int gap = 4;
     const int avail = std::max(0, row.getWidth() - gap * static_cast<int>(items.size() - 1));
     std::ranges::for_each(items, [&](const auto& item) {

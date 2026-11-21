@@ -16,7 +16,7 @@ Type* namedChild(juce::Component& parent, const juce::String& name) {
 
 juce::File emptyPresetFolder() {
     return juce::File::getSpecialLocation(juce::File::tempDirectory)
-        .getChildFile("openhatter-browser-" + juce::Uuid().toString());
+        .getChildFile("openhatter-presets-" + juce::Uuid().toString());
 }
 
 } // namespace
@@ -41,9 +41,7 @@ TEST_CASE("A/B slots keep independent copies", "[suite][ab]") {
 }
 
 TEST_CASE("User presets save, search, favorite, rename and delete without touching factory names", "[suite][presets]") {
-    const auto root = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                          .getChildFile("openhatter-presets-" + juce::Uuid().toString());
-    root.deleteRecursively();
+    const auto root = emptyPresetFolder();
     suite::PresetLibrary library(root);
     const juce::String factory = "Uplifting / Euphoria Open";
     library.setFactoryNames({ factory, "Rolling / Heavy Floor Open" });
