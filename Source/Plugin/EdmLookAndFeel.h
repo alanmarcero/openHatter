@@ -5,7 +5,7 @@
 namespace openhatter::ui {
 
 // A slider property. The setting stops acting past this proportion of the range, so the arc there draws grey.
-inline constexpr const char* kArcLimitProperty = "arcLimit";
+inline const juce::Identifier kArcLimitProperty{ "arcLimit" };
 
 class EdmLookAndFeel : public juce::LookAndFeel_V4 {
 public:

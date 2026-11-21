@@ -52,10 +52,6 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     presetBrowser_.refresh();
     presetBox_.setName("Preset");
     presetBox_.setTitle("Preset");
-    std::ranges::for_each(std::array<juce::Button*, 10>{ &auditionBtn_, &hatTab_, &envelopeTab_, &performanceTab_,
-                                                         &effectsTab_, &detailBtn_, &undoBtn_, &redoBtn_, &lockBtn_,
-                                                         &presetsBtn_ },
-        [](juce::Button* button) { button->setTitle(button->getButtonText()); });
     prevPresetBtn_.setTitle("Previous preset");
     nextPresetBtn_.setTitle("Next preset");
     slotABtn_.setTitle("Slot A");
@@ -214,10 +210,8 @@ void OpenHatterEditor::timerCallback() {
     refreshHistoryButtons();
     const bool locked = processor_.parameters.getRawParameterValue(openhatter::params::kLockIn)->load() > 0.5f;
     const auto lockText = locked ? juce::String("Locked") : juce::String("Lock in");
-    if (lockBtn_.getButtonText() != lockText) {
+    if (lockBtn_.getButtonText() != lockText)
         lockBtn_.setButtonText(lockText);
-        lockBtn_.setTitle(lockText);
-    }
     // A host can force another aspect ratio. Resize only when the stored size changed, as after a session load.
     const auto size = processor_.editorSize();
     if (size != OpenHatterProcessor::fitEditorSize(getWidth(), getHeight()))

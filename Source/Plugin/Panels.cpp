@@ -297,8 +297,6 @@ EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
       }) {
     oneShot_.setTooltip("Let each hit play its full air tail, even after key up.");
     holdNotes_.setTooltip("Sustain until a matching note-off on the original MIDI channel.");
-    oneShot_.setTitle("One-shot");
-    holdNotes_.setTitle("Hold notes");
     attack_.setTooltip("Fade each note in over this time.");
     decay_.setTooltip("Set the time from full level down to the sustain level.");
     sustain_.setTooltip("Set the level after the decay. Hold notes keeps this level until note-off.");
