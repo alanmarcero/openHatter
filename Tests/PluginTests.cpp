@@ -50,7 +50,7 @@ void checkVisibleControls(juce::Component& component, juce::Component& editor,
     }
 }
 
-// Alpha-weighted, so a control drawn at 40% opacity reads as 40% of its full value.
+// Weights brightness by alpha, so 40% opacity reads as 40%.
 float meanBrightness(juce::Component& control) {
     const auto image = control.createComponentSnapshot(control.getLocalBounds());
     const juce::Image::BitmapData pixels(image, juce::Image::BitmapData::readOnly);
@@ -73,7 +73,7 @@ void click(juce::Component& target) {
     target.mouseUp(event);
 }
 
-// Descendants that pass the filter. A hidden branch is skipped when visibleOnly is true.
+// Returns the descendants that pass the filter. visibleOnly skips hidden branches.
 std::vector<juce::Component*> findAll(juce::Component& root, bool visibleOnly,
                                       const std::function<bool(juce::Component&)>& keep) {
     std::vector<juce::Component*> found;
@@ -86,6 +86,12 @@ std::vector<juce::Component*> findAll(juce::Component& root, bool visibleOnly,
     };
     walk(root);
     return found;
+}
+
+juce::Component* findOne(juce::Component& root, bool visibleOnly, const std::function<bool(juce::Component&)>& keep) {
+    const auto found = findAll(root, visibleOnly, keep);
+    REQUIRE(found.size() == 1);
+    return found.front();
 }
 
 juce::TextButton* findButton(juce::Component& root, const juce::String& text) {
@@ -209,14 +215,9 @@ TEST_CASE("Readouts use one format per unit and accept typed units", "[plugin][p
     CHECK(typed(ids::kReverbGate, "off") < 0.001f);
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
-    const auto findSlider = [](auto&& self, juce::Component& parent, const juce::String& id) -> juce::Slider* {
-        if (auto* slider = dynamic_cast<juce::Slider*>(&parent); slider && parent.getComponentID() == id) return slider;
-        for (auto* child : parent.getChildren())
-            if (auto* found = self(self, *child, id)) return found;
-        return nullptr;
-    };
-    auto* lowPass = findSlider(findSlider, *editor, ids::kNoiseLPF);
-    REQUIRE(lowPass != nullptr);
+    auto* lowPass = dynamic_cast<juce::Slider*>(findOne(*editor, false, [](juce::Component& component) {
+        return dynamic_cast<juce::Slider*>(&component) != nullptr && component.getComponentID() == ids::kNoiseLPF;
+    }));
     CHECK(std::abs(lowPass->getValueFromText("17 kHz") - 17000.0) < 1.0);
     CHECK(lowPass->getTextFromValue(17000.0) == "17.0 kHz");
 }
@@ -263,19 +264,15 @@ TEST_CASE("Hold notes dims the air tail knobs and the one-shot release arc stops
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     const auto slider = [&](const char* id) {
-        const auto found = findAll(*editor, false, [&](juce::Component& component) {
+        return dynamic_cast<juce::Slider*>(findOne(*editor, false, [&](juce::Component& component) {
             return dynamic_cast<juce::Slider*>(&component) != nullptr && component.getComponentID() == id;
-        });
-        REQUIRE(found.size() == 1);
-        return dynamic_cast<juce::Slider*>(found.front());
+        }));
     };
     const auto badgeText = [&] {
-        const auto badges = findAll(*editor, false, [](juce::Component& component) {
+        return dynamic_cast<juce::Label*>(findOne(*editor, false, [](juce::Component& component) {
             auto* label = dynamic_cast<juce::Label*>(&component);
             return label != nullptr && (label->getText() == "Held" || label->getText() == "One-shot");
-        });
-        REQUIRE(badges.size() == 1);
-        return dynamic_cast<juce::Label*>(badges.front())->getText();
+        }))->getText();
     };
     auto* release = slider(ids::kAmpRelease);
     const auto releaseLimit = [&] {
@@ -303,11 +300,7 @@ TEST_CASE("Switched-off sections dim the controls they disable", "[plugin][ui][i
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     const auto control = [&](const char* id) {
-        const auto found = findAll(*editor, false, [&](juce::Component& component) {
-            return component.getComponentID() == id;
-        });
-        REQUIRE(found.size() == 1);
-        return found.front();
+        return findOne(*editor, false, [&](juce::Component& component) { return component.getComponentID() == id; });
     };
     const auto set = [&](const char* id, float value) {
         auto* parameter = processor.parameters.getParameter(id);
@@ -1038,27 +1031,13 @@ TEST_CASE("The look-and-feel dims disabled buttons, knobs and menus", "[plugin][
 TEST_CASE("OpenHatter ADSR points drag interactively and update envelope knobs and parameters", "[plugin][gui][adsr]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
-    const auto findButton = [&](auto&& self, juce::Component& parent, const juce::String& text) -> juce::TextButton* {
-        for (auto* child : parent.getChildren()) {
-            if (auto* btn = dynamic_cast<juce::TextButton*>(child); btn && btn->getButtonText() == text) return btn;
-            if (auto* nested = self(self, *child, text)) return nested;
-        }
-        return nullptr;
-    };
-    auto* envTab = static_cast<juce::Component*>(findButton(findButton, *editor, "Envelope"));
+    auto* envTab = findButton(*editor, "Envelope");
     REQUIRE(envTab != nullptr);
-    const auto clickPos = envTab->getLocalBounds().getCentre().toFloat();
-    const auto clickTime = juce::Time::getCurrentTime();
-    const juce::MouseEvent tabDown(juce::Desktop::getInstance().getMainMouseSource(), clickPos,
-        juce::ModifierKeys::leftButtonModifier, 1, 0, 0, 0, 0, envTab, envTab, clickTime, clickPos, clickTime, 1, false);
-    envTab->mouseDown(tabDown);
-    envTab->mouseUp(tabDown);
+    click(*envTab);
 
-    openhatter::ui::EnvelopePanel* envPanel = nullptr;
-    std::ranges::for_each(findAll(*editor, false, [](juce::Component&) { return true; }), [&](juce::Component* child) {
-        if (auto* candidate = dynamic_cast<openhatter::ui::EnvelopePanel*>(child)) envPanel = candidate;
+    auto* envPanel = findOne(*editor, false, [](juce::Component& component) {
+        return dynamic_cast<openhatter::ui::EnvelopePanel*>(&component) != nullptr;
     });
-    REQUIRE(envPanel != nullptr);
     REQUIRE(envPanel->isVisible());
 
     const auto plot = envPanel->getLocalBounds().reduced(40, 0).withTrimmedTop(114).withTrimmedBottom(200).toFloat();
@@ -1446,24 +1425,7 @@ TEST_CASE("Editor shortcuts and buttons undo parameter changes", "[plugin][undo]
     REQUIRE(editor->keyPressed(juce::KeyPress('z', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier, 'z')));
     CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - 5.0f) < 0.05f);
 
-    const auto findButton = [&](auto&& self, juce::Component& parent, const juce::String& text) -> juce::TextButton* {
-        for (auto* child : parent.getChildren()) {
-            if (!child->isVisible()) continue;
-            if (auto* button = dynamic_cast<juce::TextButton*>(child); button && button->getButtonText() == text)
-                return button;
-            if (auto* nested = self(self, *child, text)) return nested;
-        }
-        return nullptr;
-    };
-    const auto click = [](juce::Component& target) {
-        const auto pos = target.getLocalBounds().getCentre().toFloat();
-        const auto now = juce::Time::getCurrentTime();
-        const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), pos,
-            juce::ModifierKeys::leftButtonModifier, 1, 0, 0, 0, 0, &target, &target, now, pos, now, 1, false);
-        target.mouseDown(event);
-        target.mouseUp(event);
-    };
-    auto* undo = findButton(findButton, *editor, "Undo");
+    auto* undo = findButton(*editor, "Undo");
     REQUIRE(undo != nullptr);
     click(*undo);
     CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kOutputGain)->load() - original) < 0.05f);
@@ -1603,9 +1565,8 @@ TEST_CASE("The Output strip meters peaks after Output gain in signal order", "[p
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     const auto leftEdge = [&](auto matches) {
-        const auto found = findAll(*editor, true, matches);
-        REQUIRE(found.size() == 1);
-        return editor->getLocalArea(found.front(), found.front()->getLocalBounds()).getX();
+        auto* found = findOne(*editor, true, matches);
+        return editor->getLocalArea(found, found->getLocalBounds()).getX();
     };
     const auto byId = [&](const char* id) {
         return leftEdge([id](juce::Component& component) { return component.getComponentID() == id; });
@@ -1617,11 +1578,10 @@ TEST_CASE("The Output strip meters peaks after Output gain in signal order", "[p
                                 return dynamic_cast<openhatter::ui::PeakMeter*>(&component) != nullptr;
                             }) };
     CHECK(std::ranges::is_sorted(order, std::less_equal<>()));
-    const auto ceiling = findAll(*editor, true, [](juce::Component& component) {
+    auto* ceiling = findOne(*editor, true, [](juce::Component& component) {
         return component.getComponentID() == ids::kLimiterCeiling;
     });
-    REQUIRE(ceiling.size() == 1);
-    CHECK(ceiling.front()->getName() == "Limiter ceiling");
+    CHECK(ceiling->getName() == "Limiter ceiling");
 }
 
 TEST_CASE("Performance draws velocity curves and names the choke note", "[plugin][ui][performance]") {
@@ -1641,11 +1601,9 @@ TEST_CASE("Performance draws velocity curves and names the choke note", "[plugin
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     click(*findButton(*editor, "Performance"));
-    const auto panels = findAll(*editor, true, [](juce::Component& component) {
+    auto* panel = findOne(*editor, true, [](juce::Component& component) {
         return dynamic_cast<openhatter::ui::PerformancePanel*>(&component) != nullptr;
     });
-    REQUIRE(panels.size() == 1);
-    auto* panel = panels.front();
     const auto curves = panel->getLocalBounds().withHeight(400);
     const auto before = panel->createComponentSnapshot(curves);
     auto* airCurve = processor.parameters.getParameter(ids::kVelocityAir);
@@ -1659,11 +1617,10 @@ TEST_CASE("Performance draws velocity curves and names the choke note", "[plugin
     });
     CHECK(changed > 300);
 
-    const auto choke = findAll(*panel, true, [](juce::Component& component) {
+    auto* choke = findOne(*panel, true, [](juce::Component& component) {
         return component.getComponentID() == ids::kMidiChokeNote;
     });
-    REQUIRE(choke.size() == 1);
-    CHECK(panel->getLocalArea(choke.front(), choke.front()->getLocalBounds()).getY() > 420);
+    CHECK(panel->getLocalArea(choke, choke->getLocalBounds()).getY() > 420);
 }
 
 TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboard focus", "[plugin][ui][a11y]") {
@@ -1714,11 +1671,9 @@ TEST_CASE("Tabs and Escape close the preset browser", "[plugin][ui][browser]") {
     CHECK(shown(isEffects));
 
     click(*presets);
-    const auto fields = findAll(*editor, true, [](juce::Component& component) {
+    auto* search = dynamic_cast<juce::TextEditor*>(findOne(*editor, true, [](juce::Component& component) {
         return dynamic_cast<juce::TextEditor*>(&component) != nullptr && component.getName() == "Preset search";
-    });
-    REQUIRE(fields.size() == 1);
-    auto* search = dynamic_cast<juce::TextEditor*>(fields.front());
+    }));
     REQUIRE(search->onEscapeKey != nullptr);
     search->onEscapeKey();
     CHECK_FALSE(shown(isBrowser));
@@ -1758,11 +1713,10 @@ TEST_CASE("The header names the loaded preset and marks edits per slot and sessi
     CHECK(restored.presetDisplayName() == processor.getProgramName(5) + " *");
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(restored.createEditor());
-    const auto boxes = findAll(*editor, true, [](juce::Component& component) {
+    auto* box = dynamic_cast<juce::ComboBox*>(findOne(*editor, true, [](juce::Component& component) {
         return dynamic_cast<juce::ComboBox*>(&component) != nullptr && component.getName() == "Preset";
-    });
-    REQUIRE(boxes.size() == 1);
-    CHECK(dynamic_cast<juce::ComboBox*>(boxes.front())->getText() == processor.getProgramName(5) + " *");
+    }));
+    CHECK(box->getText() == processor.getProgramName(5) + " *");
 }
 
 TEST_CASE("The editor scales its whole layout at a fixed aspect ratio", "[plugin][ui][resize]") {
@@ -1829,25 +1783,8 @@ TEST_CASE("User presets load through section locks and the editor size is part o
     std::vector<juce::Rectangle<int>> wide;
     checkVisibleControls(*editor, *editor, wide);
 
-    const auto findButton = [&](auto&& self, juce::Component& parent, const juce::String& text) -> juce::TextButton* {
-        for (auto* child : parent.getChildren()) {
-            if (!child->isVisible()) continue;
-            if (auto* button = dynamic_cast<juce::TextButton*>(child); button && button->getButtonText() == text)
-                return button;
-            if (auto* nested = self(self, *child, text)) return nested;
-        }
-        return nullptr;
-    };
-    auto* presets = findButton(findButton, *editor, "Presets");
+    auto* presets = findButton(*editor, "Presets");
     REQUIRE(presets != nullptr);
-    const auto click = [](juce::Component& target) {
-        const auto pos = target.getLocalBounds().getCentre().toFloat();
-        const auto now = juce::Time::getCurrentTime();
-        const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), pos,
-            juce::ModifierKeys::leftButtonModifier, 1, 0, 0, 0, 0, &target, &target, now, pos, now, 1, false);
-        target.mouseDown(event);
-        target.mouseUp(event);
-    };
     click(*presets);
     std::vector<juce::Rectangle<int>> browser;
     checkVisibleControls(*editor, *editor, browser);

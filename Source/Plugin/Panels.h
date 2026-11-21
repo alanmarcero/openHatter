@@ -166,13 +166,13 @@ private:
     std::array<juce::Rectangle<int>, 3> sectionBounds_{};
 };
 
-// Output peak in dBFS with a 1 s hold. The light above the bar latches over 0 dBFS until a click.
+// Shows output peaks in dBFS, holds each for 1 s, and latches a clip light until a click.
 class PeakMeter final : public juce::Component, public juce::SettableTooltipClient, private juce::Timer {
 public:
     explicit PeakMeter(std::atomic<float>& peak);
     void paint(juce::Graphics& g) override;
     void mouseDown(const juce::MouseEvent& event) override;
-    // Takes the loudest sample since the last read, as linear gain.
+    // The loudest sample since the last read.
     void pushPeak(float linearPeak, double nowMs);
     [[nodiscard]] float heldDb() const noexcept { return heldDb_; }
     [[nodiscard]] bool isClipped() const noexcept { return clipped_; }

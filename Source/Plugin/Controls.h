@@ -14,7 +14,7 @@ public:
     void resized() override;
     void bind(Apvts& state, const juce::String& parameterId);
     void setTooltip(const juce::String& text);
-    // While inactive the knob draws dim and stays editable. Its tooltip adds howToEnable.
+    // An inactive knob draws dim, stays editable, and adds howToEnable to its tooltip.
     void setActive(bool active, const juce::String& howToEnable);
     [[nodiscard]] juce::Slider& slider() noexcept { return slider_; }
 
@@ -78,7 +78,6 @@ public:
     void resized() override;
     void bind(Apvts& state, const juce::String& parameterId);
     void setTooltip(const juce::String& text);
-    // While inactive the menu draws dim and stays editable. Its tooltip adds howToEnable.
     void setActive(bool active, const juce::String& howToEnable);
     [[nodiscard]] juce::ComboBox& box() noexcept { return box_; }
 

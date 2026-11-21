@@ -18,6 +18,9 @@ inline const juce::Colour kAccentAqua{ 0xff48f0c8 };
 inline const juce::Colour kAccentCoral{ 0xff5ce1ff };
 inline const juce::Colour kAccentDim{ 0xff869ca8 };
 
+// Disabled controls, and controls whose setting has no effect, draw at this opacity.
+inline constexpr float kDimAlpha = 0.4f;
+
 // Keep the look-and-feel accents mapped to the current palette.
 inline const juce::Colour kAccentCyan = kAccentAqua;
 inline const juce::Colour kAccentAmber = kAccentBrass;

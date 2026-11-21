@@ -14,7 +14,7 @@ public:
                   std::function<void(const juce::ValueTree&)> restore, std::function<size_t()> activeSlot);
     ~ParameterUndo() override;
 
-    // Wraps a change that is not a gesture, such as a preset load, as one undo step.
+    // Records a preset load or another non-gesture change as one undo step.
     void beginChange();
     void endChange();
 

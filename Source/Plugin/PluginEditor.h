@@ -27,7 +27,7 @@ private:
 
     OpenHatterProcessor& processor_;
     openhatter::ui::EdmLookAndFeel lookAndFeel_;
-    // Holds every control at the design size. The editor scales it as one unit.
+    // The editor scales this component, which holds every control at design size.
     juce::Component content_;
     suite::PresetLibrary presetLibrary_;
     suite::PresetBrowser presetBrowser_;
