@@ -70,6 +70,27 @@ bool DualEqKnob::GainSlider::hitTest(int x, int y) {
     return juce::Point<float>(static_cast<float>(x), static_cast<float>(y)).getDistanceFrom(centre) <= radius;
 }
 
+bool DualEqKnob::FreqSlider::keyPressed(const juce::KeyPress& key) {
+    const int code = key.getKeyCode();
+    const bool raise = code == juce::KeyPress::upKey || code == juce::KeyPress::rightKey;
+    const bool lower = code == juce::KeyPress::downKey || code == juce::KeyPress::leftKey;
+    if (!raise && !lower)
+        return false;
+    // A step is 2% of the collar's travel. Shift makes it 0.2%.
+    const double step = key.getModifiers().isShiftDown() ? 0.002 : 0.02;
+    const double proportion = std::clamp(valueToProportionOfLength(getValue()) + (raise ? step : -step), 0.0, 1.0);
+    const ScopedDragNotification gesture(*this);
+    setValue(proportionOfLengthToValue(proportion), juce::sendNotificationSync);
+    return true;
+}
+
+void DualEqKnob::FreqSlider::paint(juce::Graphics& g) {
+    if (!hasKeyboardFocus(false))
+        return;
+    g.setColour(theme::kAccentCyan);
+    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.75f), 4.0f, 1.5f);
+}
+
 DualEqKnob::DualEqKnob(Apvts& state, const juce::String& freqId, const juce::String& dbId,
                        const juce::String& title, juce::Colour dbAccent, juce::Colour freqAccent)
     : state_(state), freqId_(freqId), dbId_(dbId), dbAccent_(dbAccent), freqAccent_(freqAccent) {
@@ -92,6 +113,15 @@ DualEqKnob::DualEqKnob(Apvts& state, const juce::String& freqId, const juce::Str
     dbAttachment_ = std::make_unique<Apvts::SliderAttachment>(state, dbId, dbSlider_);
     dbSlider_.onValueChange = [this] { updateDbReadout(); };
     addAndMakeVisible(dbSlider_);
+
+    freqSlider_.setName(title + " Freq");
+    freqSlider_.setTitle(title + " frequency");
+    freqSlider_.setComponentID(freqId);
+    freqSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    freqSlider_.setWantsKeyboardFocus(true);
+    freqSlider_.setInterceptsMouseClicks(false, false);
+    freqSliderAttachment_ = std::make_unique<Apvts::SliderAttachment>(state, freqId, freqSlider_);
+    addAndMakeVisible(freqSlider_);
 
     dbReadout_.setFont(juce::FontOptions(11.5f, juce::Font::bold));
     dbReadout_.setJustificationType(juce::Justification::centred);
@@ -198,6 +228,7 @@ void DualEqKnob::resized() {
     const float innerSize = std::max(46.0f, dial.getWidth() * 0.70f);
     dbSlider_.setBounds(juce::Rectangle<float>(innerSize, innerSize).withCentre(dial.getCentre()).toNearestInt());
     dbReadout_.setBounds(dbPillBounds());
+    freqSlider_.setBounds(freqPillBounds());
 }
 
 void DualEqKnob::mouseMove(const juce::MouseEvent& event) {
@@ -218,6 +249,7 @@ void DualEqKnob::mouseDown(const juce::MouseEvent& event) {
     if (event.mods.isPopupMenu() || !hitsOuterRing(event.position)) return;
     auto* param = state_.getParameter(freqId_);
     if (param == nullptr || freqAttachment_ == nullptr) return;
+    freqSlider_.grabKeyboardFocus();
     draggingFreq_ = true;
     dragStartNorm_ = param->convertTo0to1(freqHz_);
     dragStartY_ = event.position.y;
@@ -266,6 +298,7 @@ void DualEqKnob::mouseWheelMove(const juce::MouseEvent& event, const juce::Mouse
 
 void DualEqKnob::setTooltip(const juce::String& text) {
     dbSlider_.setTooltip(text);
+    freqSlider_.setTooltip(text);
     dbReadout_.setTooltip(text);
     title_.setTooltip(text);
 }
