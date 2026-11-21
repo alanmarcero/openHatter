@@ -113,6 +113,26 @@ private:
     DragHandle activeHandle_ = DragHandle::none;
 };
 
+// Sets a parameter from the next MIDI event. A second click, Escape or 10 s without MIDI cancels it.
+class LearnControl final : public juce::Component, public juce::Timer {
+public:
+    LearnControl(juce::RangedAudioParameter& target, std::atomic<uint32_t>& eventCount, std::atomic<int>& lastValue,
+                 const juce::String& tooltip);
+    void resized() override;
+    bool keyPressed(const juce::KeyPress& key) override;
+    void timerCallback() override;
+
+private:
+    void stopListening();
+
+    juce::ParameterAttachment target_;
+    std::atomic<uint32_t>& eventCount_;
+    std::atomic<int>& lastValue_;
+    juce::TextButton button_{ "Learn" };
+    uint32_t armedCount_ = 0;
+    int ticksLeft_ = 0;
+};
+
 class PerformancePanel : public juce::Component {
 public:
     explicit PerformancePanel(OpenHatterProcessor& processor);
@@ -129,6 +149,8 @@ private:
     Choice rollDivision_;
     Knob rollSwing_;
     Knob rollAccent_;
+    LearnControl chokeNoteLearn_;
+    LearnControl chokeCcLearn_;
     juce::ParameterAttachment rollAttachment_;
     juce::Rectangle<int> velocityBounds_, rollBounds_;
     std::array<juce::Rectangle<int>, 3> curveBounds_{};

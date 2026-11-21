@@ -95,6 +95,10 @@ public:
     std::atomic<uint32_t> displayTriggerCount{ 0 };
     std::atomic<bool> displayMidiNoteReceived{ false };
     std::atomic<bool> displayLockedIn{ false };
+    // Learn compares these counts with the counts it saw when it armed.
+    std::atomic<uint32_t> displayNoteCount{ 0 };
+    std::atomic<int> displayLastController{ 0 };
+    std::atomic<uint32_t> displayControllerCount{ 0 };
 
 private:
     void parameterChanged(const juce::String& parameterID, float newValue) override;

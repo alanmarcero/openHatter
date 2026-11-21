@@ -12,6 +12,8 @@ namespace openhatter::ui {
 namespace {
 
 constexpr const char* kVelocityCurveHint = "Below 1.00 lifts soft hits. Above 1.00 makes them quieter.";
+constexpr int kLearnPollHz = 20;
+constexpr int kLearnTimeoutTicks = kLearnPollHz * 10;
 
 void drawSection(juce::Graphics& g, juce::Rectangle<int> bounds,
                  const juce::String& title, juce::Colour accent) {
@@ -513,6 +515,54 @@ void EnvelopePanel::resized() {
     layoutRow(getLocalBounds().reduced(24, 0).removeFromBottom(161), { &attack_, &decay_, &sustain_, &release_ });
 }
 
+LearnControl::LearnControl(juce::RangedAudioParameter& target, std::atomic<uint32_t>& eventCount,
+                           std::atomic<int>& lastValue, const juce::String& tooltip)
+    : target_(target, [](float) {}), eventCount_(eventCount), lastValue_(lastValue) {
+    button_.setTitle("Learn " + target.getName(64));
+    button_.setTooltip(tooltip);
+    button_.setToggleable(true);
+    button_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentCoral);
+    button_.onClick = [this] {
+        if (isTimerRunning()) {
+            stopListening();
+            return;
+        }
+        armedCount_ = eventCount_.load();
+        ticksLeft_ = kLearnTimeoutTicks;
+        button_.setToggleState(true, juce::dontSendNotification);
+        button_.setButtonText("Listening");
+        startTimerHz(kLearnPollHz);
+    };
+    addAndMakeVisible(button_);
+}
+
+void LearnControl::resized() {
+    button_.setBounds(getLocalBounds().withSizeKeepingCentre(std::min(130, getWidth() - 8), 38));
+}
+
+bool LearnControl::keyPressed(const juce::KeyPress& key) {
+    if (key != juce::KeyPress::escapeKey || !isTimerRunning())
+        return false;
+    stopListening();
+    return true;
+}
+
+void LearnControl::timerCallback() {
+    if (eventCount_.load() != armedCount_) {
+        target_.setValueAsCompleteGesture(static_cast<float>(lastValue_.load()));
+        stopListening();
+        return;
+    }
+    if (--ticksLeft_ <= 0)
+        stopListening();
+}
+
+void LearnControl::stopListening() {
+    stopTimer();
+    button_.setToggleState(false, juce::dontSendNotification);
+    button_.setButtonText("Learn");
+}
+
 PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
     : velocityAir_(processor.parameters, params::kVelocityAir, "Air", theme::kAccentAqua),
       velocityChick_(processor.parameters, params::kVelocityChick, "Stick", theme::kAccentCoral),
@@ -523,6 +573,12 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
       rollDivision_(processor.parameters, params::kRollDivision, "Division", theme::kAccentBrass),
       rollSwing_(processor.parameters, params::kRollSwing, "Swing", theme::kAccentBrass),
       rollAccent_(processor.parameters, params::kRollAccent, "Accent", theme::kAccentBrass),
+      chokeNoteLearn_(*processor.parameters.getParameter(params::kMidiChokeNote), processor.displayNoteCount,
+                      processor.displayMidiNoteNumber,
+                      "Click, then play a note to set the choke note. Click again or press Escape to cancel."),
+      chokeCcLearn_(*processor.parameters.getParameter(params::kMidiChokeCc), processor.displayControllerCount,
+                    processor.displayLastController,
+                    "Click, then move a hardware control to set the choke CC. Click again or press Escape to cancel."),
       rollAttachment_(*processor.parameters.getParameter(params::kRollEnabled), [this](float value) {
           const bool on = value > .5f;
           const juce::String howToEnable = "Turn Roll on to use this.";
@@ -530,10 +586,10 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
           rollSwing_.setActive(on, howToEnable);
           rollAccent_.setActive(on, howToEnable);
       }) {
-    for (juce::Component* component : std::array<juce::Component*, 9>{
+    std::ranges::for_each(std::array<juce::Component*, 11>{
              &velocityAir_, &velocityChick_, &velocityReverb_, &chokeNote_, &chokeCc_,
-             &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_})
-        addAndMakeVisible(component);
+             &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_, &chokeNoteLearn_, &chokeCcLearn_},
+        [this](juce::Component* component) { addAndMakeVisible(component); });
 
     velocityAir_.setTooltip(juce::String("Shape the air level against velocity. ") + kVelocityCurveHint);
     velocityChick_.setTooltip(juce::String("Shape the stick level against velocity. ") + kVelocityCurveHint);
@@ -596,6 +652,13 @@ void PerformancePanel::resized() {
     auto modes = roll.removeFromLeft(144);
     layoutRows(modes, { { &rollEnabled_ }, { &rollDivision_ } });
     layoutRow(roll, { &rollSwing_, &rollAccent_, &chokeNote_, &chokeCc_ });
+    // Each Learn button sits under the control it sets.
+    std::ranges::for_each(std::array{ std::pair{ &chokeNote_, &chokeNoteLearn_ }, std::pair{ &chokeCc_, &chokeCcLearn_ } },
+        [](const auto& pair) {
+            auto bounds = pair.first->getBounds();
+            pair.second->setBounds(bounds.removeFromBottom(46));
+            pair.first->setBounds(bounds);
+        });
 }
 
 EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
