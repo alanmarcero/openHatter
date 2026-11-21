@@ -4,6 +4,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <array>
+#include <atomic>
 #include <memory>
 
 class OpenHatterProcessor;
@@ -164,6 +165,29 @@ private:
     std::array<juce::Rectangle<int>, 3> sectionBounds_{};
 };
 
+// Output peak in dBFS with a 1 s hold. The light above the bar latches over 0 dBFS until a click.
+class PeakMeter final : public juce::Component, public juce::SettableTooltipClient, private juce::Timer {
+public:
+    explicit PeakMeter(std::atomic<float>& peak);
+    void paint(juce::Graphics& g) override;
+    void mouseDown(const juce::MouseEvent& event) override;
+    // Takes the loudest sample since the last read, as linear gain.
+    void pushPeak(float linearPeak, double nowMs);
+    [[nodiscard]] float heldDb() const noexcept { return heldDb_; }
+    [[nodiscard]] bool isClipped() const noexcept { return clipped_; }
+
+private:
+    static constexpr float kFloorDb = -60.0f;
+    void timerCallback() override;
+
+    std::atomic<float>& peak_;
+    float levelDb_ = kFloorDb;
+    float heldDb_ = kFloorDb;
+    double heldAtMs_ = 0.0;
+    double lastMs_ = 0.0;
+    bool clipped_ = false;
+};
+
 /** Output EQ (dual-layer 3-band), stereo width, gain, and limiter on the main Hat page. */
 class OutputPanel : public juce::Component {
 public:
@@ -180,6 +204,7 @@ private:
     Knob limiterCeiling_;
     Knob limiterRelease_;
     Toggle limiterEnabled_;
+    PeakMeter peakMeter_;
     SectionLockButton outputLock_;
     juce::ParameterAttachment limiterAttachment_;
 };

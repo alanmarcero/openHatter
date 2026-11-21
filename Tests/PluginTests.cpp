@@ -1561,6 +1561,58 @@ TEST_CASE("Drag export uses the locked hit and otherwise renders a fresh WAV", "
     CHECK(fingerprint(unlocked) != fingerprint(locked));
 }
 
+TEST_CASE("The Output strip meters peaks after Output gain in signal order", "[plugin][ui][meter]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    processor.prepareToPlay(48000.0, 512);
+    juce::AudioBuffer<float> audio(2, 512);
+    juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1, 66, static_cast<juce::uint8>(127)), 0);
+    processor.processBlock(audio, midi);
+    const float loudest = std::max(audio.getMagnitude(0, 0, 512), audio.getMagnitude(1, 0, 512));
+    REQUIRE(loudest > 0.01f);
+    auto* gain = processor.parameters.getParameter(ids::kOutputGain);
+    gain->setValueNotifyingHost(gain->convertTo0to1(-36.0f));
+    midi.clear();
+    processor.processBlock(audio, midi);
+    CHECK(std::abs(processor.displayPeak.exchange(0.0f) - loudest) < 1.0e-6f);
+    CHECK(processor.displayPeak.load() < 1.0e-9f);
+
+    std::atomic<float> source{ 0.0f };
+    openhatter::ui::PeakMeter meter(source);
+    meter.pushPeak(1.2f, 1000.0);
+    CHECK(meter.isClipped());
+    CHECK(std::abs(meter.heldDb() - 1.584f) < 0.01f);
+    meter.pushPeak(0.1f, 1900.0);
+    CHECK(std::abs(meter.heldDb() - 1.584f) < 0.01f);
+    meter.pushPeak(0.1f, 2100.0);
+    CHECK(std::abs(meter.heldDb() + 20.0f) < 0.01f);
+    click(meter);
+    CHECK_FALSE(meter.isClipped());
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto leftEdge = [&](auto matches) {
+        const auto found = findAll(*editor, true, matches);
+        REQUIRE(found.size() == 1);
+        return editor->getLocalArea(found.front(), found.front()->getLocalBounds()).getX();
+    };
+    const auto byId = [&](const char* id) {
+        return leftEdge([id](juce::Component& component) { return component.getComponentID() == id; });
+    };
+    const std::array order{ byId(ids::kStereoWidth), byId(ids::kEqLowDb), byId(ids::kEqMidDb), byId(ids::kEqHighDb),
+                            byId(ids::kLimiterEnabled), byId(ids::kLimiterCeiling), byId(ids::kLimiterRelease),
+                            byId(ids::kOutputGain),
+                            leftEdge([](juce::Component& component) {
+                                return dynamic_cast<openhatter::ui::PeakMeter*>(&component) != nullptr;
+                            }) };
+    CHECK(std::ranges::is_sorted(order, std::less_equal<>()));
+    const auto ceiling = findAll(*editor, true, [](juce::Component& component) {
+        return component.getComponentID() == ids::kLimiterCeiling;
+    });
+    REQUIRE(ceiling.size() == 1);
+    CHECK(ceiling.front()->getName() == "Limiter ceiling");
+}
+
 TEST_CASE("Tabs and Escape close the preset browser", "[plugin][ui][browser]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());

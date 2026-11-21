@@ -190,7 +190,10 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
                     std::span<const openhatter::core::MidiCcEvent>(midiCcEvents_.data(), ccEventCount),
                     &layerOutputs);
 
-    displayPeak.store(engine_.currentPeak());
+    // The meter reads with exchange, so keep the loudest block since its last read.
+    const float blockPeak = engine_.currentPeak();
+    float shownPeak = displayPeak.load();
+    while (blockPeak > shownPeak && !displayPeak.compare_exchange_weak(shownPeak, blockPeak)) {}
     displayBeatPhase.store(engine_.currentBeatPhase());
     displayHatProgress.store(engine_.currentHatProgress());
     displayTriggerCount.store(engine_.triggerSerial());

@@ -100,6 +100,7 @@ inline constexpr const char* kRollAccent = "roll_accent";
 
 // Display text that the editor readouts share with the parameters.
 juce::String formatMs(float ms);
+juce::String formatDb(float db);
 juce::String formatHz(float hz);
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
