@@ -15,6 +15,7 @@ public:
     void setLoadFactory(std::function<void(int index)> callback);
     void setLoadUser(std::function<void(const juce::String& name)> callback);
     void setCaptureState(std::function<juce::ValueTree()> callback);
+    void setDismiss(std::function<void()> callback);
     void refresh();
     [[nodiscard]] int rowCount() const noexcept { return static_cast<int>(rows_.size()); }
 
@@ -38,6 +39,7 @@ private:
     std::function<void(int)> loadFactory_;
     std::function<void(const juce::String&)> loadUser_;
     std::function<juce::ValueTree()> captureState_;
+    std::function<void()> dismiss_;
     std::vector<PresetEntry> rows_;
     bool favoritesOnly_ = false;
 
