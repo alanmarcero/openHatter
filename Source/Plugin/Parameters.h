@@ -98,7 +98,7 @@ inline constexpr const char* kRollDivision = "roll_division";
 inline constexpr const char* kRollSwing = "roll_swing";
 inline constexpr const char* kRollAccent = "roll_accent";
 
-// Display text that the editor readouts share with the parameters.
+// The editor readouts use the same text as the parameters.
 juce::String formatMs(float ms);
 juce::String formatDb(float db);
 juce::String formatHz(float hz);

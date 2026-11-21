@@ -16,7 +16,7 @@ class OpenHatterProcessor : public juce::AudioProcessor,
 public:
     enum class PresetSection : size_t { articulation, envelope, air, exciter, dynamics, spaceAndOutput, output, count };
 
-    // The editor lays out at this design size and scales from 70% to 200%.
+    // The design size. The editor scales it from 70% to 200%.
     static constexpr int kEditorWidth = 1060;
     static constexpr int kEditorHeight = 904;
     static constexpr int kEditorMinWidth = kEditorWidth * 7 / 10;

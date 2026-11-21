@@ -38,7 +38,7 @@ juce::String formatRatio(float ratio) {
     return juce::String(ratio, 1) + ":1";
 }
 
-// The reverb gate stays open at 0 ms, so the display shows Off there.
+// At 0 ms the reverb gate stays open, so the display shows Off.
 juce::String formatGate(float ms) {
     if (ms <= 0.0f) return "Off";
     return formatMs(ms);

@@ -6,10 +6,6 @@
 
 namespace openhatter::ui {
 
-namespace {
-constexpr float kInactiveAlpha = 0.4f;
-} // namespace
-
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     slider_.setName(title);
     slider_.setTitle(title);
@@ -48,7 +44,7 @@ void Knob::setTooltip(const juce::String& text) {
 }
 
 void Knob::setActive(bool active, const juce::String& howToEnable) {
-    setAlpha(active ? 1.0f : kInactiveAlpha);
+    setAlpha(active ? 1.0f : theme::kDimAlpha);
     auto text = tooltip_;
     if (!active) text = (text + " " + howToEnable).trimStart();
     slider_.setTooltip(text);
@@ -109,9 +105,7 @@ DualEqKnob::DualEqKnob(Apvts& state, const juce::String& freqId, const juce::Str
 }
 
 void DualEqKnob::updateDbReadout() {
-    if (auto* dbParam = state_.getParameter(dbId_))
-        dbReadout_.setText(dbParam->getText(dbParam->convertTo0to1(static_cast<float>(dbSlider_.getValue())), 0),
-                           juce::dontSendNotification);
+    dbReadout_.setText(dbSlider_.getTextFromValue(dbSlider_.getValue()), juce::dontSendNotification);
 }
 
 juce::Rectangle<float> DualEqKnob::dialBounds() const {
@@ -303,7 +297,7 @@ void Choice::setTooltip(const juce::String& text) {
 }
 
 void Choice::setActive(bool active, const juce::String& howToEnable) {
-    setAlpha(active ? 1.0f : kInactiveAlpha);
+    setAlpha(active ? 1.0f : theme::kDimAlpha);
     auto text = tooltip_;
     if (!active) text = (text + " " + howToEnable).trimStart();
     box_.setTooltip(text);

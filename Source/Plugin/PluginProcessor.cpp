@@ -377,7 +377,7 @@ void OpenHatterProcessor::loadUserPreset(const juce::ValueTree& state, const juc
 
 void OpenHatterProcessor::markPresetSaved(const juce::String& name) {
     legacySound_.store(false);
-    parameters.state.setProperty("user_preset", name, nullptr);
+    setUserPresetName(name);
     presetEdited_.store(false);
 }
 
@@ -395,8 +395,8 @@ juce::String OpenHatterProcessor::presetDisplayName() {
 juce::ValueTree OpenHatterProcessor::currentPresetTree() {
     auto tree = parameters.copyState();
     stripSlotExtras(tree);
-    for (const char* key : { "locked_wav", "preset_catalog_version", "legacy_sound", "user_preset", "preset_edited" })
-        tree.removeProperty(key, nullptr);
+    std::ranges::for_each(std::array{ "locked_wav", "preset_catalog_version", "legacy_sound", "user_preset", "preset_edited" },
+        [&tree](const char* key) { tree.removeProperty(key, nullptr); });
     for (size_t i = 0; i < sectionLocks_.size(); ++i)
         tree.removeProperty("section_lock_" + juce::String(i), nullptr);
     std::vector<juce::ValueTree> drop;

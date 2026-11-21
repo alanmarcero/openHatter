@@ -46,7 +46,7 @@ private:
     std::function<void(const juce::String&)> saved_;
     std::vector<PresetEntry> rows_;
     bool favoritesOnly_ = false;
-    // Save or Delete while it waits for the confirming click.
+    // The button that waits for a second click, or null.
     juce::TextButton* armed_ = nullptr;
 
     juce::TextEditor search_;

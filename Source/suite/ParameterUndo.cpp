@@ -6,7 +6,7 @@ namespace {
 
 constexpr size_t kMaxSteps = 100;
 
-// The capture and restore callbacks touch the parameter tree, which belongs to the message thread.
+// The callbacks touch the parameter tree, which belongs to the message thread.
 bool onMessageThread() {
     auto* manager = juce::MessageManager::getInstanceWithoutCreating();
     return manager == nullptr || manager->isThisTheMessageThread();

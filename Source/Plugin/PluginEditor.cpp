@@ -217,8 +217,10 @@ void OpenHatterEditor::timerCallback() {
     refreshHistoryButtons();
     const bool locked = processor_.parameters.getRawParameterValue(openhatter::params::kLockIn)->load() > 0.5f;
     const auto lockText = locked ? juce::String("Locked") : juce::String("Lock in");
-    if (lockBtn_.getButtonText() != lockText)
+    if (lockBtn_.getButtonText() != lockText) {
         lockBtn_.setButtonText(lockText);
+        lockBtn_.setTitle(lockText);
+    }
     const auto size = processor_.editorSize();
     if (size.x > 0 && (size.x != getWidth() || size.y != getHeight()))
         setSize(size.x, size.y);
@@ -261,11 +263,8 @@ void OpenHatterEditor::paint(juce::Graphics& g) {
 }
 
 void OpenHatterEditor::resized() {
-    const float scale = std::min(static_cast<float>(getWidth()) / static_cast<float>(content_.getWidth()),
-                                 static_cast<float>(getHeight()) / static_cast<float>(content_.getHeight()));
-    const float left = (static_cast<float>(getWidth()) - static_cast<float>(content_.getWidth()) * scale) * 0.5f;
-    const float top = (static_cast<float>(getHeight()) - static_cast<float>(content_.getHeight()) * scale) * 0.5f;
-    content_.setTransform(juce::AffineTransform::scale(scale).translated(left, top));
+    content_.setTransform(juce::RectanglePlacement().getTransformToFit(content_.getLocalBounds().toFloat(),
+                                                                       getLocalBounds().toFloat()));
     processor_.setEditorSize(getWidth(), getHeight());
     juce::AudioProcessorEditor::resized();
 }

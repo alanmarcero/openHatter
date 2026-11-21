@@ -8,13 +8,11 @@ namespace {
 constexpr float kArcThickness = 2.5f;
 constexpr float kCornerRadius = 4.5f;
 constexpr float kControlFontSize = 14.0f;
-constexpr float kDisabledAlpha = 0.4f;
 
-// Draws a disabled control into a layer at 40% opacity.
 class DisabledLayer {
 public:
     DisabledLayer(juce::Graphics& g, const juce::Component& control) : g_(g), dimmed_(!control.isEnabled()) {
-        if (dimmed_) g_.beginTransparencyLayer(kDisabledAlpha);
+        if (dimmed_) g_.beginTransparencyLayer(theme::kDimAlpha);
     }
     ~DisabledLayer() {
         if (dimmed_) g_.endTransparencyLayer();

@@ -10,6 +10,8 @@
 namespace openhatter::ui {
 namespace {
 
+constexpr const char* kVelocityCurveHint = "Below 1.00 lifts soft hits. Above 1.00 makes them quieter.";
+
 void drawSection(juce::Graphics& g, juce::Rectangle<int> bounds,
                  const juce::String& title, juce::Colour accent) {
     g.setColour(theme::kPanel);
@@ -111,7 +113,7 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
         const juce::Rectangle<float> track(326, static_cast<float>(y + 27), static_cast<float>(pitchX - 387), 4);
         g.setColour(theme::kPanelEdge);
         g.fillRoundedRectangle(track, 2);
-        g.setColour(colour.withAlpha(held_ ? 0.4f : 1.0f));
+        g.setColour(colour.withAlpha(held_ ? theme::kDimAlpha : 1.0f));
         g.fillRoundedRectangle(track.withWidth(track.getWidth() * (held_ ? 1.0f : value / scale)), 2);
     };
     decayBar(58, "Air", airMs_, theme::kAccentAqua);
@@ -249,7 +251,7 @@ void HatSynthPanel::resized() {
     const auto airLockBounds = airLock_.getBounds();
     playModeBadge_.setBounds(airLockBounds.getX() - 94, airLockBounds.getCentreY() - 13, 86, 26);
     noiseType_.setBounds(air.removeFromTop(64));
-    // Contact sets the stick sound, so it sits between the body row and the stick row.
+    // Contact sits above the stick row it changes.
     const int rowHeight = (stick.getHeight() - 64) / (advanced_ ? 4 : 2);
     layoutRow(stick.removeFromTop(rowHeight), { &bodyLevel_, &bodyTone_, &bodyDecay_ });
     clickType_.setBounds(stick.removeFromTop(64));
@@ -299,7 +301,8 @@ EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
     attack_.setTooltip("Fade each note in over this time.");
     decay_.setTooltip("Set the time from full level down to the sustain level.");
     sustain_.setTooltip("Set the level after the decay. Hold notes keeps this level until note-off.");
-    release_.setTooltip("Set the fade after note-off in Hold notes mode. One-shot hits cap it at 800 ms.");
+    release_.setTooltip("Set the fade after note-off in Hold notes mode. One-shot hits cap it at "
+                        + params::formatMs(core::kOneShotMaxReleaseMs) + ".");
     addAndMakeVisible(envelopeLock_);
     std::ranges::for_each(std::array{ &oneShot_, &holdNotes_ }, [this](juce::TextButton* button) {
         button->setToggleable(true);
@@ -533,9 +536,9 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
              &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_})
         addAndMakeVisible(component);
 
-    velocityAir_.setTooltip("Shape the air level against velocity. Below 1.00 lifts soft hits. Above 1.00 makes them quieter.");
-    velocityChick_.setTooltip("Shape the stick level against velocity. Below 1.00 lifts soft hits. Above 1.00 makes them quieter.");
-    velocityReverb_.setTooltip("Shape the reverb send against velocity. Below 1.00 lifts soft hits. Above 1.00 makes them quieter.");
+    velocityAir_.setTooltip(juce::String("Shape the air level against velocity. ") + kVelocityCurveHint);
+    velocityChick_.setTooltip(juce::String("Shape the stick level against velocity. ") + kVelocityCurveHint);
+    velocityReverb_.setTooltip(juce::String("Shape the reverb send against velocity. ") + kVelocityCurveHint);
     std::ranges::for_each(std::array{ &velocityAir_, &velocityChick_, &velocityReverb_ }, [this](Knob* knob) {
         knob->slider().onValueChange = [this] { repaint(); };
     });
@@ -553,7 +556,7 @@ void PerformancePanel::paint(juce::Graphics& g) {
     drawSection(g, rollBounds_, "Host roll & MIDI choke", theme::kAccentCoral);
     g.setColour(theme::kTextDim);
     g.setFont(juce::FontOptions(15.0f));
-    g.drawText("Each curve plots level against velocity. Below 1.00 lifts soft hits. Above 1.00 makes them quieter.",
+    g.drawText(juce::String("Each curve plots level against velocity. ") + kVelocityCurveHint,
                velocityBounds_.getX() + 22, velocityBounds_.getY() + 40, velocityBounds_.getWidth() - 44, 22,
                juce::Justification::left);
 
@@ -689,7 +692,7 @@ void EffectsPanel::resized() {
 }
 
 PeakMeter::PeakMeter(std::atomic<float>& peak) : peak_(peak) {
-    // Start from silence, not from the loudest hit since the editor last closed.
+    // Drop the peak held while the editor was closed.
     peak_.store(0.0f);
     setTooltip("Output peak in dBFS after Output gain. The light latches above 0 dBFS. Click the meter to clear it.");
     startTimerHz(30);
@@ -771,9 +774,10 @@ OutputPanel::OutputPanel(OpenHatterProcessor& processor)
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::output); },
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::output, on); }),
       limiterAttachment_(*processor.parameters.getParameter(params::kLimiterEnabled), [this](float value) {
+          const bool on = value > .5f;
           const juce::String howToEnable = "Turn the limiter on to use this.";
-          limiterCeiling_.setActive(value > .5f, howToEnable);
-          limiterRelease_.setActive(value > .5f, howToEnable);
+          limiterCeiling_.setActive(on, howToEnable);
+          limiterRelease_.setActive(on, howToEnable);
       }) {
     eqLow_.setTooltip("Inner cap sets Low shelf gain (-12 to +12 dB); outer collar glides cutoff frequency smoothly.");
     eqMid_.setTooltip("Inner cap sets Mid peak gain (-12 to +12 dB); outer collar glides center frequency smoothly.");
@@ -799,7 +803,7 @@ void OutputPanel::paint(juce::Graphics& g) {
 void OutputPanel::resized() {
     outputLock_.setBounds(getWidth() - 67, 7, 56, 36);
     auto row = getLocalBounds().reduced(10, 6).withTrimmedTop(36);
-    // Left to right in signal order: width, EQ, limiter, output gain, then the meter.
+    // The row follows the signal order.
     const std::array<std::pair<juce::Component*, float>, 9> items{{
         { &masterWidth_, 9.5f }, { &eqLow_, 14.0f }, { &eqMid_, 14.0f }, { &eqHigh_, 14.0f },
         { &limiterEnabled_, 10.0f }, { &limiterCeiling_, 9.5f }, { &limiterRelease_, 9.5f },
