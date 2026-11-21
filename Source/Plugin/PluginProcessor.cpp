@@ -492,9 +492,12 @@ void OpenHatterProcessor::applyBinaryState(const void* data, int sizeInBytes, bo
     }
 
     if (loadSessionExtras) {
+        // Sessions from the free-resize versions can hold any aspect ratio.
         if (editorW >= kEditorMinWidth && editorH >= kEditorMinHeight) {
-            editorWidth_ = std::min(editorW, kEditorMaxWidth);
-            editorHeight_ = std::min(editorH, kEditorMaxHeight);
+            const double scale = std::min(editorW / static_cast<double>(kEditorWidth),
+                                          editorH / static_cast<double>(kEditorHeight));
+            editorWidth_ = std::min(juce::roundToInt(kEditorWidth * scale), kEditorMaxWidth);
+            editorHeight_ = std::min(juce::roundToInt(kEditorHeight * scale), kEditorMaxHeight);
         }
         juce::MemoryBlock slotA;
         juce::MemoryBlock slotB;

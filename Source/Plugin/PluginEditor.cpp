@@ -151,13 +151,10 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     syncPresetBox();
     setResizeLimits(OpenHatterProcessor::kEditorMinWidth, OpenHatterProcessor::kEditorMinHeight,
                     OpenHatterProcessor::kEditorMaxWidth, OpenHatterProcessor::kEditorMaxHeight);
-    const double designWidth = OpenHatterProcessor::kEditorWidth;
-    const double designHeight = OpenHatterProcessor::kEditorHeight;
-    getConstrainer()->setFixedAspectRatio(designWidth / designHeight);
+    getConstrainer()->setFixedAspectRatio(static_cast<double>(OpenHatterProcessor::kEditorWidth)
+                                          / OpenHatterProcessor::kEditorHeight);
     setResizable(true, true);
-    // Sessions from the free-resize versions can hold any aspect ratio.
-    const double scale = std::min(restoredSize.x / designWidth, restoredSize.y / designHeight);
-    setSize(juce::roundToInt(designWidth * scale), juce::roundToInt(designHeight * scale));
+    setSize(restoredSize.x, restoredSize.y);
     refreshHistoryButtons();
     startTimerHz(15);
 }
