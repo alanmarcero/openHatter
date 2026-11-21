@@ -1,5 +1,9 @@
 # Changelog
 
+## v4.8.1
+
+- **UI & Suite Fixes:** UI polish, MIDI Learn for choke and CC, zero-level dimming, EQ collar focus, unit formatting and typed-value entry, per-slot A/B undo, inline preset confirms, and screen-reader titles.
+
 ## v4.8.0 — 2026-11-20
 
 Upgrades the hat synth, effects DSP, and key-tracking control:
