@@ -48,11 +48,15 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, Style style)
     saveBtn_.onClick = [this] {
         if (captureState_ == nullptr)
             return;
+        const auto name = name_.getText().trim();
         juce::String error;
-        if (!library_.saveUser(name_.getText().trim(), captureState_(), error))
+        if (!library_.saveUser(name, captureState_(), error)) {
             status_.setText(error, juce::dontSendNotification);
-        else
-            status_.setText("Saved " + name_.getText().trim(), juce::dontSendNotification);
+            return;
+        }
+        status_.setText("Saved " + name, juce::dontSendNotification);
+        if (saved_)
+            saved_(name);
         refresh();
     };
     renameBtn_.setTooltip("Rename the selected user preset.");
@@ -106,6 +110,7 @@ void PresetBrowser::setLoadFactory(std::function<void(int)> callback) { loadFact
 void PresetBrowser::setLoadUser(std::function<void(const juce::String&)> callback) { loadUser_ = std::move(callback); }
 void PresetBrowser::setCaptureState(std::function<juce::ValueTree()> callback) { captureState_ = std::move(callback); }
 void PresetBrowser::setDismiss(std::function<void()> callback) { dismiss_ = std::move(callback); }
+void PresetBrowser::setSaved(std::function<void(const juce::String&)> callback) { saved_ = std::move(callback); }
 
 void PresetBrowser::refresh() {
     const auto selectedName = juce::isPositiveAndBelow(list_.getSelectedRow(), static_cast<int>(rows_.size()))

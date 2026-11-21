@@ -75,7 +75,10 @@ public:
 
     [[nodiscard]] juce::String activeUserPreset() const;
     void loadUserPreset(const juce::ValueTree& state, const juce::String& name);
+    void markPresetSaved(const juce::String& name);
     [[nodiscard]] juce::ValueTree currentPresetTree();
+    // The loaded preset's name, with " *" after an edit. Empty for a sound from an earlier bank.
+    [[nodiscard]] juce::String presetDisplayName();
 
     juce::UndoManager undoManager_;
     juce::AudioProcessorValueTreeState parameters;
@@ -116,6 +119,7 @@ private:
     std::array<std::atomic<bool>, static_cast<size_t>(PresetSection::count)> sectionLocks_{};
     std::atomic<int> currentProgram_{ 0 };
     std::atomic<bool> legacySound_{ false };
+    std::atomic<bool> presetEdited_{ false };
     std::atomic<bool> restoring_{ false };
     std::atomic<bool> lockWasOn_{ false };
     std::atomic<bool> lockRenderPending_{ false };

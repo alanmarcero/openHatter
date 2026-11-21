@@ -965,7 +965,7 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
     };
 
     capture("hat");
-    auto* presets = dynamic_cast<juce::ComboBox*>(find(find, *editor, "Factory preset"));
+    auto* presets = dynamic_cast<juce::ComboBox*>(find(find, *editor, "Preset"));
     REQUIRE(presets != nullptr);
     CHECK(presets->getRootMenu()->getNumItems() == 6);
     presets->setSelectedId(56, juce::sendNotificationSync);
@@ -1379,7 +1379,7 @@ TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the ma
     auto* presets = [&] {
         juce::ComboBox* box = nullptr;
         std::ranges::for_each(findAll(*editor, false, [](juce::Component&) { return true; }), [&](juce::Component* child) {
-            if (auto* candidate = dynamic_cast<juce::ComboBox*>(child); candidate && candidate->getName() == "Factory preset")
+            if (auto* candidate = dynamic_cast<juce::ComboBox*>(child); candidate && candidate->getName() == "Preset")
                 box = candidate;
         });
         return box;
@@ -1564,6 +1564,47 @@ TEST_CASE("Tabs and Escape close the preset browser", "[plugin][ui][browser]") {
     REQUIRE(search->onEscapeKey != nullptr);
     search->onEscapeKey();
     CHECK_FALSE(shown(isBrowser));
+}
+
+TEST_CASE("The header names the loaded preset and marks edits per slot and session", "[plugin][presets][name]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    auto* decay = processor.parameters.getParameter(ids::kNoiseDecay);
+    const auto edit = [&](float ms) { decay->setValueNotifyingHost(decay->convertTo0to1(ms)); };
+    const auto factory = processor.getProgramName(3);
+    processor.setCurrentProgram(3);
+    CHECK(processor.presetDisplayName() == factory);
+    edit(300.0f);
+    CHECK(processor.presetDisplayName() == factory + " *");
+
+    processor.loadUserPreset(processor.currentPresetTree(), "Room Hat");
+    CHECK(processor.presetDisplayName() == "Room Hat");
+    edit(500.0f);
+    CHECK(processor.presetDisplayName() == "Room Hat *");
+    processor.markPresetSaved("Room Hat 2");
+    CHECK(processor.presetDisplayName() == "Room Hat 2");
+
+    edit(600.0f);
+    processor.copyAbToOther();
+    processor.setCurrentProgram(5);
+    processor.selectAbSlot(1);
+    CHECK(processor.presetDisplayName() == "Room Hat 2 *");
+    processor.selectAbSlot(0);
+    CHECK(processor.presetDisplayName() == processor.getProgramName(5));
+
+    edit(700.0f);
+    juce::MemoryBlock state;
+    processor.getStateInformation(state);
+    OpenHatterProcessor restored;
+    restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+    CHECK(restored.presetDisplayName() == processor.getProgramName(5) + " *");
+
+    std::unique_ptr<juce::AudioProcessorEditor> editor(restored.createEditor());
+    const auto boxes = findAll(*editor, true, [](juce::Component& component) {
+        return dynamic_cast<juce::ComboBox*>(&component) != nullptr && component.getName() == "Preset";
+    });
+    REQUIRE(boxes.size() == 1);
+    CHECK(dynamic_cast<juce::ComboBox*>(boxes.front())->getText() == processor.getProgramName(5) + " *");
 }
 
 TEST_CASE("The editor scales its whole layout at a fixed aspect ratio", "[plugin][ui][resize]") {
