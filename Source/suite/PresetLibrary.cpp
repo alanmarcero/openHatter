@@ -207,6 +207,10 @@ bool PresetLibrary::setFavorite(const juce::String& name, bool favorite, juce::S
     return writeFavorites(error);
 }
 
+bool PresetLibrary::hasUser(const juce::String& name) const {
+    return validName(name) && !isFactoryName(name) && fileFor(name).existsAsFile();
+}
+
 juce::ValueTree PresetLibrary::readUser(const juce::String& name) const {
     if (isFactoryName(name))
         return {};

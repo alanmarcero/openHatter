@@ -30,6 +30,7 @@ public:
     bool setFavorite(const juce::String& name, bool favorite, juce::String& error);
     [[nodiscard]] bool isFavorite(const juce::String& name) const;
     [[nodiscard]] juce::ValueTree readUser(const juce::String& name) const;
+    [[nodiscard]] bool hasUser(const juce::String& name) const;
     [[nodiscard]] bool isFactoryName(const juce::String& name) const;
 
 private:

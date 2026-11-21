@@ -4,6 +4,23 @@
 #include <catch2/catch_test_macros.hpp>
 #include <algorithm>
 
+namespace {
+
+template <typename Type>
+Type* namedChild(juce::Component& parent, const juce::String& name) {
+    const auto& children = parent.getChildren();
+    const auto found = std::ranges::find_if(children, [&](juce::Component* child) { return child->getName() == name; });
+    if (found == children.end()) return nullptr;
+    return dynamic_cast<Type*>(*found);
+}
+
+juce::File emptyPresetFolder() {
+    return juce::File::getSpecialLocation(juce::File::tempDirectory)
+        .getChildFile("openhatter-browser-" + juce::Uuid().toString());
+}
+
+} // namespace
+
 TEST_CASE("A/B slots keep independent copies", "[suite][ab]") {
     suite::AbCompare compare;
     juce::MemoryBlock first("alpha", 5);
@@ -85,31 +102,64 @@ TEST_CASE("User presets save, search, favorite, rename and delete without touchi
 }
 
 TEST_CASE("Saving a preset reports the saved name so the editor can show it", "[suite][presets][save]") {
-    const auto root = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                          .getChildFile("openhatter-browser-" + juce::Uuid().toString());
+    const auto root = emptyPresetFolder();
     suite::PresetLibrary library(root);
     suite::PresetBrowser browser(library, {});
-    browser.setCaptureState([] {
-        juce::ValueTree state("PARAMETERS");
-        state.appendChild(juce::ValueTree("PARAM"), nullptr);
-        return state;
-    });
+    browser.setCaptureState([] { return juce::ValueTree("PARAMETERS"); });
     juce::String saved;
     browser.setSaved([&](const juce::String& name) { saved = name; });
-    const auto& children = browser.getChildren();
-    const auto field = std::ranges::find_if(children, [](juce::Component* child) {
-        return dynamic_cast<juce::TextEditor*>(child) != nullptr && child->getName() == "Preset name";
-    });
-    const auto save = std::ranges::find_if(children, [](juce::Component* child) {
-        auto* button = dynamic_cast<juce::TextButton*>(child);
-        return button != nullptr && button->getButtonText() == "Save";
-    });
-    REQUIRE(field != children.end());
-    REQUIRE(save != children.end());
+    auto* field = namedChild<juce::TextEditor>(browser, "Preset name");
+    auto* save = namedChild<juce::TextButton>(browser, "Save");
+    REQUIRE(field != nullptr);
+    REQUIRE(save != nullptr);
 
-    dynamic_cast<juce::TextEditor*>(*field)->setText("Room Hat", false);
-    dynamic_cast<juce::TextButton*>(*save)->onClick();
+    field->setText("Room Hat", false);
+    save->onClick();
     CHECK(saved == "Room Hat");
     CHECK(root.getChildFile("Room Hat.xml").existsAsFile());
+    root.deleteRecursively();
+}
+
+TEST_CASE("Save asks before replacing a user preset and Delete asks before removing one", "[suite][presets][confirm]") {
+    const auto root = emptyPresetFolder();
+    suite::PresetLibrary library(root);
+    const auto take = [](int number) {
+        juce::ValueTree state("PARAMETERS");
+        state.setProperty("take", number, nullptr);
+        return state;
+    };
+    juce::String error;
+    REQUIRE(library.saveUser("Room Hat", take(1), error));
+    REQUIRE(library.saveUser("Tight Hat", take(1), error));
+    suite::PresetBrowser browser(library, {});
+    browser.setCaptureState([&] { return take(2); });
+    auto* field = namedChild<juce::TextEditor>(browser, "Preset name");
+    auto* save = namedChild<juce::TextButton>(browser, "Save");
+    auto* remove = namedChild<juce::TextButton>(browser, "Delete");
+    auto* list = namedChild<juce::ListBox>(browser, "Preset list");
+    REQUIRE(field != nullptr);
+    REQUIRE(save != nullptr);
+    REQUIRE(remove != nullptr);
+    REQUIRE(list != nullptr);
+    CHECK_FALSE(save->isEnabled());
+
+    field->setText("Room Hat", false);
+    save->onClick();
+    CHECK(save->getButtonText() == "Replace?");
+    CHECK(static_cast<int>(library.readUser("Room Hat").getProperty("take")) == 1);
+    save->onClick();
+    CHECK(save->getButtonText() == "Save");
+    CHECK(static_cast<int>(library.readUser("Room Hat").getProperty("take")) == 2);
+
+    list->selectRow(0);
+    remove->onClick();
+    CHECK(remove->getButtonText() == "Delete?");
+    list->selectRow(1);
+    CHECK(remove->getButtonText() == "Delete");
+    remove->onClick();
+    CHECK(library.hasUser("Tight Hat"));
+    remove->onClick();
+    CHECK_FALSE(library.hasUser("Tight Hat"));
+    CHECK(library.hasUser("Room Hat"));
     root.deleteRecursively();
 }

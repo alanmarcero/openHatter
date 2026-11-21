@@ -7,7 +7,7 @@
 
 namespace suite {
 
-class PresetBrowser : public juce::Component, private juce::ListBoxModel {
+class PresetBrowser : public juce::Component, private juce::ListBoxModel, private juce::Timer {
 public:
     PresetBrowser(PresetLibrary& library, Style style);
     ~PresetBrowser() override;
@@ -29,11 +29,13 @@ private:
     void paintListBoxItem(int row, juce::Graphics& g, int width, int height, bool selected) override;
     void listBoxItemClicked(int row, const juce::MouseEvent& event) override;
     void selectedRowsChanged(int lastRowSelected) override;
+    void timerCallback() override;
 
     void applySearch();
     void loadRow(int row);
     void toggleFavorite(int row);
     void updateActionButtons();
+    void disarm();
 
     PresetLibrary& library_;
     Style style_;
@@ -44,6 +46,8 @@ private:
     std::function<void(const juce::String&)> saved_;
     std::vector<PresetEntry> rows_;
     bool favoritesOnly_ = false;
+    // Save or Delete while it waits for the confirming click.
+    juce::TextButton* armed_ = nullptr;
 
     juce::TextEditor search_;
     juce::TextEditor name_;
