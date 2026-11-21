@@ -218,8 +218,9 @@ void OpenHatterEditor::timerCallback() {
         lockBtn_.setButtonText(lockText);
         lockBtn_.setTitle(lockText);
     }
+    // A host can force another aspect ratio. Resize only when the stored size changed, as after a session load.
     const auto size = processor_.editorSize();
-    if (size.x > 0 && (size.x != getWidth() || size.y != getHeight()))
+    if (size != OpenHatterProcessor::fitEditorSize(getWidth(), getHeight()))
         setSize(size.x, size.y);
 }
 

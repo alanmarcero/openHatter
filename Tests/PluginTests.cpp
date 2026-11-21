@@ -1733,6 +1733,7 @@ TEST_CASE("The editor scales its whole layout at a fixed aspect ratio", "[plugin
 
     OpenHatterProcessor freeAspect;
     freeAspect.setEditorSize(1480, 1120);
+    CHECK(freeAspect.editorSize() == juce::Point<int>(1313, 1120));
     juce::MemoryBlock session;
     freeAspect.getStateInformation(session);
     OpenHatterProcessor restored;
