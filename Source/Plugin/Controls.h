@@ -14,11 +14,14 @@ public:
     void resized() override;
     void bind(Apvts& state, const juce::String& parameterId);
     void setTooltip(const juce::String& text);
+    // While inactive the knob draws dim and stays editable. Its tooltip adds howToEnable.
+    void setActive(bool active, const juce::String& howToEnable);
     [[nodiscard]] juce::Slider& slider() noexcept { return slider_; }
 
 private:
     juce::Slider slider_;
     juce::Label title_;
+    juce::String tooltip_;
     std::unique_ptr<Apvts::SliderAttachment> attachment_;
 };
 
@@ -75,11 +78,14 @@ public:
     void resized() override;
     void bind(Apvts& state, const juce::String& parameterId);
     void setTooltip(const juce::String& text);
+    // While inactive the menu draws dim and stays editable. Its tooltip adds howToEnable.
+    void setActive(bool active, const juce::String& howToEnable);
     [[nodiscard]] juce::ComboBox& box() noexcept { return box_; }
 
 private:
     juce::ComboBox box_;
     juce::Label title_;
+    juce::String tooltip_;
     std::unique_ptr<Apvts::ComboBoxAttachment> attachment_;
 };
 

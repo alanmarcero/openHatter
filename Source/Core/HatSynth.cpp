@@ -898,7 +898,7 @@ namespace {
     const float dryDuration = static_cast<float>(dryDurationSamples);
     const float sr = static_cast<float>(sampleRate);
     const float attackSamples = std::clamp(settings.ampAttackMs, 0.05f, 20.0f) * 0.001f * sr;
-    const float releaseSamples = std::clamp(settings.ampReleaseMs, 5.0f, 800.0f) * 0.001f * sr;
+    const float releaseSamples = std::clamp(settings.ampReleaseMs, 5.0f, kOneShotMaxReleaseMs) * 0.001f * sr;
     const float safeAttack = std::min(attackSamples, dryDuration * 0.30f);
     const float safeRelease = std::min(releaseSamples, dryDuration * 0.35f);
     const float decaySamples = std::clamp(settings.ampDecayMs, 1.0f, 600.0f) * 0.001f * sr;

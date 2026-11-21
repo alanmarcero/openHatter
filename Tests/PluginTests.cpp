@@ -258,6 +258,46 @@ TEST_CASE("Control labels name the right controls and match the host names", "[p
     CHECK(std::ranges::adjacent_find(names) == names.end());
 }
 
+TEST_CASE("Hold notes dims the air tail knobs and the one-shot release arc stops at its cap", "[plugin][ui][hold]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto slider = [&](const char* id) {
+        const auto found = findAll(*editor, false, [&](juce::Component& component) {
+            return dynamic_cast<juce::Slider*>(&component) != nullptr && component.getComponentID() == id;
+        });
+        REQUIRE(found.size() == 1);
+        return dynamic_cast<juce::Slider*>(found.front());
+    };
+    const auto badgeText = [&] {
+        const auto badges = findAll(*editor, false, [](juce::Component& component) {
+            auto* label = dynamic_cast<juce::Label*>(&component);
+            return label != nullptr && (label->getText() == "Held" || label->getText() == "One-shot");
+        });
+        REQUIRE(badges.size() == 1);
+        return dynamic_cast<juce::Label*>(badges.front())->getText();
+    };
+    auto* release = slider(ids::kAmpRelease);
+    const auto releaseLimit = [&] {
+        return static_cast<double>(release->getProperties()[openhatter::ui::kArcLimitProperty]);
+    };
+    const std::array tailIds{ ids::kNoiseAttack, ids::kNoiseHold, ids::kNoiseDecay, ids::kNoiseCurve };
+
+    CHECK(badgeText() == "One-shot");
+    CHECK(slider(ids::kNoiseDecay)->getParentComponent()->getAlpha() > 0.99f);
+    CHECK(std::abs(releaseLimit() - release->valueToProportionOfLength(800.0)) < 1.0e-6);
+
+    processor.parameters.getParameter(ids::kAmpEnabled)->setValueNotifyingHost(1.0f);
+    CHECK(badgeText() == "Held");
+    std::ranges::for_each(tailIds, [&](const char* id) {
+        INFO(id);
+        CHECK(slider(id)->getParentComponent()->getAlpha() < 0.5f);
+        CHECK(slider(id)->getTooltip().contains("One-shot"));
+    });
+    CHECK(slider(ids::kBodyDecay)->getParentComponent()->getAlpha() > 0.99f);
+    CHECK(releaseLimit() > 0.999);
+}
+
 TEST_CASE("OpenHatter decay scale and tempo-synced echo shape output", "[plugin][dsp]") {
     OpenHatterProcessor dryProc, enhancedProc;
     dryProc.prepareToPlay(48000.0, 16000);
@@ -918,6 +958,10 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
         CHECK(std::abs(processor.parameters.getRawParameterValue(id)->load() - value) < .01f);
     }
     capture("envelope");
+    click("Hat");
+    click("Detailed controls");
+    capture("held");
+    click("Envelope");
     click("One-shot");
     CHECK(processor.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() < .5f);
     click("Performance");

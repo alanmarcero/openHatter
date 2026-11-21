@@ -27,6 +27,8 @@ private:
     float lastVelocity_ = 0.0f;
     float airMs_ = 0;
     float bodyMs_ = 0;
+    bool held_ = false;
+    juce::ParameterAttachment holdAttachment_;
 };
 
 class HatSynthPanel : public juce::Component {
@@ -69,6 +71,8 @@ private:
 
     SectionLockButton articulationLock_;
     SectionLockButton airLock_;
+    juce::Label playModeBadge_;
+    juce::ParameterAttachment holdAttachment_;
     std::array<juce::Rectangle<int>, 2> sectionBounds_{};
     bool advanced_ = false;
 };

@@ -81,10 +81,18 @@ void EdmLookAndFeel::drawRotarySlider(
     g.setColour(theme::kTrack);
     g.strokePath(track, stroke);
 
+    const float limit = static_cast<float>(slider.getProperties().getWithDefault(kArcLimitProperty, 1.0f));
+    const float activeAngle = std::min(valueAngle, startAngle + limit * (endAngle - startAngle));
     juce::Path value;
-    value.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, originAngle, valueAngle, true);
+    value.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, originAngle, activeAngle, true);
     g.setColour(accent);
     g.strokePath(value, stroke);
+    if (activeAngle < valueAngle) {
+        juce::Path inactive;
+        inactive.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, activeAngle, valueAngle, true);
+        g.setColour(theme::kTextDim);
+        g.strokePath(inactive, stroke);
+    }
 
     const float bodyRadius = arcRadius - kArcThickness - 1.5f;
     const auto body = juce::Rectangle<float>(bodyRadius * 2.0f, bodyRadius * 2.0f).withCentre(centre);

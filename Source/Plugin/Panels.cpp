@@ -1,5 +1,6 @@
 #include "Panels.h"
 #include <BinaryData.h>
+#include "EdmLookAndFeel.h"
 #include "Parameters.h"
 #include "PluginProcessor.h"
 #include "Theme.h"
@@ -38,8 +39,13 @@ void layoutRows(juce::Rectangle<int> area,
 
 MidiMonitorPanel::MidiMonitorPanel(OpenHatterProcessor& processor)
     : processor_(processor),
-      cymbals_(juce::Drawable::createFromImageData(BinaryData::cymbalmotion_svg, BinaryData::cymbalmotion_svgSize)) {
+      cymbals_(juce::Drawable::createFromImageData(BinaryData::cymbalmotion_svg, BinaryData::cymbalmotion_svgSize)),
+      holdAttachment_(*processor.parameters.getParameter(params::kAmpEnabled), [this](float value) {
+          held_ = value > .5f;
+          repaint();
+      }) {
     if (cymbals_) upperPlate_ = cymbals_->findChildWithID("upper-plate");
+    holdAttachment_.sendInitialUpdate();
     timerCallback();
     startTimerHz(30);
 }
@@ -98,12 +104,15 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
         g.drawText(label, 326, y, 90, 22, juce::Justification::left);
         g.setColour(theme::kText);
         g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
-        g.drawText(params::formatMs(value), pitchX - 131, y, 70, 22, juce::Justification::right);
+        // Held notes keep both layers at full level until note-off.
+        auto valueText = params::formatMs(value);
+        if (held_) valueText = "Held";
+        g.drawText(valueText, pitchX - 131, y, 70, 22, juce::Justification::right);
         const juce::Rectangle<float> track(326, static_cast<float>(y + 27), static_cast<float>(pitchX - 387), 4);
         g.setColour(theme::kPanelEdge);
         g.fillRoundedRectangle(track, 2);
-        g.setColour(colour);
-        g.fillRoundedRectangle(track.withWidth(track.getWidth() * value / scale), 2);
+        g.setColour(colour.withAlpha(held_ ? 0.4f : 1.0f));
+        g.fillRoundedRectangle(track.withWidth(track.getWidth() * (held_ ? 1.0f : value / scale)), 2);
     };
     decayBar(58, "Air", airMs_, theme::kAccentAqua);
     decayBar(104, "Body", bodyMs_, theme::kAccentBrass);
@@ -159,7 +168,18 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::articulation, on); }),
       airLock_("Air", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::air); },
-          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, on); }) {
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, on); }),
+      holdAttachment_(*processor.parameters.getParameter(params::kAmpEnabled), [this](float value) {
+          const bool held = value > .5f;
+          playModeBadge_.setText(held ? "Held" : "One-shot", juce::dontSendNotification);
+          playModeBadge_.setColour(juce::Label::textColourId, held ? theme::kAccentBrass : theme::kAccentAqua);
+          playModeBadge_.setTooltip(held ? "MIDI notes sustain until note-off. Choose One-shot on Envelope to change it."
+                                         : "Each MIDI note plays its full air tail. Choose Hold notes on Envelope to change it.");
+          std::ranges::for_each(std::array{ &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_ }, [held](Knob* knob) {
+              knob->setActive(!held, "Held notes ignore this setting. Only Preview hat uses it. "
+                                     "Choose One-shot on Envelope to use it.");
+          });
+      }) {
     decayScale_.setTooltip("Scale hiss and bronze body decays together to morph between closed and open hats.");
     hissColor_.setTooltip("Tilt the hiss sheen from warm bronze (-1) to airy uplift shimmer (+1).");
     hissDensity_.setTooltip("Control metallic harmonic modulation, unison spread, or comb feedback density.");
@@ -168,13 +188,18 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
     bodyTone_.setTooltip("Sweep the bronze shell resonant chest modes from dark warm weight to biting bronze.");
     bodyDecay_.setTooltip("Set how long the bronze cymbal shell resonance sustains.");
     keyTracking_.setTooltip("Tune metallic partials and shell modes to the played MIDI note. 0 keeps every note identical.");
-    std::ranges::for_each(std::array<juce::Component*, 28>{
+    playModeBadge_.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+    playModeBadge_.setJustificationType(juce::Justification::centred);
+    playModeBadge_.setColour(juce::Label::backgroundColourId, theme::kBackground);
+    playModeBadge_.setColour(juce::Label::outlineColourId, theme::kPanelEdge);
+    std::ranges::for_each(std::array<juce::Component*, 29>{
              &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_,
              &noiseWidth_, &decayScale_, &noiseLevel_, &hissColor_, &hissDensity_, &hissDrive_,
              &bodyLevel_, &bodyTone_, &bodyDecay_, &preBursts_, &preSpread_, &preDecay_, &preJitter_,
              &flamSpread_, &keyTracking_, &preLevel_, &clickType_, &clickLevel_, &clickFreq_,
-             &articulationLock_, &airLock_ },
+             &articulationLock_, &airLock_, &playModeBadge_ },
         [this](juce::Component* child) { addAndMakeVisible(child); });
+    holdAttachment_.sendInitialUpdate();
     setAdvancedMode(false);
 }
 
@@ -203,6 +228,8 @@ void HatSynthPanel::resized() {
         [](const auto& pair) {
             pair.second->setBounds(pair.first->removeFromTop(36).removeFromRight(56));
         });
+    const auto airLockBounds = airLock_.getBounds();
+    playModeBadge_.setBounds(airLockBounds.getX() - 94, airLockBounds.getCentreY() - 13, 86, 26);
     noiseType_.setBounds(air.removeFromTop(64));
     // Contact sets the stick sound, so it sits between the body row and the stick row.
     const int rowHeight = (stick.getHeight() - 64) / (advanced_ ? 4 : 2);
@@ -242,6 +269,9 @@ EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
       gateAttachment_(*processor.parameters.getParameter(params::kAmpEnabled), [this](float value) {
           holdNotes_.setToggleState(value > .5f, juce::dontSendNotification);
           oneShot_.setToggleState(value <= .5f, juce::dontSendNotification);
+          auto& release = release_.slider();
+          const double oneShotLimit = release.valueToProportionOfLength(core::kOneShotMaxReleaseMs);
+          release.getProperties().set(kArcLimitProperty, value > .5f ? 1.0 : oneShotLimit);
           repaint();
       }) {
     oneShot_.setTooltip("Let each hit play its full air tail, even after key up.");

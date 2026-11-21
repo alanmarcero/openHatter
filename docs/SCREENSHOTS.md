@@ -12,7 +12,7 @@ The editor opens at 1060 × 904 and can be resized. These captures come from the
 
 ![Exciter, dynamics, reverb and master settings](../assets/openHatter-effects.png)
 
-Regenerate all five captures from the repository root with a release build of the plug-in tests.
+Regenerate the captures from the repository root with a release build of the plug-in tests.
 
 ```sh
 OPENHATTER_CAPTURE_DIR="$PWD/assets" build/openhatter_plugin_tests '[plugin][gui]'
