@@ -242,13 +242,11 @@ void OpenHatterProcessor::setCurrentProgram(int index) {
     const auto& presets = openhatter::presets::factoryPresets();
     if (index >= 0 && index < static_cast<int>(presets.size())) {
         currentProgram_ = index;
-        legacySound_.store(false);
         parameterUndo_->beginChange();
         openhatter::presets::apply(presets[static_cast<size_t>(index)], parameters, sectionLockSnapshot());
         if (auto* param = parameters.getParameter(openhatter::params::kPreset))
             param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(index)));
-        setUserPresetName({});
-        presetEdited_.store(false);
+        setLoadedPreset({});
         parameterUndo_->endChange();
     }
 }
@@ -355,10 +353,6 @@ juce::String OpenHatterProcessor::activeUserPreset() const {
     return parameters.state.getProperty("user_preset").toString();
 }
 
-void OpenHatterProcessor::setUserPresetName(const juce::String& name) {
-    parameters.state.setProperty("user_preset", name, nullptr);
-}
-
 void OpenHatterProcessor::loadUserPreset(const juce::ValueTree& state, const juce::String& name) {
     std::vector<std::pair<juce::String, float>> values;
     for (const auto& child : state) {
@@ -369,15 +363,13 @@ void OpenHatterProcessor::loadUserPreset(const juce::ValueTree& state, const juc
     }
     parameterUndo_->beginChange();
     openhatter::presets::applyValues(values, parameters, sectionLockSnapshot());
-    legacySound_.store(false);
-    setUserPresetName(name);
-    presetEdited_.store(false);
+    setLoadedPreset(name);
     parameterUndo_->endChange();
 }
 
-void OpenHatterProcessor::markPresetSaved(const juce::String& name) {
+void OpenHatterProcessor::setLoadedPreset(const juce::String& name) {
     legacySound_.store(false);
-    setUserPresetName(name);
+    parameters.state.setProperty("user_preset", name, nullptr);
     presetEdited_.store(false);
 }
 

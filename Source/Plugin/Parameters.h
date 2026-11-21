@@ -103,6 +103,9 @@ juce::String formatMs(float ms);
 juce::String formatDb(float db);
 juce::String formatHz(float hz);
 
+// The MIDI monitor and the choke note both call middle C "C4".
+inline constexpr int kMiddleCOctave = 4;
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTreeState& apvts);
 

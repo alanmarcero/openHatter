@@ -74,7 +74,8 @@ public:
 
     [[nodiscard]] juce::String activeUserPreset() const;
     void loadUserPreset(const juce::ValueTree& state, const juce::String& name);
-    void markPresetSaved(const juce::String& name);
+    // Names the sound as the loaded preset and clears the edit mark. An empty name means the factory program.
+    void setLoadedPreset(const juce::String& name);
     [[nodiscard]] juce::ValueTree currentPresetTree();
     // The loaded preset's name, with " *" after an edit. Empty for a sound from an earlier bank.
     [[nodiscard]] juce::String presetDisplayName();
@@ -99,7 +100,6 @@ private:
     void applyBinaryState(const void* data, int sizeInBytes, bool loadSessionExtras);
     [[nodiscard]] juce::MemoryBlock captureSlotState();
     void restoreSlotState(const juce::MemoryBlock& block);
-    void setUserPresetName(const juce::String& name);
     [[nodiscard]] std::vector<uint8_t> renderOfflineWav() const;
     void storeLockedWav(std::vector<uint8_t> wav);
     void clearLockedWav();

@@ -74,23 +74,18 @@ void EdmLookAndFeel::drawRotarySlider(
     const float originAngle = isBipolar ? (startAngle + endAngle) / 2.0f : startAngle;
     const auto stroke = juce::PathStrokeType(kArcThickness, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
 
-    juce::Path track;
-    track.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, startAngle, endAngle, true);
-    g.setColour(theme::kTrack);
-    g.strokePath(track, stroke);
-
+    const auto strokeArc = [&](float from, float to, juce::Colour colour) {
+        juce::Path arc;
+        arc.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, from, to, true);
+        g.setColour(colour);
+        g.strokePath(arc, stroke);
+    };
+    strokeArc(startAngle, endAngle, theme::kTrack);
     const float limit = static_cast<float>(slider.getProperties().getWithDefault(kArcLimitProperty, 1.0f));
     const float activeAngle = std::min(valueAngle, startAngle + limit * (endAngle - startAngle));
-    juce::Path value;
-    value.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, originAngle, activeAngle, true);
-    g.setColour(accent);
-    g.strokePath(value, stroke);
-    if (activeAngle < valueAngle) {
-        juce::Path inactive;
-        inactive.addCentredArc(centre.x, centre.y, arcRadius, arcRadius, 0.0f, activeAngle, valueAngle, true);
-        g.setColour(theme::kTextDim);
-        g.strokePath(inactive, stroke);
-    }
+    strokeArc(originAngle, activeAngle, accent);
+    if (activeAngle < valueAngle)
+        strokeArc(activeAngle, valueAngle, theme::kTextDim);
 
     const float bodyRadius = arcRadius - kArcThickness - 1.5f;
     const auto body = juce::Rectangle<float>(bodyRadius * 2.0f, bodyRadius * 2.0f).withCentre(centre);
