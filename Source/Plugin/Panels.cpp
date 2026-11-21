@@ -496,7 +496,14 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
       rollEnabled_(processor.parameters, params::kRollEnabled, "Roll off", "Roll on", theme::kAccentBrass),
       rollDivision_(processor.parameters, params::kRollDivision, "Division", theme::kAccentBrass),
       rollSwing_(processor.parameters, params::kRollSwing, "Swing", theme::kAccentBrass),
-      rollAccent_(processor.parameters, params::kRollAccent, "Accent", theme::kAccentBrass) {
+      rollAccent_(processor.parameters, params::kRollAccent, "Accent", theme::kAccentBrass),
+      rollAttachment_(*processor.parameters.getParameter(params::kRollEnabled), [this](float value) {
+          const bool on = value > .5f;
+          const juce::String howToEnable = "Turn Roll on to use this.";
+          rollDivision_.setActive(on, howToEnable);
+          rollSwing_.setActive(on, howToEnable);
+          rollAccent_.setActive(on, howToEnable);
+      }) {
     for (juce::Component* component : std::array<juce::Component*, 9>{
              &velocityAir_, &velocityChick_, &velocityReverb_, &chokeNote_, &chokeCc_,
              &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_})
@@ -511,6 +518,7 @@ PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
     rollDivision_.setTooltip("Host-synced roll step size.");
     rollSwing_.setTooltip("Delays alternating roll steps while keeping the average rate on the host grid.");
     rollAccent_.setTooltip("Velocity boost for every fourth roll hit.");
+    rollAttachment_.sendInitialUpdate();
 }
 
 void PerformancePanel::paint(juce::Graphics& g) {
@@ -556,7 +564,10 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::dynamics, on); }),
       spaceLock_("Space", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput); },
-          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput, on); }) {
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput, on); }),
+      reverseAttachment_(*processor.parameters.getParameter(params::kReverseMode), [this](float mode) {
+          reverseMix_.setActive(mode > .5f, "Choose a Reverse sync mode to use this.");
+      }) {
     echoMix_.setTooltip("Blend a tempo-synced dotted-sixteenth stereo ping-pong echo.");
     std::ranges::for_each(std::array<juce::Component*, 21>{
              &distType_, &distDrive_, &distTone_, &distMix_, &compThresh_, &compRatio_, &compAttack_, &compRelease_,
@@ -564,6 +575,7 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
              &reverbDamp_, &reverbGate_, &reverbMix_, &echoMix_, &reverseMode_, &reverseMix_,
              &exciterLock_, &dynamicsLock_, &spaceLock_},
         [this](juce::Component* component) { addAndMakeVisible(component); });
+    reverseAttachment_.sendInitialUpdate();
 }
 
 void EffectsPanel::paint(juce::Graphics& g) {
@@ -609,7 +621,12 @@ OutputPanel::OutputPanel(OpenHatterProcessor& processor)
       limiterEnabled_(processor.parameters, params::kLimiterEnabled, "Limiter off", "Limiter on", theme::kAccentBrass),
       outputLock_("Output", theme::kAccentAqua,
           [&processor] { return processor.isSectionLocked(OpenHatterProcessor::PresetSection::output); },
-          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::output, on); }) {
+          [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::output, on); }),
+      limiterAttachment_(*processor.parameters.getParameter(params::kLimiterEnabled), [this](float value) {
+          const juce::String howToEnable = "Turn the limiter on to use this.";
+          limiterCeiling_.setActive(value > .5f, howToEnable);
+          limiterRelease_.setActive(value > .5f, howToEnable);
+      }) {
     eqLow_.setTooltip("Inner cap sets Low shelf gain (-12 to +12 dB); outer collar glides cutoff frequency smoothly.");
     eqMid_.setTooltip("Inner cap sets Mid peak gain (-12 to +12 dB); outer collar glides center frequency smoothly.");
     eqHigh_.setTooltip("Inner cap sets High shelf gain (-12 to +12 dB); outer collar glides cutoff frequency smoothly.");
@@ -618,6 +635,7 @@ OutputPanel::OutputPanel(OpenHatterProcessor& processor)
              &eqLow_, &eqMid_, &eqHigh_, &masterWidth_, &outputGain_,
              &limiterCeiling_, &limiterRelease_, &limiterEnabled_, &outputLock_},
         [this](juce::Component* component) { addAndMakeVisible(component); });
+    limiterAttachment_.sendInitialUpdate();
 }
 
 void OutputPanel::paint(juce::Graphics& g) {

@@ -298,6 +298,44 @@ TEST_CASE("Hold notes dims the air tail knobs and the one-shot release arc stops
     CHECK(releaseLimit() > 0.999);
 }
 
+TEST_CASE("Switched-off sections dim the controls they disable", "[plugin][ui][inactive]") {
+    namespace ids = openhatter::params;
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto control = [&](const char* id) {
+        const auto found = findAll(*editor, false, [&](juce::Component& component) {
+            return component.getComponentID() == id;
+        });
+        REQUIRE(found.size() == 1);
+        return found.front();
+    };
+    const auto set = [&](const char* id, float value) {
+        auto* parameter = processor.parameters.getParameter(id);
+        parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    };
+    const std::array dependents{ ids::kLimiterCeiling, ids::kLimiterRelease, ids::kRollDivision, ids::kRollSwing,
+                                 ids::kRollAccent, ids::kReverseMix };
+
+    set(ids::kLimiterEnabled, 0.0f);
+    set(ids::kRollEnabled, 0.0f);
+    set(ids::kReverseMode, 0.0f);
+    std::ranges::for_each(dependents, [&](const char* id) {
+        INFO(id);
+        CHECK(control(id)->getParentComponent()->getAlpha() < 0.5f);
+    });
+    auto* ceiling = dynamic_cast<juce::SettableTooltipClient*>(control(ids::kLimiterCeiling));
+    REQUIRE(ceiling != nullptr);
+    CHECK(ceiling->getTooltip().contains("Turn the limiter on"));
+
+    set(ids::kLimiterEnabled, 1.0f);
+    set(ids::kRollEnabled, 1.0f);
+    set(ids::kReverseMode, 2.0f);
+    std::ranges::for_each(dependents, [&](const char* id) {
+        INFO(id);
+        CHECK(control(id)->getParentComponent()->getAlpha() > 0.99f);
+    });
+}
+
 TEST_CASE("OpenHatter decay scale and tempo-synced echo shape output", "[plugin][dsp]") {
     OpenHatterProcessor dryProc, enhancedProc;
     dryProc.prepareToPlay(48000.0, 16000);

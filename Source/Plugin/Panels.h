@@ -128,6 +128,7 @@ private:
     Choice rollDivision_;
     Knob rollSwing_;
     Knob rollAccent_;
+    juce::ParameterAttachment rollAttachment_;
     juce::Rectangle<int> velocityBounds_, rollBounds_;
 };
 
@@ -159,6 +160,7 @@ private:
     SectionLockButton exciterLock_;
     SectionLockButton dynamicsLock_;
     SectionLockButton spaceLock_;
+    juce::ParameterAttachment reverseAttachment_;
     std::array<juce::Rectangle<int>, 3> sectionBounds_{};
 };
 
@@ -179,6 +181,7 @@ private:
     Knob limiterRelease_;
     Toggle limiterEnabled_;
     SectionLockButton outputLock_;
+    juce::ParameterAttachment limiterAttachment_;
 };
 
 } // namespace openhatter::ui
