@@ -42,8 +42,10 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, Style style)
 
     for (auto* button : { &favoritesBtn_, &saveBtn_, &renameBtn_, &deleteBtn_ }) {
         button->setColour(juce::TextButton::buttonOnColourId, style_.accent);
+        button->setTitle(button->getButtonText() + " preset");
         addAndMakeVisible(button);
     }
+    favoritesBtn_.setTitle("Favorites only");
     favoritesBtn_.setClickingTogglesState(true);
     favoritesBtn_.setTooltip("Show only starred presets.");
     favoritesBtn_.onClick = [this] {

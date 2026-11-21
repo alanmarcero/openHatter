@@ -180,10 +180,28 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
                                      "Choose One-shot on Envelope to use it.");
           });
       }) {
-    decayScale_.setTooltip("Scale hiss and bronze body decays together to morph between closed and open hats.");
-    hissColor_.setTooltip("Tilt the hiss sheen from warm bronze (-1) to airy uplift shimmer (+1).");
+    noiseType_.setTooltip("Choose the noise model for the air tail, from 909 Crisp to Spectral Wash.");
+    noiseDecay_.setTooltip("Set how long the air tail rings after each hit.");
+    noiseLPF_.setTooltip("Cut the air above this frequency. Lower values darken the tail.");
+    noiseLevel_.setTooltip("Set the level of the air tail.");
+    noiseAttack_.setTooltip("Fade the air in over this time at the start of each hit.");
+    noiseHold_.setTooltip("Hold the air at full level for this time before it decays.");
+    noiseCurve_.setTooltip("Shape the air decay. Negative values drop fast and then trail off. Positive values stay loud longer.");
+    noiseHPF_.setTooltip("Cut the air below this frequency. Higher values thin the tail.");
+    noiseWidth_.setTooltip("Set the stereo width of the air. 100% keeps the source width, and 0% is mono.");
+    decayScale_.setTooltip("Scale the air and body decays together to morph between closed and open hats.");
+    hissColor_.setTooltip("Tilt the air tone from warm bronze (-100%) to bright shimmer (+100%).");
     hissDensity_.setTooltip("Control metallic harmonic modulation, unison spread, or comb feedback density.");
-    hissDrive_.setTooltip("Warm analog saturation gluing the hiss and bronze body layers together.");
+    hissDrive_.setTooltip("Add analog saturation to the air and bronze body layers.");
+    clickType_.setTooltip("Choose the stick sound: a crisp stick, a pedal foot or a laser tick.");
+    preBursts_.setTooltip("Set how many times the stick strikes. The last strike is the main hit.");
+    clickFreq_.setTooltip("Set the pitch of the stick click.");
+    clickLevel_.setTooltip("Set the level of the stick click on the main hit.");
+    preSpread_.setTooltip("Set the time between stick strikes.");
+    preDecay_.setTooltip("Set how fast each bounce strike fades.");
+    preLevel_.setTooltip("Set the level of the bounce strikes before the main hit.");
+    preJitter_.setTooltip("Vary the bounce timing and level a little on each hit.");
+    flamSpread_.setTooltip("Spread the bounce strikes left and right.");
     bodyLevel_.setTooltip("Mix the spun-bronze cymbal shell resonators and low-mid chest punch.");
     bodyTone_.setTooltip("Sweep the bronze shell resonant chest modes from dark warm weight to biting bronze.");
     bodyDecay_.setTooltip("Set how long the bronze cymbal shell resonance sustains.");
@@ -276,6 +294,12 @@ EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
       }) {
     oneShot_.setTooltip("Let each hit play its full air tail, even after key up.");
     holdNotes_.setTooltip("Sustain until a matching note-off on the original MIDI channel.");
+    oneShot_.setTitle("One-shot");
+    holdNotes_.setTitle("Hold notes");
+    attack_.setTooltip("Fade each note in over this time.");
+    decay_.setTooltip("Set the time from full level down to the sustain level.");
+    sustain_.setTooltip("Set the level after the decay. Hold notes keeps this level until note-off.");
+    release_.setTooltip("Set the fade after note-off in Hold notes mode. One-shot hits cap it at 800 ms.");
     addAndMakeVisible(envelopeLock_);
     std::ranges::for_each(std::array{ &oneShot_, &holdNotes_ }, [this](juce::TextButton* button) {
         button->setToggleable(true);
@@ -605,6 +629,24 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
           reverseMix_.setActive(mode > .5f, "Choose a Reverse sync mode to use this.");
       }) {
     echoMix_.setTooltip("Blend a tempo-synced dotted-sixteenth stereo ping-pong echo.");
+    distType_.setTooltip("Choose the exciter's saturation curve: tape, tube, hard clip or crystal.");
+    distDrive_.setTooltip("Set how hard the exciter drives the signal.");
+    distTone_.setTooltip("Tilt the exciter tone. Negative values darken it. Positive values add high sheen.");
+    distMix_.setTooltip("Blend the exciter with the dry signal.");
+    compThresh_.setTooltip("Set the level where the compressor starts to reduce gain.");
+    compRatio_.setTooltip("Set how much the compressor reduces gain above the threshold.");
+    compAttack_.setTooltip("Set how fast the compressor reacts to a peak.");
+    compRelease_.setTooltip("Set how fast the compressor lets go after a peak.");
+    compMakeup_.setTooltip("Add gain after the compressor.");
+    compMix_.setTooltip("Blend the compressed signal with the dry signal for parallel compression.");
+    reverbSize_.setTooltip("Set the size of the reverb room.");
+    reverbDecay_.setTooltip("Set how long the reverb tail rings.");
+    reverbDamp_.setTooltip("Darken the reverb tail. Higher values remove more highs.");
+    reverbGate_.setTooltip("Close the reverb this long after each hit. Off lets the reverb ring out.");
+    reverbMix_.setTooltip("Set the level of the reverb return.");
+    reverseMode_.setTooltip("Add a reversed copy of each hit that ends on the next beat, half beat or quarter beat. "
+                            "Beat 4 Auto reverses only hits on the last beat of a bar.");
+    reverseMix_.setTooltip("Set the level of the reversed copy.");
     std::ranges::for_each(std::array<juce::Component*, 21>{
              &distType_, &distDrive_, &distTone_, &distMix_, &compThresh_, &compRatio_, &compAttack_, &compRelease_,
              &compMakeup_, &compMix_, &reverbSize_, &reverbDecay_,
@@ -737,6 +779,8 @@ OutputPanel::OutputPanel(OpenHatterProcessor& processor)
     eqMid_.setTooltip("Inner cap sets Mid peak gain (-12 to +12 dB); outer collar glides center frequency smoothly.");
     eqHigh_.setTooltip("Inner cap sets High shelf gain (-12 to +12 dB); outer collar glides cutoff frequency smoothly.");
     limiterEnabled_.setTooltip("Switch output peak limiting on or off.");
+    masterWidth_.setTooltip("Set the stereo width of the output. 100% keeps it unchanged, and 0% is mono.");
+    limiterRelease_.setTooltip("Set how fast the limiter recovers after a peak.");
     limiterCeiling_.setTooltip("Set the highest peak the limiter lets through. Output gain comes after the limiter, "
                                "so a boost raises peaks above this ceiling.");
     outputGain_.setTooltip("Set the level after the limiter. A boost raises peaks above the limiter ceiling. "

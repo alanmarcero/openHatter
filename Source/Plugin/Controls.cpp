@@ -12,6 +12,8 @@ constexpr float kInactiveAlpha = 0.4f;
 
 Knob::Knob(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     slider_.setName(title);
+    slider_.setTitle(title);
+    slider_.setWantsKeyboardFocus(true);
     slider_.setComponentID(parameterId);
     slider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     slider_.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 68, 20);
@@ -69,6 +71,8 @@ DualEqKnob::DualEqKnob(Apvts& state, const juce::String& freqId, const juce::Str
     addAndMakeVisible(title_);
 
     dbSlider_.setName(title + " Gain");
+    dbSlider_.setTitle(title + " gain");
+    dbSlider_.setWantsKeyboardFocus(true);
     dbSlider_.setComponentID(dbId);
     dbSlider_.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     dbSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
@@ -261,6 +265,7 @@ void DualEqKnob::setTooltip(const juce::String& text) {
 
 Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     box_.setName(title);
+    box_.setTitle(title);
     box_.setComponentID(parameterId);
     box_.setColour(juce::ComboBox::arrowColourId, accent);
     box_.setColour(juce::ComboBox::backgroundColourId, theme::kBackground);
@@ -311,6 +316,7 @@ Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String
     button_.setComponentID(parameterId);
     button_.onStateChange = [this, offText, onText] {
         button_.setButtonText(button_.getToggleState() ? onText : offText);
+        button_.setTitle(button_.getButtonText());
     };
     button_.onStateChange();
     button_.setClickingTogglesState(true);
