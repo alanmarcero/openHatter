@@ -108,11 +108,12 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
         syncPresetBox();
     });
     presetBrowser_.setCaptureState([this] { return processor_.currentPresetTree(); });
+    presetBrowser_.setDismiss([this] { showPresetBrowser(false); });
 
-    hatTab_.onClick = [this] { setPage(Page::hat); };
-    envelopeTab_.onClick = [this] { setPage(Page::envelope); };
-    performanceTab_.onClick = [this] { setPage(Page::performance); };
-    effectsTab_.onClick = [this] { setPage(Page::effects); };
+    hatTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::hat); };
+    envelopeTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::envelope); };
+    performanceTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::performance); };
+    effectsTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::effects); };
     detailBtn_.setClickingTogglesState(true);
     detailBtn_.onClick = [this] {
         synthPanel_.setAdvancedMode(detailBtn_.getToggleState());
@@ -206,6 +207,10 @@ void OpenHatterEditor::timerCallback() {
 }
 
 bool OpenHatterEditor::keyPressed(const juce::KeyPress& key) {
+    if (key == juce::KeyPress::escapeKey && presetBrowser_.isVisible()) {
+        showPresetBrowser(false);
+        return true;
+    }
     const auto code = juce::CharacterFunctions::toUpperCase(static_cast<juce::juce_wchar>(key.getKeyCode()));
     if (key.getModifiers().isCommandDown() && code == 'Z') {
         if (key.getModifiers().isShiftDown())

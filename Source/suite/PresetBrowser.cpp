@@ -27,6 +27,12 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, Style style)
     search_.onTextChange = [this] { applySearch(); };
     styleField(name_, style_, "Preset name", "Name used when saving or renaming a user preset.");
     name_.setTextToShowWhenEmpty("Preset name", style_.textDim);
+    const auto dismiss = [this] {
+        if (dismiss_)
+            dismiss_();
+    };
+    search_.onEscapeKey = dismiss;
+    name_.onEscapeKey = dismiss;
 
     for (auto* button : { &favoritesBtn_, &saveBtn_, &renameBtn_, &deleteBtn_ }) {
         button->setColour(juce::TextButton::buttonOnColourId, style_.accent);
@@ -99,6 +105,7 @@ PresetBrowser::~PresetBrowser() { list_.setModel(nullptr); }
 void PresetBrowser::setLoadFactory(std::function<void(int)> callback) { loadFactory_ = std::move(callback); }
 void PresetBrowser::setLoadUser(std::function<void(const juce::String&)> callback) { loadUser_ = std::move(callback); }
 void PresetBrowser::setCaptureState(std::function<juce::ValueTree()> callback) { captureState_ = std::move(callback); }
+void PresetBrowser::setDismiss(std::function<void()> callback) { dismiss_ = std::move(callback); }
 
 void PresetBrowser::refresh() {
     const auto selectedName = juce::isPositiveAndBelow(list_.getSelectedRow(), static_cast<int>(rows_.size()))

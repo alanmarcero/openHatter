@@ -1529,6 +1529,43 @@ TEST_CASE("Drag export uses the locked hit and otherwise renders a fresh WAV", "
     CHECK(fingerprint(unlocked) != fingerprint(locked));
 }
 
+TEST_CASE("Tabs and Escape close the preset browser", "[plugin][ui][browser]") {
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    const auto shown = [&](auto isType) { return !findAll(*editor, true, isType).empty(); };
+    const auto isBrowser = [](juce::Component& component) {
+        return dynamic_cast<suite::PresetBrowser*>(&component) != nullptr;
+    };
+    const auto isEffects = [](juce::Component& component) {
+        return dynamic_cast<openhatter::ui::EffectsPanel*>(&component) != nullptr;
+    };
+    auto* presets = findButton(*editor, "Presets");
+    REQUIRE(presets != nullptr);
+
+    click(*presets);
+    REQUIRE(shown(isBrowser));
+    click(*findButton(*editor, "Effects"));
+    CHECK_FALSE(shown(isBrowser));
+    CHECK(shown(isEffects));
+    CHECK_FALSE(presets->getToggleState());
+
+    click(*presets);
+    REQUIRE(shown(isBrowser));
+    CHECK(editor->keyPressed(juce::KeyPress(juce::KeyPress::escapeKey)));
+    CHECK_FALSE(shown(isBrowser));
+    CHECK(shown(isEffects));
+
+    click(*presets);
+    const auto fields = findAll(*editor, true, [](juce::Component& component) {
+        return dynamic_cast<juce::TextEditor*>(&component) != nullptr && component.getName() == "Preset search";
+    });
+    REQUIRE(fields.size() == 1);
+    auto* search = dynamic_cast<juce::TextEditor*>(fields.front());
+    REQUIRE(search->onEscapeKey != nullptr);
+    search->onEscapeKey();
+    CHECK_FALSE(shown(isBrowser));
+}
+
 TEST_CASE("The editor scales its whole layout at a fixed aspect ratio", "[plugin][ui][resize]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
