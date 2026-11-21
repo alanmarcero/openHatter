@@ -5,6 +5,8 @@ namespace suite {
 
 namespace {
 
+constexpr int kConfirmMs = 3000;
+
 void styleField(juce::TextEditor& field, const Style& style, const juce::String& name, const juce::String& tip) {
     field.setName(name);
     field.setTooltip(tip);
@@ -27,6 +29,10 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, Style style)
     search_.onTextChange = [this] { applySearch(); };
     styleField(name_, style_, "Preset name", "Name used when saving or renaming a user preset.");
     name_.setTextToShowWhenEmpty("Preset name", style_.textDim);
+    name_.onTextChange = [this] {
+        disarm();
+        updateActionButtons();
+    };
     const auto dismiss = [this] {
         if (dismiss_)
             dismiss_();
@@ -49,6 +55,14 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, Style style)
         if (captureState_ == nullptr)
             return;
         const auto name = name_.getText().trim();
+        if (library_.hasUser(name) && armed_ != &saveBtn_) {
+            disarm();
+            armed_ = &saveBtn_;
+            saveBtn_.setButtonText("Replace?");
+            startTimer(kConfirmMs);
+            return;
+        }
+        disarm();
         juce::String error;
         if (!library_.saveUser(name, captureState_(), error)) {
             status_.setText(error, juce::dontSendNotification);
@@ -78,6 +92,14 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, Style style)
         const int row = list_.getSelectedRow();
         if (!juce::isPositiveAndBelow(row, static_cast<int>(rows_.size())) || rows_[static_cast<size_t>(row)].factory)
             return;
+        if (armed_ != &deleteBtn_) {
+            disarm();
+            armed_ = &deleteBtn_;
+            deleteBtn_.setButtonText("Delete?");
+            startTimer(kConfirmMs);
+            return;
+        }
+        disarm();
         juce::String error;
         if (!library_.deleteUser(rows_[static_cast<size_t>(row)].name, error))
             status_.setText(error, juce::dontSendNotification);
@@ -192,7 +214,19 @@ void PresetBrowser::listBoxItemClicked(int row, const juce::MouseEvent& event) {
         loadRow(row);
 }
 
-void PresetBrowser::selectedRowsChanged(int) { updateActionButtons(); }
+void PresetBrowser::selectedRowsChanged(int) {
+    disarm();
+    updateActionButtons();
+}
+
+void PresetBrowser::timerCallback() { disarm(); }
+
+void PresetBrowser::disarm() {
+    stopTimer();
+    armed_ = nullptr;
+    saveBtn_.setButtonText("Save");
+    deleteBtn_.setButtonText("Delete");
+}
 
 void PresetBrowser::applySearch() { refresh(); }
 
@@ -227,7 +261,9 @@ void PresetBrowser::updateActionButtons() {
     const int row = list_.getSelectedRow();
     const bool user = juce::isPositiveAndBelow(row, static_cast<int>(rows_.size()))
         && !rows_[static_cast<size_t>(row)].factory;
-    renameBtn_.setEnabled(user);
+    const bool named = name_.getText().trim().isNotEmpty();
+    saveBtn_.setEnabled(named);
+    renameBtn_.setEnabled(user && named);
     deleteBtn_.setEnabled(user);
 }
 

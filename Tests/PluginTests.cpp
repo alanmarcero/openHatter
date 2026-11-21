@@ -1010,6 +1010,8 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
     click("Lock");
     CHECK(processor.isSectionLocked(OpenHatterProcessor::PresetSection::exciter));
     capture("effects");
+    click("Presets");
+    capture("presets");
 }
 
 TEST_CASE("The look-and-feel dims disabled buttons, knobs and menus", "[plugin][ui]") {
