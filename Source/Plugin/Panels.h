@@ -131,6 +131,7 @@ private:
     Knob rollAccent_;
     juce::ParameterAttachment rollAttachment_;
     juce::Rectangle<int> velocityBounds_, rollBounds_;
+    std::array<juce::Rectangle<int>, 3> curveBounds_{};
 };
 
 class EffectsPanel : public juce::Component {
