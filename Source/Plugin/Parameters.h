@@ -98,10 +98,21 @@ inline constexpr const char* kRollDivision = "roll_division";
 inline constexpr const char* kRollSwing = "roll_swing";
 inline constexpr const char* kRollAccent = "roll_accent";
 
+inline constexpr int kEqLowMinMidi = 28;   // E1 (41.20 Hz)
+inline constexpr int kEqLowMaxMidi = 52;   // E3 (164.81 Hz)
+inline constexpr int kEqMidMinMidi = 71;   // B4 (493.88 Hz)
+inline constexpr int kEqMidMaxMidi = 95;   // B6 (1975.53 Hz)
+inline constexpr int kEqHighMinMidi = 106; // A#7 (3729.31 Hz)
+inline constexpr int kEqHighMaxMidi = 130; // A#9 (14917.24 Hz)
+
 // The editor readouts use the same text as the parameters.
 juce::String formatMs(float ms);
 juce::String formatDb(float db);
 juce::String formatHz(float hz);
+float eqNoteToHz(int midiNote) noexcept;
+int eqHzToNearestMidi(float hz, int minMidi, int maxMidi) noexcept;
+juce::String formatEqNote(float hz, int minMidi, int maxMidi);
+float parseEqNoteOrHz(const juce::String& text, int minMidi, int maxMidi);
 
 // The MIDI monitor and the choke note both call middle C "C4".
 inline constexpr int kMiddleCOctave = 4;

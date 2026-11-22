@@ -849,9 +849,9 @@ OutputPanel::OutputPanel(OpenHatterProcessor& processor)
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::output, on); }),
       limiterDependents_(*processor.parameters.getParameter(params::kLimiterEnabled), "Turn the limiter on to use this.",
                          { &limiterCeiling_, &limiterRelease_ }) {
-    eqLow_.setTooltip("Inner cap sets Low shelf gain (-12 to +12 dB); outer collar glides cutoff frequency smoothly.");
-    eqMid_.setTooltip("Inner cap sets Mid peak gain (-12 to +12 dB); outer collar glides center frequency smoothly.");
-    eqHigh_.setTooltip("Inner cap sets High shelf gain (-12 to +12 dB); outer collar glides cutoff frequency smoothly.");
+    eqLow_.setTooltip("Inner cap sets Low EQ gain (-12 to +12 dB); outer collar snaps Low EQ to notes (E1 to E3).");
+    eqMid_.setTooltip("Inner cap sets Mid EQ gain (-12 to +12 dB); outer collar snaps Mid EQ to notes (B4 to B6).");
+    eqHigh_.setTooltip("Inner cap sets High EQ gain (-12 to +12 dB); outer collar snaps High EQ to notes (A#7 to A#9).");
     limiterEnabled_.setTooltip("Switch output peak limiting on or off.");
     masterWidth_.setTooltip("Set the stereo width of the output. 100% keeps it unchanged, and 0% is mono.");
     limiterRelease_.setTooltip("Set how fast the limiter recovers after a peak.");

@@ -191,7 +191,9 @@ TEST_CASE("Readouts use one format per unit and accept typed units", "[plugin][p
     CHECK(shown(ids::kHissColor, -0.08f) == "-8%");
     CHECK(shown(ids::kHissColor, 0.2f) == "+20%");
     CHECK(shown(ids::kNoiseLPF, 17000.0f) == "17.0 kHz");
-    CHECK(shown(ids::kEqMidFreq, 3200.0f) == "3.20 kHz");
+    CHECK(shown(ids::kEqMidFreq, 987.77f) == "B5");
+    CHECK(shown(ids::kEqLowFreq, 82.41f) == "E2");
+    CHECK(shown(ids::kEqHighFreq, 7458.62f) == "A#8");
     CHECK(shown(ids::kNoiseHPF, 850.0f) == "850 Hz");
     CHECK(shown(ids::kAmpAttack, 0.35f) == "0.35 ms");
     CHECK(shown(ids::kAmpAttack, 9.0f) == "9.0 ms");
@@ -1746,20 +1748,18 @@ TEST_CASE("The EQ frequency ring takes keyboard focus and speaks its frequency",
     auto* ring = slider(ids::kEqLowFreq);
     CHECK(ring->getTitle() == "Low EQ frequency");
     CHECK(ring->getWantsKeyboardFocus());
-    CHECK(ring->getTextFromValue(ring->getValue()) == "90 Hz");
+    CHECK(ring->getTextFromValue(ring->getValue()) == "F#2");
 
     const auto frequency = [&] { return processor.parameters.getRawParameterValue(ids::kEqLowFreq)->load(); };
     const float start = frequency();
     CHECK(ring->keyPressed(juce::KeyPress(juce::KeyPress::upKey)));
-    const float coarse = frequency() - start;
-    CHECK(coarse > 0.0f);
+    const float semitone = frequency() - start;
+    CHECK(semitone > 0.0f);
     CHECK(processor.canUndo());
-    CHECK(ring->keyPressed(juce::KeyPress(juce::KeyPress::upKey, juce::ModifierKeys::shiftModifier, 0)));
-    const float fine = frequency() - start - coarse;
-    CHECK(fine > 0.0f);
-    CHECK(fine < coarse * 0.5f);
     CHECK(ring->keyPressed(juce::KeyPress(juce::KeyPress::downKey)));
-    CHECK(frequency() < start + coarse + fine);
+    CHECK(std::abs(frequency() - start) < 0.05f);
+    CHECK(ring->keyPressed(juce::KeyPress(juce::KeyPress::upKey, juce::ModifierKeys::shiftModifier, 0)));
+    CHECK(frequency() > start + semitone * 2.0f);
 
     slider(ids::kEqLowDb)->setValue(3.0, juce::sendNotificationSync);
     CHECK(std::abs(processor.parameters.getRawParameterValue(ids::kEqLowDb)->load() - 3.0f) < 0.01f);
