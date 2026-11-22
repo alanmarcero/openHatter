@@ -145,7 +145,7 @@ FactoryPreset makePreset(const Hat& hat, const Character& style) {
         || id == kFlamSpread || id == kPreLevel || id == kClickType || id == kClickLevel
         || id == kClickFreq || id == kBodyLevel || id == kBodyTone || id == kBodyDecay
         || id == kKeyTracking) return 0;
-    if (id == kAmpAttack || id == kAmpDecay || id == kAmpSustain || id == kAmpRelease) return 1;
+    if (id == kAmpEnabled || id == kAmpAttack || id == kAmpDecay || id == kAmpSustain || id == kAmpRelease) return 1;
     if (id == kNoiseType || id == kNoiseAttack || id == kNoiseHold || id == kNoiseDecay || id == kNoiseCurve
         || id == kNoiseHPF || id == kNoiseLPF || id == kNoiseStereoWidth || id == kNoiseLevel
         || id == kDecayScale || id == kHissColor || id == kHissDensity || id == kHissDrive) return 2;
@@ -173,18 +173,20 @@ const std::vector<FactoryPreset>& factoryPresets() {
 
 void applyValues(const std::vector<std::pair<juce::String, float>>& values,
                  juce::AudioProcessorValueTreeState& state,
-                 const std::array<bool, 7>& lockedSections) {
+                 const std::array<bool, 7>& lockedSections,
+                 const std::set<juce::String>& lockedParams) {
     std::ranges::for_each(values, [&](const auto& entry) {
         const auto& [paramId, value] = entry;
-        if (lockedSections[static_cast<size_t>(sectionFor(paramId))]) return;
+        if (lockedSections[static_cast<size_t>(sectionFor(paramId))] || lockedParams.contains(paramId)) return;
         if (auto* param = state.getParameter(paramId))
             param->setValueNotifyingHost(param->convertTo0to1(value));
     });
 }
 
 void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
-           const std::array<bool, 7>& lockedSections) {
-    applyValues(preset.values, state, lockedSections);
+           const std::array<bool, 7>& lockedSections,
+           const std::set<juce::String>& lockedParams) {
+    applyValues(preset.values, state, lockedSections, lockedParams);
 }
 
 } // namespace openhatter::presets

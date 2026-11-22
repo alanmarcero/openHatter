@@ -1949,3 +1949,85 @@ TEST_CASE("User presets load through section locks and the editor size is part o
     CHECK(presetBrowser->rowCount() >= 1);
     CHECK(presetBrowser->rowCount() < restored.getNumPrograms());
 }
+
+TEST_CASE("Every RangedAudioParameter can be locked, persists across state restore, and survives preset loads",
+          "[plugin][presets][param_lock]") {
+    OpenHatterProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    auto* hatEditor = dynamic_cast<OpenHatterEditor*>(editor.get());
+    REQUIRE(hatEditor != nullptr);
+
+    // Capture a distinct user preset from program 2 before mutating and locking parameters.
+    OpenHatterProcessor presetSource;
+    presetSource.setCurrentProgram(2);
+    const auto userPresetTree = presetSource.currentPresetTree();
+
+    std::vector<std::pair<juce::String, float>> lockedValues;
+    for (auto* rawParam : processor.getParameters()) {
+        auto* param = dynamic_cast<juce::RangedAudioParameter*>(rawParam);
+        REQUIRE(param != nullptr);
+        const auto id = param->getParameterID();
+        INFO("Parameter: " << id);
+        CHECK(hatEditor->canLockParameterInUi(id));
+        CHECK_FALSE(processor.isParamLocked(id));
+
+        const float current = param->getValue();
+        const float target = current < 0.5f ? 0.85f : 0.15f;
+        param->setValueNotifyingHost(param->convertTo0to1(param->convertFrom0to1(target)));
+        const float actual = param->getValue();
+
+        processor.setParamLocked(id, true);
+        CHECK(processor.isParamLocked(id));
+        lockedValues.emplace_back(id, actual);
+    }
+    REQUIRE(lockedValues.size() == static_cast<size_t>(processor.getParameters().size()));
+
+    // Verify right-click lock menu text for unlocked vs locked + "Unlock all".
+    auto* firstParam = dynamic_cast<juce::RangedAudioParameter*>(processor.getParameters().getFirst());
+    REQUIRE(firstParam != nullptr);
+    const auto lockedMenu = hatEditor->buildLockMenuForParam(firstParam->getParameterID());
+    CHECK(lockedMenu.getNumItems() == 2);
+    juce::PopupMenu::MenuItemIterator it(lockedMenu);
+    REQUIRE(it.next());
+    CHECK(it.getItem().text == "Unlock " + firstParam->getName(64));
+    REQUIRE(it.next());
+    if (it.getItem().isSeparator)
+        REQUIRE(it.next());
+    CHECK(it.getItem().text == "Unlock all");
+
+    // Verify all locks survive getStateInformation / setStateInformation.
+    juce::MemoryBlock state;
+    processor.getStateInformation(state);
+    OpenHatterProcessor restored;
+    restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
+
+    for (const auto& [id, expected] : lockedValues) {
+        INFO("Restored parameter: " << id);
+        CHECK(restored.isParamLocked(id));
+        auto* param = restored.parameters.getParameter(id);
+        REQUIRE(param != nullptr);
+        CHECK(std::abs(param->getValue() - expected) < 1e-4f);
+    }
+
+    // Verify all locked parameters are preserved across factory and user preset loads.
+    restored.setCurrentProgram(1);
+    for (const auto& [id, expected] : lockedValues) {
+        INFO("After setCurrentProgram(1): " << id);
+        auto* param = restored.parameters.getParameter(id);
+        REQUIRE(param != nullptr);
+        CHECK(std::abs(param->getValue() - expected) < 1e-4f);
+    }
+
+    restored.loadUserPreset(userPresetTree, "Locked Test");
+    for (const auto& [id, expected] : lockedValues) {
+        INFO("After loadUserPreset: " << id);
+        auto* param = restored.parameters.getParameter(id);
+        REQUIRE(param != nullptr);
+        CHECK(std::abs(param->getValue() - expected) < 1e-4f);
+    }
+
+    restored.unlockAllLocks();
+    CHECK_FALSE(restored.hasAnyLock());
+    for (const auto& [id, _] : lockedValues)
+        CHECK_FALSE(restored.isParamLocked(id));
+}

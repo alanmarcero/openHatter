@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstddef>
 #include <mutex>
+#include <set>
 #include <vector>
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -55,6 +56,11 @@ public:
     [[nodiscard]] bool isHatLockedIn() const noexcept { return displayLockedIn.load(); }
     [[nodiscard]] bool isSectionLocked(PresetSection section) const noexcept;
     void setSectionLocked(PresetSection section, bool locked) noexcept;
+    [[nodiscard]] bool isParamLocked(const juce::String& paramId) const;
+    void setParamLocked(const juce::String& paramId, bool locked);
+    void unlockAllParams();
+    [[nodiscard]] bool hasAnyLock() const;
+    void unlockAllLocks();
 
     void undo();
     void redo();
@@ -111,6 +117,9 @@ private:
     void clearLockedWav();
     [[nodiscard]] std::vector<uint8_t> copyLockedWav() const;
     [[nodiscard]] std::array<bool, static_cast<size_t>(PresetSection::count)> sectionLockSnapshot() const;
+    [[nodiscard]] std::set<juce::String> paramLockSnapshot() const;
+    [[nodiscard]] juce::String encodeLockedParams() const;
+    void restoreLockedParams(const juce::String& encoded);
 
     static constexpr std::size_t kMidiEventCapacityPerBlock = 2048;
     std::unique_ptr<suite::ParameterUndo> parameterUndo_;
@@ -132,4 +141,6 @@ private:
     int editorHeight_ = kEditorHeight;
     mutable std::mutex wavMutex_;
     std::vector<uint8_t> lockedWav_;
+    mutable std::mutex paramLockMutex_;
+    std::set<juce::String> lockedParams_;
 };

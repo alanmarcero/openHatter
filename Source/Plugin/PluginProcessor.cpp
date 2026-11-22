@@ -247,11 +247,16 @@ const juce::String OpenHatterProcessor::getProgramName(int index) {
 void OpenHatterProcessor::setCurrentProgram(int index) {
     const auto& presets = openhatter::presets::factoryPresets();
     if (index >= 0 && index < static_cast<int>(presets.size())) {
-        currentProgram_ = index;
+        const auto lockedParams = paramLockSnapshot();
+        const bool presetLocked = lockedParams.contains(openhatter::params::kPreset);
+        if (!presetLocked)
+            currentProgram_ = index;
         parameterUndo_->beginChange();
-        openhatter::presets::apply(presets[static_cast<size_t>(index)], parameters, sectionLockSnapshot());
-        if (auto* param = parameters.getParameter(openhatter::params::kPreset))
-            param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(index)));
+        openhatter::presets::apply(presets[static_cast<size_t>(index)], parameters, sectionLockSnapshot(), lockedParams);
+        if (!presetLocked) {
+            if (auto* param = parameters.getParameter(openhatter::params::kPreset))
+                param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(index)));
+        }
         setLoadedPreset({});
         parameterUndo_->endChange();
     }
@@ -270,6 +275,8 @@ void OpenHatterProcessor::getStateInformation(juce::MemoryBlock& destData) {
     std::ranges::for_each(std::views::iota(size_t{0}, sectionLocks_.size()), [&](size_t i) {
         state.setProperty("section_lock_" + juce::String(i), sectionLocks_[i].load(std::memory_order_relaxed), nullptr);
     });
+    state.setProperty("locked_params", encodeLockedParams(), nullptr);
+    state.setProperty("locked_params", encodeLockedParams(), nullptr);
     const auto wav = copyLockedWav();
     if (!wav.empty())
         state.setProperty("locked_wav", juce::MemoryBlock(wav.data(), wav.size()).toBase64Encoding(), nullptr);
@@ -303,6 +310,64 @@ OpenHatterProcessor::sectionLockSnapshot() const {
     for (size_t i = 0; i < locks.size(); ++i)
         locks[i] = sectionLocks_[i].load(std::memory_order_relaxed);
     return locks;
+}
+
+bool OpenHatterProcessor::isParamLocked(const juce::String& paramId) const {
+    std::lock_guard<std::mutex> guard(paramLockMutex_);
+    return lockedParams_.contains(paramId);
+}
+
+void OpenHatterProcessor::setParamLocked(const juce::String& paramId, bool locked) {
+    if (paramId.isEmpty())
+        return;
+    std::lock_guard<std::mutex> guard(paramLockMutex_);
+    if (locked)
+        lockedParams_.insert(paramId);
+    else
+        lockedParams_.erase(paramId);
+}
+
+void OpenHatterProcessor::unlockAllParams() {
+    std::lock_guard<std::mutex> guard(paramLockMutex_);
+    lockedParams_.clear();
+}
+
+bool OpenHatterProcessor::hasAnyLock() const {
+    for (const auto& lock : sectionLocks_) {
+        if (lock.load(std::memory_order_relaxed))
+            return true;
+    }
+    std::lock_guard<std::mutex> guard(paramLockMutex_);
+    return !lockedParams_.empty();
+}
+
+void OpenHatterProcessor::unlockAllLocks() {
+    for (auto& lock : sectionLocks_)
+        lock.store(false, std::memory_order_relaxed);
+    unlockAllParams();
+}
+
+std::set<juce::String> OpenHatterProcessor::paramLockSnapshot() const {
+    std::lock_guard<std::mutex> guard(paramLockMutex_);
+    return lockedParams_;
+}
+
+juce::String OpenHatterProcessor::encodeLockedParams() const {
+    std::lock_guard<std::mutex> guard(paramLockMutex_);
+    juce::StringArray ids;
+    for (const auto& id : lockedParams_)
+        ids.add(id);
+    return ids.joinIntoString(",");
+}
+
+void OpenHatterProcessor::restoreLockedParams(const juce::String& encoded) {
+    std::set<juce::String> restored;
+    for (const auto& token : juce::StringArray::fromTokens(encoded, ",", "")) {
+        if (token.isNotEmpty())
+            restored.insert(token);
+    }
+    std::lock_guard<std::mutex> guard(paramLockMutex_);
+    lockedParams_ = std::move(restored);
 }
 
 void OpenHatterProcessor::undo() { parameterUndo_->undo(); }
@@ -376,7 +441,7 @@ void OpenHatterProcessor::loadUserPreset(const juce::ValueTree& state, const juc
         values.emplace_back(id, static_cast<float>(child.getProperty("value")));
     }
     parameterUndo_->beginChange();
-    openhatter::presets::applyValues(values, parameters, sectionLockSnapshot());
+    openhatter::presets::applyValues(values, parameters, sectionLockSnapshot(), paramLockSnapshot());
     setLoadedPreset(name);
     parameterUndo_->endChange();
 }
@@ -401,7 +466,7 @@ juce::String OpenHatterProcessor::presetDisplayName() {
 juce::ValueTree OpenHatterProcessor::currentPresetTree() {
     auto tree = parameters.copyState();
     stripSlotExtras(tree);
-    std::ranges::for_each(std::array{ "locked_wav", "preset_catalog_version", "legacy_sound", "user_preset", "preset_edited" },
+    std::ranges::for_each(std::array{ "locked_wav", "locked_params", "preset_catalog_version", "legacy_sound", "user_preset", "preset_edited" },
         [&tree](const char* key) { tree.removeProperty(key, nullptr); });
     for (size_t i = 0; i < sectionLocks_.size(); ++i)
         tree.removeProperty("section_lock_" + juce::String(i), nullptr);
@@ -478,6 +543,7 @@ void OpenHatterProcessor::applyBinaryState(const void* data, int sizeInBytes, bo
         sectionLocks_[i].store(catalog >= 2 && static_cast<bool>(state.getProperty(property, false)),
                                std::memory_order_relaxed);
     });
+    restoreLockedParams(state.getProperty("locked_params", "").toString());
     if (auto* presetParam = parameters.getRawParameterValue(openhatter::params::kPreset))
         currentProgram_ = std::clamp(static_cast<int>(*presetParam), 0, getNumPrograms() - 1);
     presetEdited_.store(static_cast<bool>(state.getProperty("preset_edited", false)));
@@ -518,6 +584,8 @@ juce::MemoryBlock OpenHatterProcessor::captureSlotState() {
     std::ranges::for_each(std::views::iota(size_t{0}, sectionLocks_.size()), [&](size_t i) {
         state.setProperty("section_lock_" + juce::String(i), sectionLocks_[i].load(std::memory_order_relaxed), nullptr);
     });
+    state.setProperty("locked_params", encodeLockedParams(), nullptr);
+    state.setProperty("locked_params", encodeLockedParams(), nullptr);
     const auto wav = copyLockedWav();
     if (!wav.empty())
         state.setProperty("locked_wav", juce::MemoryBlock(wav.data(), wav.size()).toBase64Encoding(), nullptr);

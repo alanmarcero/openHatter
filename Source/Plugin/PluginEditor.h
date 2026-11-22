@@ -15,8 +15,31 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
     bool keyPressed(const juce::KeyPress& key) override;
+    [[nodiscard]] bool canLockParameterInUi(const juce::String& paramId) const;
+    [[nodiscard]] juce::PopupMenu buildLockMenuForParam(const juce::String& paramId);
 
 private:
+    class LockOverlay final : public juce::Component {
+    public:
+        LockOverlay(OpenHatterProcessor& processor, juce::Component& root);
+        void paint(juce::Graphics& g) override;
+
+    private:
+        OpenHatterProcessor& processor_;
+        juce::Component& root_;
+    };
+
+    class LockMouseListener final : public juce::MouseListener {
+    public:
+        LockMouseListener(OpenHatterProcessor& processor, juce::Component& root, LockOverlay& overlay);
+        void mouseDown(const juce::MouseEvent& event) override;
+
+    private:
+        OpenHatterProcessor& processor_;
+        juce::Component& root_;
+        LockOverlay& overlay_;
+    };
+
     enum class Page { hat, envelope, performance, effects };
     void setPage(Page page);
     void layoutContent();
@@ -45,6 +68,8 @@ private:
     openhatter::ui::EnvelopePanel envelopePanel_;
     openhatter::ui::PerformancePanel performancePanel_;
     openhatter::ui::EffectsPanel effectsPanel_;
+    LockOverlay lockOverlay_;
+    LockMouseListener lockMouseListener_;
     juce::TooltipWindow tooltipWindow_;
     Page page_ = Page::hat;
 

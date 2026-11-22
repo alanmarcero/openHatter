@@ -17,7 +17,162 @@ suite::Style editorStyle() {
     };
 }
 
+[[nodiscard]] juce::String directParamId(const juce::Component& component,
+                                         const juce::AudioProcessorValueTreeState& apvts) {
+    const auto& props = component.getProperties();
+    if (props.contains("lockParamId")) {
+        const auto id = props["lockParamId"].toString();
+        if (apvts.getParameter(id) != nullptr)
+            return id;
+    }
+    const auto id = component.getComponentID();
+    if (id.isNotEmpty() && apvts.getParameter(id) != nullptr)
+        return id;
+    return {};
+}
+
+[[nodiscard]] std::vector<juce::String> resolveLockTargets(juce::Component* target,
+                                                           juce::Component& root,
+                                                           const juce::AudioProcessorValueTreeState& apvts) {
+    for (auto* current = target; current != nullptr && current != &root; current = current->getParentComponent()) {
+        if (auto* eq = dynamic_cast<openhatter::ui::DualEqKnob*>(current))
+            return { eq->dbId(), eq->freqId() };
+        if (const auto id = directParamId(*current, apvts); id.isNotEmpty())
+            return { id };
+        if (auto* knob = dynamic_cast<openhatter::ui::Knob*>(current))
+            return { knob->slider().getComponentID() };
+        if (auto* choice = dynamic_cast<openhatter::ui::Choice*>(current))
+            return { choice->box().getComponentID() };
+        if (auto* toggle = dynamic_cast<openhatter::ui::Toggle*>(current))
+            return { toggle->button().getComponentID() };
+    }
+    return {};
+}
+
+struct LockMenuSpec {
+    juce::PopupMenu menu;
+    std::vector<juce::String> itemParams;
+    int unlockAllId = 0;
+};
+
+[[nodiscard]] LockMenuSpec buildLockMenuSpec(const std::vector<juce::String>& targets,
+                                             OpenHatterProcessor& processor) {
+    LockMenuSpec spec;
+    for (const auto& paramId : targets) {
+        auto* param = processor.parameters.getParameter(paramId);
+        if (param == nullptr)
+            continue;
+        const bool locked = processor.isParamLocked(paramId);
+        spec.itemParams.push_back(paramId);
+        spec.menu.addItem(static_cast<int>(spec.itemParams.size()),
+                          (locked ? "Unlock " : "Lock ") + param->getName(64));
+    }
+    if (!spec.itemParams.empty() && processor.hasAnyLock()) {
+        spec.unlockAllId = static_cast<int>(spec.itemParams.size()) + 1;
+        spec.menu.addSeparator();
+        spec.menu.addItem(spec.unlockAllId, "Unlock all");
+    }
+    return spec;
+}
+
+void drawPadlock(juce::Graphics& g, juce::Rectangle<float> box) {
+    const float w = box.getWidth();
+    const float h = box.getHeight();
+    const float cx = box.getCentreX();
+    const juce::Rectangle<float> body(cx - w * 0.34f, box.getY() + h * 0.44f, w * 0.68f, h * 0.48f);
+    const float shackleR = w * 0.22f;
+    juce::Path shackle;
+    shackle.addArc(cx - shackleR, box.getY() + h * 0.14f, shackleR * 2.0f, shackleR * 2.0f,
+                   juce::MathConstants<float>::pi * 1.0f, juce::MathConstants<float>::pi * 2.0f, true);
+    g.setColour(theme::kBackground.withAlpha(0.88f));
+    g.fillRoundedRectangle(box, 3.0f);
+    g.setColour(theme::kAccentBrass);
+    g.strokePath(shackle, juce::PathStrokeType(1.6f));
+    g.fillRoundedRectangle(body, 2.0f);
+    g.setColour(theme::kBackground);
+    g.fillEllipse(cx - 1.3f, body.getCentreY() - 1.3f, 2.6f, 2.6f);
+}
+
+[[nodiscard]] bool hasParamInTree(const juce::Component& parent,
+                                  const juce::String& paramId,
+                                  const juce::AudioProcessorValueTreeState& apvts) {
+    if (auto* eq = dynamic_cast<const openhatter::ui::DualEqKnob*>(&parent))
+        return eq->dbId() == paramId || eq->freqId() == paramId;
+    if (directParamId(parent, apvts) == paramId)
+        return true;
+    for (auto* child : parent.getChildren()) {
+        if (hasParamInTree(*child, paramId, apvts))
+            return true;
+    }
+    return false;
+}
+
 } // namespace
+
+OpenHatterEditor::LockOverlay::LockOverlay(OpenHatterProcessor& processor, juce::Component& root)
+    : processor_(processor), root_(root) {
+    setInterceptsMouseClicks(false, false);
+}
+
+void OpenHatterEditor::LockOverlay::paint(juce::Graphics& g) {
+    const auto paintTree = [&](auto&& self, juce::Component& parent) -> void {
+        for (auto* child : parent.getChildren()) {
+            if (child == this || !child->isVisible())
+                continue;
+            if (auto* eq = dynamic_cast<openhatter::ui::DualEqKnob*>(child)) {
+                if (processor_.isParamLocked(eq->dbId()) || processor_.isParamLocked(eq->freqId())) {
+                    const auto area = getLocalArea(eq, eq->getLocalBounds()).toFloat();
+                    drawPadlock(g, { area.getRight() - 16.0f, area.getY() + 2.0f, 14.0f, 14.0f });
+                }
+                continue;
+            }
+            if (const auto id = directParamId(*child, processor_.parameters); id.isNotEmpty()) {
+                if (processor_.isParamLocked(id)) {
+                    auto* host = child;
+                    if (auto* parentKnob = dynamic_cast<openhatter::ui::Knob*>(child->getParentComponent()))
+                        host = parentKnob;
+                    else if (auto* parentChoice = dynamic_cast<openhatter::ui::Choice*>(child->getParentComponent()))
+                        host = parentChoice;
+                    const auto area = getLocalArea(host, host->getLocalBounds()).toFloat();
+                    drawPadlock(g, { area.getRight() - 16.0f, area.getY() + 2.0f, 14.0f, 14.0f });
+                }
+                continue;
+            }
+            self(self, *child);
+        }
+    };
+    paintTree(paintTree, root_);
+}
+
+OpenHatterEditor::LockMouseListener::LockMouseListener(OpenHatterProcessor& processor,
+                                                       juce::Component& root,
+                                                       LockOverlay& overlay)
+    : processor_(processor), root_(root), overlay_(overlay) {}
+
+void OpenHatterEditor::LockMouseListener::mouseDown(const juce::MouseEvent& event) {
+    if (!event.mods.isPopupMenu() || event.eventComponent == nullptr)
+        return;
+    const auto targets = resolveLockTargets(event.eventComponent, root_, processor_.parameters);
+    if (targets.empty())
+        return;
+
+    auto spec = buildLockMenuSpec(targets, processor_);
+    if (spec.itemParams.empty())
+        return;
+
+    spec.menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(event.eventComponent),
+                            [this, itemParams = spec.itemParams, unlockAllId = spec.unlockAllId](int result) {
+        if (result <= 0)
+            return;
+        if (result == unlockAllId)
+            processor_.unlockAllLocks();
+        else if (static_cast<size_t>(result) <= itemParams.size()) {
+            const auto& id = itemParams[static_cast<size_t>(result - 1)];
+            processor_.setParamLocked(id, !processor_.isParamLocked(id));
+        }
+        overlay_.repaint();
+    });
+}
 
 OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     : AudioProcessorEditor(&processorToEdit), processor_(processorToEdit),
@@ -26,6 +181,8 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
       dragBtn_([this] { return processor_.exportHatWav(); }),
       midiPanel_(processorToEdit), synthPanel_(processorToEdit), outputPanel_(processorToEdit),
       envelopePanel_(processorToEdit), performancePanel_(processorToEdit), effectsPanel_(processorToEdit),
+      lockOverlay_(processorToEdit, content_),
+      lockMouseListener_(processorToEdit, content_, lockOverlay_),
       tooltipWindow_(this, 500) {
     setLookAndFeel(&lookAndFeel_);
     setWantsKeyboardFocus(true);
@@ -100,6 +257,8 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     copyBtn_.onClick = [this] { processor_.copyAbToOther(); };
     presetsBtn_.onClick = [this] { showPresetBrowser(!presetBrowser_.isVisible()); };
     lockBtn_.setClickingTogglesState(true);
+    lockBtn_.getProperties().set("lockParamId", openhatter::params::kLockIn);
+    presetBox_.getProperties().set("lockParamId", openhatter::params::kPreset);
     lockAttachment_ = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         processor_.parameters, openhatter::params::kLockIn, lockBtn_);
 
@@ -142,6 +301,8 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
              &midiPanel_, &synthPanel_, &outputPanel_, &envelopePanel_, &performancePanel_, &effectsPanel_ })
         content_.addAndMakeVisible(child);
     content_.addChildComponent(presetBrowser_);
+    content_.addAndMakeVisible(lockOverlay_);
+    content_.addMouseListener(&lockMouseListener_, true);
     const auto restoredSize = processor_.editorSize();
     setPage(Page::hat);
     syncPresetBox();
@@ -157,7 +318,16 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
 
 OpenHatterEditor::~OpenHatterEditor() {
     stopTimer();
+    content_.removeMouseListener(&lockMouseListener_);
     setLookAndFeel(nullptr);
+}
+
+bool OpenHatterEditor::canLockParameterInUi(const juce::String& paramId) const {
+    return hasParamInTree(content_, paramId, processor_.parameters);
+}
+
+juce::PopupMenu OpenHatterEditor::buildLockMenuForParam(const juce::String& paramId) {
+    return buildLockMenuSpec({ paramId }, processor_).menu;
 }
 
 void OpenHatterEditor::syncPresetBox() {
@@ -192,6 +362,7 @@ void OpenHatterEditor::setPage(Page page) {
     envelopePanel_.setVisible(page == Page::envelope && !browser);
     performancePanel_.setVisible(page == Page::performance && !browser);
     effectsPanel_.setVisible(page == Page::effects && !browser);
+    lockOverlay_.toFront(false);
     presetBrowser_.toFront(false);
     layoutContent();
 }
@@ -300,4 +471,5 @@ void OpenHatterEditor::layoutContent() {
     outputPanel_.setBounds(body.removeFromBottom(150));
     body.removeFromBottom(10);
     synthPanel_.setBounds(body);
+    lockOverlay_.setBounds(content_.getLocalBounds());
 }

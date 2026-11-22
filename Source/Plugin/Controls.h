@@ -65,6 +65,8 @@ public:
     void mouseExit(const juce::MouseEvent& event) override;
     void setTooltip(const juce::String& text);
     [[nodiscard]] juce::Slider& slider() noexcept { return dbSlider_; }
+    [[nodiscard]] const juce::String& freqId() const noexcept { return freqId_; }
+    [[nodiscard]] const juce::String& dbId() const noexcept { return dbId_; }
 
 private:
     class GainSlider final : public juce::Slider {
