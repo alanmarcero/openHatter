@@ -135,7 +135,7 @@ FactoryPreset makePreset(const Hat& hat, const Character& style) {
         { kLimiterCeiling, -1.0f }, { kLimiterRelease, 18 }, { kReverbSize, style.roomSize },
         { kReverbDecay, style.roomMs }, { kReverbDamp, .42f }, { kReverbGate, style.roomGate },
         { kReverbMix, hat.roomMix }, { kReverseMode, 0 }, { kReverseMix, 0 },
-        { kEqLowFreq, 90.0f }, { kEqLowDb, 0.0f }, { kEqMidFreq, 3200.0f }, { kEqMidDb, 0.0f },
+        { kEqLowFreq, 90.0f }, { kEqLowDb, 0.0f }, { kEqMidFreq, params::eqNoteToHz(83) }, { kEqMidDb, 0.0f },
         { kEqHighFreq, 9000.0f }, { kEqHighDb, 0.0f }, { kStereoWidth, 1.0f }, { kOutputGain, hat.outGain }
     } };
 }
@@ -155,7 +155,9 @@ FactoryPreset makePreset(const Hat& hat, const Character& style) {
     if (id == kEqLowFreq || id == kEqLowDb || id == kEqMidFreq || id == kEqMidDb || id == kEqHighFreq
         || id == kEqHighDb || id == kStereoWidth || id == kOutputGain || id == kLimiterCeiling
         || id == kLimiterRelease || id == kLimiterEnabled) return 6;
-    return 5;
+    if (id == kReverbSize || id == kReverbDecay || id == kReverbDamp || id == kReverbGate
+        || id == kReverbMix || id == kEchoMix || id == kReverseMode || id == kReverseMix) return 5;
+    return 7;
 }
 
 } // namespace
@@ -173,7 +175,7 @@ const std::vector<FactoryPreset>& factoryPresets() {
 
 void applyValues(const std::vector<std::pair<juce::String, float>>& values,
                  juce::AudioProcessorValueTreeState& state,
-                 const std::array<bool, 7>& lockedSections,
+                 const std::array<bool, 8>& lockedSections,
                  const std::set<juce::String>& lockedParams) {
     std::ranges::for_each(values, [&](const auto& entry) {
         const auto& [paramId, value] = entry;
@@ -184,7 +186,7 @@ void applyValues(const std::vector<std::pair<juce::String, float>>& values,
 }
 
 void apply(const FactoryPreset& preset, juce::AudioProcessorValueTreeState& state,
-           const std::array<bool, 7>& lockedSections,
+           const std::array<bool, 8>& lockedSections,
            const std::set<juce::String>& lockedParams) {
     applyValues(preset.values, state, lockedSections, lockedParams);
 }

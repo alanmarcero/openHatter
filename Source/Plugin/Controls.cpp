@@ -136,6 +136,24 @@ DualEqKnob::DualEqKnob(Apvts& state, const juce::String& freqId, const juce::Str
     };
     addAndMakeVisible(dbReadout_);
 
+    freqEditor_.setFont(juce::FontOptions(11.5f, juce::Font::bold));
+    freqEditor_.setJustificationType(juce::Justification::centred);
+    freqEditor_.setColour(juce::Label::textColourId, theme::kText);
+    freqEditor_.setColour(juce::Label::backgroundColourId, theme::kBackground);
+    freqEditor_.setColour(juce::Label::outlineColourId, freqAccent_);
+    freqEditor_.setEditable(false, false, false);
+    freqEditor_.setInterceptsMouseClicks(false, false);
+    freqEditor_.onTextChange = [this] {
+        auto* freqParam = state_.getParameter(freqId_);
+        if (freqParam == nullptr || freqAttachment_ == nullptr) return;
+        const float value = freqParam->convertFrom0to1(freqParam->getValueForText(freqEditor_.getText()));
+        freqHz_ = value;
+        freqAttachment_->setValueAsCompleteGesture(value);
+        repaint();
+    };
+    freqEditor_.onEditorHide = [this] { freqEditor_.setVisible(false); };
+    addChildComponent(freqEditor_);
+
     if (auto* freqParam = state.getParameter(freqId)) {
         freqHz_ = freqParam->convertFrom0to1(freqParam->getValue());
         freqAttachment_ = std::make_unique<juce::ParameterAttachment>(*freqParam, [this](float value) {
@@ -239,6 +257,7 @@ void DualEqKnob::resized() {
     dbSlider_.setBounds(juce::Rectangle<float>(innerSize, innerSize).withCentre(dial.getCentre()).toNearestInt());
     dbReadout_.setBounds(dbPillBounds());
     freqSlider_.setBounds(freqPillBounds());
+    freqEditor_.setBounds(freqPillBounds());
 }
 
 void DualEqKnob::mouseMove(const juce::MouseEvent& event) {
@@ -286,6 +305,16 @@ void DualEqKnob::mouseUp(const juce::MouseEvent&) {
 }
 
 void DualEqKnob::mouseDoubleClick(const juce::MouseEvent& event) {
+    if (freqPillBounds().toFloat().contains(event.position)) {
+        if (auto* param = state_.getParameter(freqId_)) {
+            const float norm = param->convertTo0to1(freqHz_);
+            freqEditor_.setBounds(freqPillBounds());
+            freqEditor_.setText(param->getText(norm, 0), juce::dontSendNotification);
+            freqEditor_.setVisible(true);
+            freqEditor_.showEditor();
+        }
+        return;
+    }
     if (!hitsOuterRing(event.position) || freqAttachment_ == nullptr) return;
     auto* param = state_.getParameter(freqId_);
     if (param == nullptr) return;
@@ -318,6 +347,7 @@ void DualEqKnob::setTooltip(const juce::String& text) {
 Choice::Choice(Apvts& state, const juce::String& parameterId, const juce::String& title, juce::Colour accent) {
     box_.setName(title);
     box_.setComponentID(parameterId);
+    box_.setWantsKeyboardFocus(true);
     box_.setColour(juce::ComboBox::arrowColourId, accent);
     box_.setColour(juce::ComboBox::backgroundColourId, theme::kBackground);
     box_.setColour(juce::ComboBox::outlineColourId, theme::kPanelEdge);
@@ -357,6 +387,7 @@ Toggle::Toggle(Apvts& state, const juce::String& parameterId, const juce::String
                const juce::String& onText, juce::Colour accent)
     : attachment_(state, parameterId, button_) {
     button_.setComponentID(parameterId);
+    button_.setWantsKeyboardFocus(true);
     button_.onStateChange = [this, offText, onText] {
         button_.setButtonText(button_.getToggleState() ? onText : offText);
     };

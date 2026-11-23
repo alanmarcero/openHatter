@@ -67,6 +67,8 @@ public:
     [[nodiscard]] juce::Slider& slider() noexcept { return dbSlider_; }
     [[nodiscard]] const juce::String& freqId() const noexcept { return freqId_; }
     [[nodiscard]] const juce::String& dbId() const noexcept { return dbId_; }
+    [[nodiscard]] juce::Rectangle<int> dbPillBounds() const;
+    [[nodiscard]] juce::Rectangle<int> freqPillBounds() const;
 
 private:
     class GainSlider final : public juce::Slider {
@@ -85,8 +87,6 @@ private:
     };
 
     [[nodiscard]] juce::Rectangle<float> dialBounds() const;
-    [[nodiscard]] juce::Rectangle<int> dbPillBounds() const;
-    [[nodiscard]] juce::Rectangle<int> freqPillBounds() const;
     [[nodiscard]] bool hitsOuterRing(juce::Point<float> pos) const;
     void updateDbReadout();
 
@@ -97,6 +97,7 @@ private:
     juce::Colour freqAccent_;
     juce::Label title_;
     juce::Label dbReadout_;
+    juce::Label freqEditor_;
     GainSlider dbSlider_;
     std::unique_ptr<Apvts::SliderAttachment> dbAttachment_;
     FreqSlider freqSlider_;

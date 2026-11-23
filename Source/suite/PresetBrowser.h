@@ -18,7 +18,9 @@ public:
     void setDismiss(std::function<void()> callback);
     void setSaved(std::function<void(const juce::String& name)> callback);
     void refresh();
+    void disarm();
     [[nodiscard]] int rowCount() const noexcept { return static_cast<int>(rows_.size()); }
+    [[nodiscard]] const std::vector<PresetEntry>& rows() const noexcept { return rows_; }
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -35,7 +37,6 @@ private:
     void loadRow(int row);
     void toggleFavorite(int row);
     void updateActionButtons();
-    void disarm();
 
     PresetLibrary& library_;
     Style style_;

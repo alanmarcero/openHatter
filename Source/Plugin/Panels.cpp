@@ -333,7 +333,12 @@ EnvelopePanel::EnvelopeGeometry EnvelopePanel::computeGeometry() const noexcept 
     };
     const float attackX = plot.getX() + plot.getWidth() * (.04f + .20f * relative(attack_));
     const float decayX = attackX + plot.getWidth() * (.10f + .20f * relative(decay_));
-    const float releaseX = plot.getRight() - plot.getWidth() * (.08f + .20f * relative(release_));
+    auto& releaseSlider = const_cast<Knob&>(release_).slider();
+    const double releaseVal = holdNotes_.getToggleState()
+        ? releaseSlider.getValue()
+        : std::min(releaseSlider.getValue(), 200.0);
+    const float releaseRel = static_cast<float>(releaseSlider.valueToProportionOfLength(releaseVal));
+    const float releaseX = plot.getRight() - plot.getWidth() * (.08f + .20f * releaseRel);
     const float sustainY = plot.getBottom() - plot.getHeight() * relative(sustain_);
     return { plot, attackX, decayX, releaseX, sustainY };
 }
@@ -524,6 +529,7 @@ void EnvelopePanel::resized() {
 LearnControl::LearnControl(juce::RangedAudioParameter& target, std::atomic<uint32_t>& eventCount,
                            std::atomic<int>& lastValue, const juce::String& tooltip)
     : target_(target, [](float) {}), eventCount_(eventCount), lastValue_(lastValue) {
+    setWantsKeyboardFocus(true);
     button_.setTitle("Learn " + target.getName(64));
     button_.setTooltip(tooltip);
     button_.setToggleable(true);
@@ -537,6 +543,7 @@ LearnControl::LearnControl(juce::RangedAudioParameter& target, std::atomic<uint3
         ticksLeft_ = kLearnTimeoutTicks;
         button_.setToggleState(true, juce::dontSendNotification);
         button_.setButtonText("Listening");
+        grabKeyboardFocus();
         startTimerHz(kLearnPollHz);
     };
     addAndMakeVisible(button_);
@@ -547,7 +554,13 @@ void LearnControl::resized() {
 }
 
 bool LearnControl::keyPressed(const juce::KeyPress& key) {
-    if (key != juce::KeyPress::escapeKey || !isTimerRunning())
+    if (key != juce::KeyPress::escapeKey)
+        return false;
+    return cancelIfListening();
+}
+
+bool LearnControl::cancelIfListening() {
+    if (!isTimerRunning())
         return false;
     stopListening();
     return true;
@@ -653,14 +666,17 @@ void PerformancePanel::resized() {
     auto roll = rollBounds_.reduced(11, 9).withTrimmedTop(34);
     auto modes = roll.removeFromLeft(144);
     layoutRows(modes, { { &rollEnabled_ }, { &rollDivision_ } });
+    // Reserve the Learn strip across the entire 4-knob row so all dials share one baseline.
+    auto learnStrip = roll.removeFromBottom(46);
     layoutRow(roll, { &rollSwing_, &rollAccent_, &chokeNote_, &chokeCc_ });
-    // Each Learn button sits under the control it sets.
-    std::ranges::for_each(std::array{ std::pair{ &chokeNote_, &chokeNoteLearn_ }, std::pair{ &chokeCc_, &chokeCcLearn_ } },
-        [](const auto& pair) {
-            auto bounds = pair.first->getBounds();
-            pair.second->setBounds(bounds.removeFromBottom(46));
-            pair.first->setBounds(bounds);
-        });
+    chokeNoteLearn_.setBounds(chokeNote_.getX(), learnStrip.getY(), chokeNote_.getWidth(), learnStrip.getHeight());
+    chokeCcLearn_.setBounds(chokeCc_.getX(), learnStrip.getY(), chokeCc_.getWidth(), learnStrip.getHeight());
+}
+
+bool PerformancePanel::cancelActiveLearn() {
+    const bool noteCancelled = chokeNoteLearn_.cancelIfListening();
+    const bool ccCancelled = chokeCcLearn_.cancelIfListening();
+    return noteCancelled || ccCancelled;
 }
 
 EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
@@ -693,8 +709,6 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::spaceAndOutput, on); }),
       reverseModeDependents_(*processor.parameters.getParameter(params::kReverseMode),
                              "Choose a Reverse sync mode to use this.", { &reverseMix_ }),
-      reverseMixDependents_(*processor.parameters.getParameter(params::kReverseMix), "Raise Reverse mix to hear this.",
-                            { &reverseMode_ }),
       reverbMixDependents_(*processor.parameters.getParameter(params::kReverbMix), "Raise the reverb Mix to hear this.",
                            { &reverbSize_, &reverbDecay_, &reverbDamp_, &reverbGate_ }),
       exciterMixDependents_(*processor.parameters.getParameter(params::kDistMix), "Raise the Exciter Mix to hear this.",

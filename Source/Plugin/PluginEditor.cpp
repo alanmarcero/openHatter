@@ -75,7 +75,7 @@ struct LockMenuSpec {
     return spec;
 }
 
-void drawPadlock(juce::Graphics& g, juce::Rectangle<float> box) {
+void drawPadlock(juce::Graphics& g, juce::Rectangle<float> box, juce::Colour colour = theme::kAccentBrass) {
     const float w = box.getWidth();
     const float h = box.getHeight();
     const float cx = box.getCentreX();
@@ -86,7 +86,7 @@ void drawPadlock(juce::Graphics& g, juce::Rectangle<float> box) {
                    juce::MathConstants<float>::pi * 1.0f, juce::MathConstants<float>::pi * 2.0f, true);
     g.setColour(theme::kBackground.withAlpha(0.88f));
     g.fillRoundedRectangle(box, 3.0f);
-    g.setColour(theme::kAccentBrass);
+    g.setColour(colour);
     g.strokePath(shackle, juce::PathStrokeType(1.6f));
     g.fillRoundedRectangle(body, 2.0f);
     g.setColour(theme::kBackground);
@@ -111,18 +111,25 @@ void drawPadlock(juce::Graphics& g, juce::Rectangle<float> box) {
 
 OpenHatterEditor::LockOverlay::LockOverlay(OpenHatterProcessor& processor, juce::Component& root)
     : processor_(processor), root_(root) {
-    setInterceptsMouseClicks(false, false);
+    setInterceptsMouseClicks(true, false);
 }
 
-void OpenHatterEditor::LockOverlay::paint(juce::Graphics& g) {
-    const auto paintTree = [&](auto&& self, juce::Component& parent) -> void {
+std::vector<OpenHatterEditor::LockOverlay::Badge> OpenHatterEditor::LockOverlay::collectBadges() const {
+    std::vector<Badge> badges;
+    const auto walk = [&](auto&& self, juce::Component& parent) -> void {
         for (auto* child : parent.getChildren()) {
             if (child == this || !child->isVisible())
                 continue;
             if (auto* eq = dynamic_cast<openhatter::ui::DualEqKnob*>(child)) {
-                if (processor_.isParamLocked(eq->dbId()) || processor_.isParamLocked(eq->freqId())) {
-                    const auto area = getLocalArea(eq, eq->getLocalBounds()).toFloat();
-                    drawPadlock(g, { area.getRight() - 16.0f, area.getY() + 2.0f, 14.0f, 14.0f });
+                if (processor_.isParamLocked(eq->dbId())) {
+                    const auto pill = getLocalArea(eq, eq->dbPillBounds()).toFloat();
+                    badges.push_back({ { pill.getRight() - 11.0f, pill.getY() - 3.0f, 12.0f, 12.0f },
+                                       eq->dbId(), theme::kAccentBrass });
+                }
+                if (processor_.isParamLocked(eq->freqId())) {
+                    const auto pill = getLocalArea(eq, eq->freqPillBounds()).toFloat();
+                    badges.push_back({ { pill.getRight() - 11.0f, pill.getY() - 3.0f, 12.0f, 12.0f },
+                                       eq->freqId(), theme::kAccentAqua });
                 }
                 continue;
             }
@@ -134,14 +141,56 @@ void OpenHatterEditor::LockOverlay::paint(juce::Graphics& g) {
                     else if (auto* parentChoice = dynamic_cast<openhatter::ui::Choice*>(child->getParentComponent()))
                         host = parentChoice;
                     const auto area = getLocalArea(host, host->getLocalBounds()).toFloat();
-                    drawPadlock(g, { area.getRight() - 16.0f, area.getY() + 2.0f, 14.0f, 14.0f });
+                    juce::Rectangle<float> box{ area.getRight() - 16.0f, area.getY() + 2.0f, 14.0f, 14.0f };
+                    if (dynamic_cast<juce::ComboBox*>(host) != nullptr)
+                        box.setX(area.getRight() - 30.0f);
+                    else if (dynamic_cast<juce::Button*>(host) != nullptr)
+                        box = { area.getRight() - 19.0f, area.getY() + 4.0f, 14.0f, 14.0f };
+                    badges.push_back({ box, id, theme::kAccentBrass });
                 }
                 continue;
             }
             self(self, *child);
         }
     };
-    paintTree(paintTree, root_);
+    walk(walk, root_);
+    return badges;
+}
+
+void OpenHatterEditor::LockOverlay::paint(juce::Graphics& g) {
+    for (const auto& badge : collectBadges())
+        drawPadlock(g, badge.bounds, badge.colour);
+}
+
+bool OpenHatterEditor::LockOverlay::hitTest(int x, int y) {
+    const auto pos = juce::Point<int>(x, y).toFloat();
+    for (const auto& badge : collectBadges()) {
+        if (badge.bounds.expanded(2.0f).contains(pos))
+            return true;
+    }
+    return false;
+}
+
+void OpenHatterEditor::LockOverlay::mouseMove(const juce::MouseEvent& event) {
+    for (const auto& badge : collectBadges()) {
+        if (badge.bounds.expanded(2.0f).contains(event.position)) {
+            if (auto* param = processor_.parameters.getParameter(badge.paramId))
+                setTooltip("Locked: " + param->getName(64) + " (click to unlock)");
+            return;
+        }
+    }
+    setTooltip({});
+}
+
+void OpenHatterEditor::LockOverlay::mouseDown(const juce::MouseEvent& event) {
+    for (const auto& badge : collectBadges()) {
+        if (!badge.bounds.expanded(2.0f).contains(event.position))
+            continue;
+        processor_.setParamLocked(badge.paramId, false);
+        setTooltip({});
+        repaint();
+        return;
+    }
 }
 
 OpenHatterEditor::LockMouseListener::LockMouseListener(OpenHatterProcessor& processor,
@@ -209,14 +258,16 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     presetBrowser_.refresh();
     presetBox_.setName("Preset");
     presetBox_.setTitle("Preset");
+    prevPresetBtn_.setName("Previous");
+    nextPresetBtn_.setName("Next");
     prevPresetBtn_.setTitle("Previous preset");
     nextPresetBtn_.setTitle("Next preset");
     slotABtn_.setTitle("Slot A");
     slotBBtn_.setTitle("Slot B");
     dragBtn_.setTitle("Drag WAV");
     presetBox_.setTooltip("Choose a factory hat. The box names the loaded factory or user preset, with * after an edit.");
-    prevPresetBtn_.setTooltip("Load the previous factory hat.");
-    nextPresetBtn_.setTooltip("Load the next factory hat.");
+    prevPresetBtn_.setTooltip("Load the previous preset.");
+    nextPresetBtn_.setTooltip("Load the next preset.");
     hatTab_.setTooltip("Shape the air tail and stick strike.");
     envelopeTab_.setTooltip("Choose one-shot or held notes and shape the amplitude envelope.");
     performanceTab_.setTooltip("Edit velocity, MIDI choke and rolls.");
@@ -232,29 +283,21 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     presetsBtn_.setTooltip("Browse factory and user presets, search, and star favorites.");
     presetBox_.setTextWhenNothingSelected("Custom sound");
     presetBox_.onChange = [this] {
+        presetBrowser_.disarm();
         if (presetBox_.getSelectedId() > 0)
             processor_.setCurrentProgram(presetBox_.getSelectedId() - 1);
     };
-    prevPresetBtn_.onClick = [this] {
-        const int count = processor_.getNumPrograms();
-        const int current = processor_.hasLegacySound() ? 0 : processor_.getCurrentProgram();
-        processor_.setCurrentProgram((current + count - 1) % count);
-        syncPresetBox();
-    };
-    nextPresetBtn_.onClick = [this] {
-        const int next = processor_.hasLegacySound() ? 0 : (processor_.getCurrentProgram() + 1) % processor_.getNumPrograms();
-        processor_.setCurrentProgram(next);
-        syncPresetBox();
-    };
+    prevPresetBtn_.onClick = [this] { stepPreset(-1); };
+    nextPresetBtn_.onClick = [this] { stepPreset(1); };
     auditionBtn_.setTooltip("Play a one-shot on the last MIDI pitch, or middle C before the first note.");
     auditionBtn_.setColour(juce::TextButton::buttonColourId, theme::kAccentBrass);
     auditionBtn_.setColour(juce::TextButton::textColourOffId, theme::kBackground);
     auditionBtn_.onClick = [this] { processor_.triggerAudition(); };
     undoBtn_.onClick = [this] { processor_.undo(); refreshHistoryButtons(); };
     redoBtn_.onClick = [this] { processor_.redo(); refreshHistoryButtons(); };
-    slotABtn_.onClick = [this] { processor_.selectAbSlot(0); refreshHistoryButtons(); };
-    slotBBtn_.onClick = [this] { processor_.selectAbSlot(1); refreshHistoryButtons(); };
-    copyBtn_.onClick = [this] { processor_.copyAbToOther(); };
+    slotABtn_.onClick = [this] { presetBrowser_.disarm(); processor_.selectAbSlot(0); refreshHistoryButtons(); };
+    slotBBtn_.onClick = [this] { presetBrowser_.disarm(); processor_.selectAbSlot(1); refreshHistoryButtons(); };
+    copyBtn_.onClick = [this] { presetBrowser_.disarm(); processor_.copyAbToOther(); };
     presetsBtn_.onClick = [this] { showPresetBrowser(!presetBrowser_.isVisible()); };
     lockBtn_.setClickingTogglesState(true);
     lockBtn_.getProperties().set("lockParamId", openhatter::params::kLockIn);
@@ -340,6 +383,45 @@ void OpenHatterEditor::syncPresetBox() {
         presetBox_.setText(name, juce::dontSendNotification);
 }
 
+void OpenHatterEditor::stepPreset(int delta) {
+    presetBrowser_.disarm();
+    const auto& rows = presetBrowser_.rows();
+    if (rows.empty()) {
+        const int count = processor_.getNumPrograms();
+        const int current = processor_.hasLegacySound() ? 0 : processor_.getCurrentProgram();
+        processor_.setCurrentProgram((current + delta + count) % count);
+        syncPresetBox();
+        return;
+    }
+    const auto activeUser = processor_.activeUserPreset();
+    const int currentFactory = processor_.getCurrentProgram();
+    const bool legacy = processor_.hasLegacySound();
+    int currentIdx = -1;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        const auto& entry = rows[i];
+        if (activeUser.isNotEmpty()) {
+            if (!entry.factory && entry.name == activeUser) {
+                currentIdx = static_cast<int>(i);
+                break;
+            }
+        } else if (!legacy && entry.factory && entry.factoryIndex == currentFactory) {
+            currentIdx = static_cast<int>(i);
+            break;
+        }
+    }
+    const int count = static_cast<int>(rows.size());
+    const int nextIdx = currentIdx >= 0 ? (currentIdx + delta + count) % count : (delta > 0 ? 0 : count - 1);
+    const auto& target = rows[static_cast<size_t>(nextIdx)];
+    if (target.factory) {
+        processor_.setCurrentProgram(target.factoryIndex);
+    } else {
+        const auto tree = presetLibrary_.readUser(target.name);
+        if (tree.isValid())
+            processor_.loadUserPreset(tree, target.name);
+    }
+    syncPresetBox();
+}
+
 void OpenHatterEditor::showPresetBrowser(bool show) {
     presetBrowser_.setVisible(show);
     presetsBtn_.setToggleState(show, juce::dontSendNotification);
@@ -390,11 +472,26 @@ void OpenHatterEditor::timerCallback() {
 }
 
 bool OpenHatterEditor::keyPressed(const juce::KeyPress& key) {
-    if (key == juce::KeyPress::escapeKey && presetBrowser_.isVisible()) {
-        showPresetBrowser(false);
-        return true;
+    if (key == juce::KeyPress::escapeKey) {
+        if (performancePanel_.cancelActiveLearn())
+            return true;
+        if (presetBrowser_.isVisible()) {
+            showPresetBrowser(false);
+            return true;
+        }
     }
     const auto code = juce::CharacterFunctions::toUpperCase(static_cast<juce::juce_wchar>(key.getKeyCode()));
+    if (key.getModifiers().isCommandDown() && code == 'L') {
+        if (auto* focused = juce::Component::getCurrentlyFocusedComponent()) {
+            const auto targets = resolveLockTargets(focused, content_, processor_.parameters);
+            if (!targets.empty()) {
+                for (const auto& id : targets)
+                    processor_.setParamLocked(id, !processor_.isParamLocked(id));
+                lockOverlay_.repaint();
+                return true;
+            }
+        }
+    }
     if (key.getModifiers().isCommandDown() && code == 'Z') {
         if (key.getModifiers().isShiftDown())
             processor_.redo();
@@ -434,9 +531,9 @@ void OpenHatterEditor::resized() {
 
 void OpenHatterEditor::layoutContent() {
     const int width = content_.getWidth();
-    presetBox_.setBounds(308, 33, 350, 38);
-    prevPresetBtn_.setBounds(667, 32, 82, 40);
-    nextPresetBtn_.setBounds(753, 32, 65, 40);
+    presetBox_.setBounds(308, 33, 422, 38);
+    prevPresetBtn_.setBounds(736, 32, 40, 40);
+    nextPresetBtn_.setBounds(780, 32, 40, 40);
     auditionBtn_.setBounds(width - 155, 25, 133, 43);
 
     auto suite = juce::Rectangle<int>(22, 92, std::max(0, width - 44), 38);

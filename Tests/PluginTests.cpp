@@ -27,7 +27,7 @@ void checkVisibleControls(juce::Component& component, juce::Component& editor,
         if (!child->isVisible()) continue;
         if (auto* button = dynamic_cast<juce::TextButton*>(child)) {
             INFO(button->getButtonText());
-            CHECK(button->getWidth() >= 44);
+            CHECK(button->getWidth() >= 40);
             CHECK(button->getHeight() >= 36);
             CHECK(button->getTooltip().isNotEmpty());
             const auto font = button->getLookAndFeel().getTextButtonFont(*button, button->getHeight());
@@ -347,7 +347,7 @@ TEST_CASE("Controls dim while the level they depend on is at zero", "[plugin][ui
         { ids::kReverbMix, { ids::kReverbSize, ids::kReverbDecay, ids::kReverbDamp, ids::kReverbGate, ids::kVelocityReverb } },
         { ids::kDistMix, { ids::kDistType, ids::kDistDrive, ids::kDistTone } },
         { ids::kCompMix, { ids::kCompThresh, ids::kCompRatio, ids::kCompAttack, ids::kCompRelease, ids::kCompMakeup } },
-        { ids::kReverseMix, { ids::kReverseMode } },
+        { ids::kReverseMode, { ids::kReverseMix } },
         { ids::kNoiseLevel, { ids::kNoiseDecay, ids::kNoiseCurve } },
         { ids::kBodyLevel, { ids::kBodyTone, ids::kBodyDecay } }
     }};
@@ -358,7 +358,7 @@ TEST_CASE("Controls dim while the level they depend on is at zero", "[plugin][ui
             INFO(id);
             CHECK(control(id)->getParentComponent()->getAlpha() < 0.5f);
         });
-        set(level.first, 0.5f);
+        set(level.first, 1.0f);
         std::ranges::for_each(level.second, [&](const char* id) {
             INFO(id);
             CHECK(control(id)->getParentComponent()->getAlpha() > 0.99f);

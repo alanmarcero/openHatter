@@ -139,6 +139,7 @@ void PresetBrowser::setDismiss(std::function<void()> callback) { dismiss_ = std:
 void PresetBrowser::setSaved(std::function<void(const juce::String&)> callback) { saved_ = std::move(callback); }
 
 void PresetBrowser::refresh() {
+    disarm();
     const auto selectedName = juce::isPositiveAndBelow(list_.getSelectedRow(), static_cast<int>(rows_.size()))
         ? rows_[static_cast<size_t>(list_.getSelectedRow())].name
         : juce::String();
@@ -154,6 +155,7 @@ void PresetBrowser::refresh() {
 }
 
 void PresetBrowser::visibilityChanged() {
+    disarm();
     if (isVisible())
         refresh();
 }

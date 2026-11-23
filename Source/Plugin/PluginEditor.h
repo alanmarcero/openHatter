@@ -19,12 +19,22 @@ public:
     [[nodiscard]] juce::PopupMenu buildLockMenuForParam(const juce::String& paramId);
 
 private:
-    class LockOverlay final : public juce::Component {
+    class LockOverlay final : public juce::Component, public juce::SettableTooltipClient {
     public:
         LockOverlay(OpenHatterProcessor& processor, juce::Component& root);
         void paint(juce::Graphics& g) override;
+        bool hitTest(int x, int y) override;
+        void mouseMove(const juce::MouseEvent& event) override;
+        void mouseDown(const juce::MouseEvent& event) override;
 
     private:
+        struct Badge {
+            juce::Rectangle<float> bounds;
+            juce::String paramId;
+            juce::Colour colour;
+        };
+        [[nodiscard]] std::vector<Badge> collectBadges() const;
+
         OpenHatterProcessor& processor_;
         juce::Component& root_;
     };
@@ -45,6 +55,7 @@ private:
     void layoutContent();
     void timerCallback() override;
     void syncPresetBox();
+    void stepPreset(int delta);
     void refreshHistoryButtons();
     void showPresetBrowser(bool show);
 
@@ -55,7 +66,7 @@ private:
     suite::PresetLibrary presetLibrary_;
     suite::PresetBrowser presetBrowser_;
     juce::ComboBox presetBox_;
-    juce::TextButton prevPresetBtn_{ "Previous" }, nextPresetBtn_{ "Next" }, auditionBtn_{ "Preview hat" };
+    juce::TextButton prevPresetBtn_{ "<" }, nextPresetBtn_{ ">" }, auditionBtn_{ "Preview hat" };
     juce::TextButton hatTab_{ "Hat" }, envelopeTab_{ "Envelope" }, performanceTab_{ "Performance" }, effectsTab_{ "Effects" };
     juce::TextButton detailBtn_{ "Detailed controls" };
     juce::TextButton undoBtn_{ "Undo" }, redoBtn_{ "Redo" }, slotABtn_{ "A" }, slotBBtn_{ "B" }, copyBtn_{ "Copy" };

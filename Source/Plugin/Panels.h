@@ -122,6 +122,7 @@ public:
                  const juce::String& tooltip);
     void resized() override;
     bool keyPressed(const juce::KeyPress& key) override;
+    bool cancelIfListening();
     void timerCallback() override;
 
 private:
@@ -140,6 +141,7 @@ public:
     explicit PerformancePanel(OpenHatterProcessor& processor);
     void paint(juce::Graphics& g) override;
     void resized() override;
+    bool cancelActiveLearn();
 
 private:
     Knob velocityAir_;
@@ -188,7 +190,6 @@ private:
     SectionLockButton dynamicsLock_;
     SectionLockButton spaceLock_;
     DependsOn reverseModeDependents_;
-    DependsOn reverseMixDependents_;
     DependsOn reverbMixDependents_;
     DependsOn exciterMixDependents_;
     DependsOn compMixDependents_;
