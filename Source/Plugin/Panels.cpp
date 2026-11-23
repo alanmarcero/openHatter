@@ -104,8 +104,8 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
     g.drawText("Layer decay", 326, 16, 200, 22, juce::Justification::left);
     const float scale = std::max({ 250.0f, airMs_, bodyMs_ });
     const auto decayBar = [&](int y, const char* label, float value, juce::Colour colour) {
-        g.setFont(juce::FontOptions(15.0f));
-        g.setColour(theme::kTextDim);
+        g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
+        g.setColour(theme::kText.withAlpha(0.85f));
         g.drawText(label, 326, y, 90, 22, juce::Justification::left);
         g.setColour(theme::kText);
         g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
@@ -122,9 +122,9 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
     decayBar(58, "Air", airMs_, theme::kAccentAqua);
     decayBar(104, "Body", bodyMs_, theme::kAccentBrass);
 
-    g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    g.drawText("MIDI input", pitchX, 21, 200, 21, juce::Justification::left);
+    g.setColour(theme::kText.withAlpha(0.88f));
+    g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
+    g.drawText("MIDI input", pitchX, 16, 200, 22, juce::Justification::left);
     const bool received = lastNote_ >= 0;
     g.setColour(theme::kText);
     g.setFont(juce::FontOptions(received ? 43.0f : 25.0f, juce::Font::bold));
@@ -136,7 +136,7 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
         g.drawText(params::formatHz(processor_.displayMidiFrequency.load()), pitchX, 98, 211, 20, juce::Justification::left);
         g.setColour(theme::kText.withAlpha(0.92f));
         g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
-        g.drawText("Note " + juce::String(lastNote_) + "   /   Velocity " + juce::String(juce::roundToInt(lastVelocity_ * 127)),
+        g.drawText("Note " + juce::String(lastNote_) + " / Velocity " + juce::String(juce::roundToInt(lastVelocity_ * 127)),
                    pitchX, 119, 222, 24, juce::Justification::left);
     } else {
         g.drawText("Play a note to set the pitch.", pitchX, 99, 224, 24, juce::Justification::left);
@@ -767,7 +767,7 @@ void EffectsPanel::resized() {
 
     const auto twoRowArea = [](juce::Rectangle<int> card) {
         auto inner = card.reduced(8, 10).withTrimmedTop(36);
-        return inner.withSizeKeepingCentre(inner.getWidth(), std::min(inner.getHeight(), 340));
+        return inner.withHeight(std::min(inner.getHeight(), 320));
     };
     layoutRows(twoRowArea(sectionBounds_[0]), {
         { &distType_, &distDrive_ },
@@ -782,6 +782,7 @@ void EffectsPanel::resized() {
         { &reverbGate_, &reverbMix_, &echoMix_ },
         { &reverseMode_, &reverseMix_ }
     });
+    reverseMode_.setBounds(reverseMode_.getX(), reverseMix_.getBottom() - 61, reverseMode_.getWidth(), 64);
 }
 
 PeakMeter::PeakMeter(std::atomic<float>& peak) : peak_(peak) {
@@ -830,7 +831,7 @@ void PeakMeter::paint(juce::Graphics& g) {
     auto barZone = area;
     const auto light = barZone.removeFromTop(8).toFloat();
     barZone.removeFromTop(4);
-    const float barX = std::max(6.0f, static_cast<float>(getWidth()) * 0.5f - 18.0f);
+    const float barX = std::max(6.0f, static_cast<float>(getWidth()) * 0.5f - 21.0f);
     const juce::Rectangle<float> bar(barX, static_cast<float>(barZone.getY()), 12.0f,
                                      static_cast<float>(std::max(0, barZone.getHeight() - 4)));
     const auto yFor = [&](float db) {
@@ -843,14 +844,14 @@ void PeakMeter::paint(juce::Graphics& g) {
     g.fillRoundedRectangle(bar.withTop(yFor(levelDb_)), 3.0f);
     g.setColour(theme::kTextDim);
     g.fillRect(bar.withY(yFor(0.0f)).withHeight(1.0f).expanded(2.0f, 0.0f));
-    g.setFont(juce::FontOptions(9.5f, juce::Font::bold));
-    const float tickX = bar.getRight() + 3.0f;
-    const float labelX = tickX + 5.0f;
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    const float tickX = bar.getRight() + 2.0f;
+    const float labelX = tickX + 7.0f;
     const float labelW = std::max(0.0f, static_cast<float>(getWidth()) - labelX - 2.0f);
     for (const auto& [tickDb, tickText] : { std::pair{ 0.0f, "0" }, std::pair{ -12.0f, "-12" }, std::pair{ -24.0f, "-24" } }) {
         const float y = yFor(tickDb);
-        g.fillRect(tickX, y - 0.5f, 4.0f, 1.0f);
-        g.drawText(tickText, juce::Rectangle<float>(labelX, y - 5.0f, labelW, 10.0f), juce::Justification::left, false);
+        g.fillRect(tickX, y - 0.5f, 3.5f, 1.0f);
+        g.drawText(tickText, juce::Rectangle<float>(labelX, y - 6.5f, labelW, 13.0f), juce::Justification::left, false);
     }
     if (heldDb_ > kFloorDb) {
         g.setColour(theme::kText);

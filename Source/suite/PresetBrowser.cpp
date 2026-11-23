@@ -47,6 +47,7 @@ PresetBrowser::PresetBrowser(PresetLibrary& library, Style style)
         addAndMakeVisible(button);
     }
     favoritesBtn_.setTitle("Favorites only");
+    favoritesBtn_.getProperties().set("fontSize", 15.5f);
     saveBtn_.setTitle("Save preset");
     renameBtn_.setTitle("Rename preset");
     deleteBtn_.setTitle("Delete preset");
@@ -210,8 +211,8 @@ void PresetBrowser::paintListBoxItem(int row, juce::Graphics& g, int width, int 
     g.setColour(style_.text);
     g.setFont(juce::FontOptions(15.0f));
     g.drawText(entry.name, 36, 0, width - 130, height, juce::Justification::centredLeft);
-    g.setColour(style_.textDim);
-    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+    g.setColour(style_.textDim.interpolatedWith(style_.text, 0.45f));
+    g.setFont(juce::FontOptions(13.5f, juce::Font::bold));
     g.drawText(entry.factory ? "Factory" : "User", width - 88, 0, 76, height, juce::Justification::centredRight);
 }
 

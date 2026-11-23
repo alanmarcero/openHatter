@@ -514,9 +514,10 @@ void OpenHatterEditor::paint(juce::Graphics& g) {
     g.setColour(theme::kText);
     g.setFont(juce::FontOptions(31.0f, juce::Font::bold));
     g.drawText("openHatter", 72, 13, 178, 38, juce::Justification::left);
+    g.setColour(theme::kText.withAlpha(0.78f));
+    g.setFont(juce::FontOptions(14.5f, juce::Font::bold));
+    g.drawText("v" JucePlugin_VersionString, 249, 21, 56, 24, juce::Justification::left);
     g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    g.drawText("v" JucePlugin_VersionString, 250, 22, 56, 22, juce::Justification::left);
     g.setFont(juce::FontOptions(14.0f));
     g.drawText("Bronze & air hi-hat synth", 74, 49, 210, 22, juce::Justification::left);
     g.setColour(theme::kText.withAlpha(0.92f));

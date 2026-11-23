@@ -16,7 +16,7 @@ void Control::setActive(bool active, const juce::String& howToEnable) {
         inactiveHints_.removeString(howToEnable);
     if (!active)
         inactiveHints_.addIfNotAlreadyThere(howToEnable);
-    setAlpha(inactiveHints_.isEmpty() ? 1.0f : theme::kDimAlpha);
+    setAlpha(inactiveHints_.isEmpty() ? 1.0f : theme::kInactiveControlAlpha);
     showTooltip((tooltip_ + " " + inactiveHints_.joinIntoString(" ")).trim());
 }
 
@@ -250,10 +250,10 @@ void DualEqKnob::paint(juce::Graphics& g) {
         g.drawFittedText(freqParam->getText(norm, 0), freqPill.toNearestInt(), juce::Justification::centred, 1);
 
     g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.drawText("dB", dbPill.getX(), dbPill.getY() - 14, dbPill.getWidth(), 13, juce::Justification::centred);
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.drawText("dB", dbPill.getX(), dbPill.getY() - 15, dbPill.getWidth(), 14, juce::Justification::centred);
     g.drawText("Note", freqPill.toNearestInt().getX(), freqPill.toNearestInt().getBottom() + 1,
-               freqPill.toNearestInt().getWidth(), 13, juce::Justification::centred);
+               freqPill.toNearestInt().getWidth(), 14, juce::Justification::centred);
 }
 
 void DualEqKnob::resized() {

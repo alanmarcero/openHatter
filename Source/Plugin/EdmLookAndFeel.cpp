@@ -187,8 +187,9 @@ void EdmLookAndFeel::drawButtonText(
                juce::Justification::centred, true);
 }
 
-juce::Font EdmLookAndFeel::getTextButtonFont(juce::TextButton&, int) {
-    return juce::FontOptions(kControlFontSize, juce::Font::bold);
+juce::Font EdmLookAndFeel::getTextButtonFont(juce::TextButton& button, int) {
+    const float size = static_cast<float>(button.getProperties().getWithDefault("fontSize", kControlFontSize));
+    return juce::FontOptions(size, juce::Font::bold);
 }
 
 juce::Font EdmLookAndFeel::getComboBoxFont(juce::ComboBox&) {
