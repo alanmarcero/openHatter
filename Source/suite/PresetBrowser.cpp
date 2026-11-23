@@ -16,19 +16,21 @@ void styleField(juce::TextEditor& field, const Style& style, const juce::String&
     field.setColour(juce::TextEditor::textColourId, style.text);
     field.setColour(juce::TextEditor::outlineColourId, style.edge);
     field.setColour(juce::TextEditor::focusedOutlineColourId, style.accent);
-    field.setFont(juce::FontOptions(15.0f));
-    field.setIndents(8, 4);
+    field.setFont(juce::FontOptions(16.0f));
+    field.setJustification(juce::Justification::centredLeft);
+    field.setIndents(10, 0);
 }
 
 } // namespace
 
 PresetBrowser::PresetBrowser(PresetLibrary& library, Style style)
     : library_(library), style_(style) {
+    const auto placeholderColour = style_.textDim.interpolatedWith(style_.text, 0.5f);
     styleField(search_, style_, "Preset search", "Filter factory and user presets by name.");
-    search_.setTextToShowWhenEmpty("Search presets", style_.textDim);
+    search_.setTextToShowWhenEmpty("Search presets", placeholderColour);
     search_.onTextChange = [this] { applySearch(); };
     styleField(name_, style_, "Preset name", "Name used when saving or renaming a user preset.");
-    name_.setTextToShowWhenEmpty("Preset name", style_.textDim);
+    name_.setTextToShowWhenEmpty("Preset name", placeholderColour);
     name_.onTextChange = [this] {
         disarm();
         updateActionButtons();

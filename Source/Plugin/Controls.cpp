@@ -171,7 +171,7 @@ void DualEqKnob::updateDbReadout() {
 
 juce::Rectangle<float> DualEqKnob::dialBounds() const {
     const auto middle = getLocalBounds().withTrimmedTop(18);
-    const float size = static_cast<float>(std::min(74, std::min(middle.getWidth() - 62, middle.getHeight())));
+    const float size = static_cast<float>(std::min(72, std::min(middle.getWidth() - 74, middle.getHeight())));
     return juce::Rectangle<float>(static_cast<float>(middle.getX()) + 2.0f,
                                   middle.toFloat().getCentreY() - size * 0.5f,
                                   size, size);
@@ -179,7 +179,7 @@ juce::Rectangle<float> DualEqKnob::dialBounds() const {
 
 juce::Rectangle<int> DualEqKnob::dbPillBounds() const {
     const auto middle = getLocalBounds().withTrimmedTop(18);
-    const int left = juce::roundToInt(dialBounds().getRight()) + 4;
+    const int left = juce::roundToInt(dialBounds().getRight()) + 6;
     const int width = std::max(0, middle.getRight() - left - 2);
     const int cy = middle.getCentreY();
     return { left, cy - 22, width, 20 };
@@ -187,7 +187,7 @@ juce::Rectangle<int> DualEqKnob::dbPillBounds() const {
 
 juce::Rectangle<int> DualEqKnob::freqPillBounds() const {
     const auto middle = getLocalBounds().withTrimmedTop(18);
-    const int left = juce::roundToInt(dialBounds().getRight()) + 4;
+    const int left = juce::roundToInt(dialBounds().getRight()) + 6;
     const int width = std::max(0, middle.getRight() - left - 2);
     const int cy = middle.getCentreY();
     return { left, cy + 2, width, 20 };
@@ -238,6 +238,7 @@ void DualEqKnob::paint(juce::Graphics& g) {
     g.setColour(theme::kText);
     g.fillEllipse(dotX - 2.3f, dotY - 2.3f, 4.6f, 4.6f);
 
+    const auto dbPill = dbPillBounds();
     const auto freqPill = freqPillBounds().toFloat();
     g.setColour(theme::kBackground.brighter(hoveringFreq_ || draggingFreq_ ? 0.1f : 0.0f));
     g.fillRoundedRectangle(freqPill, 4.0f);
@@ -247,6 +248,12 @@ void DualEqKnob::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(11.5f, juce::Font::bold));
     if (freqParam != nullptr)
         g.drawFittedText(freqParam->getText(norm, 0), freqPill.toNearestInt(), juce::Justification::centred, 1);
+
+    g.setColour(theme::kTextDim);
+    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+    g.drawText("dB", dbPill.getX(), dbPill.getY() - 14, dbPill.getWidth(), 13, juce::Justification::centred);
+    g.drawText("Note", freqPill.toNearestInt().getX(), freqPill.toNearestInt().getBottom() + 1,
+               freqPill.toNearestInt().getWidth(), 13, juce::Justification::centred);
 }
 
 void DualEqKnob::resized() {

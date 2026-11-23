@@ -134,8 +134,10 @@ void MidiMonitorPanel::paint(juce::Graphics& g) {
     g.setFont(juce::FontOptions(15.0f));
     if (received) {
         g.drawText(params::formatHz(processor_.displayMidiFrequency.load()), pitchX, 98, 211, 20, juce::Justification::left);
+        g.setColour(theme::kText.withAlpha(0.92f));
+        g.setFont(juce::FontOptions(16.0f, juce::Font::bold));
         g.drawText("Note " + juce::String(lastNote_) + "   /   Velocity " + juce::String(juce::roundToInt(lastVelocity_ * 127)),
-                   pitchX, 120, 212, 21, juce::Justification::left);
+                   pitchX, 119, 222, 24, juce::Justification::left);
     } else {
         g.drawText("Play a note to set the pitch.", pitchX, 99, 224, 24, juce::Justification::left);
     }
@@ -176,8 +178,10 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::air, on); }),
       holdAttachment_(*processor.parameters.getParameter(params::kAmpEnabled), [this](float value) {
           const bool held = value > .5f;
+          const auto accent = held ? theme::kAccentBrass : theme::kAccentAqua;
           playModeBadge_.setText(held ? "Held" : "One-shot", juce::dontSendNotification);
-          playModeBadge_.setColour(juce::Label::textColourId, held ? theme::kAccentBrass : theme::kAccentAqua);
+          playModeBadge_.setColour(juce::Label::textColourId, accent);
+          playModeBadge_.setColour(juce::Label::outlineColourId, accent.withAlpha(0.6f));
           playModeBadge_.setTooltip(held ? "MIDI notes sustain until note-off. Choose One-shot on Envelope to change it."
                                          : "Each MIDI note plays its full air tail. Choose Hold notes on Envelope to change it.");
           std::ranges::for_each(std::array{ &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_ }, [held](Knob* knob) {
@@ -215,10 +219,9 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
     bodyTone_.setTooltip("Sweep the bronze shell resonant chest modes from dark warm weight to biting bronze.");
     bodyDecay_.setTooltip("Set how long the bronze cymbal shell resonance sustains.");
     keyTracking_.setTooltip("Tune metallic partials and shell modes to the played MIDI note. 0 keeps every note identical.");
-    playModeBadge_.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+    playModeBadge_.setFont(juce::FontOptions(14.5f, juce::Font::bold));
     playModeBadge_.setJustificationType(juce::Justification::centred);
     playModeBadge_.setColour(juce::Label::backgroundColourId, theme::kBackground);
-    playModeBadge_.setColour(juce::Label::outlineColourId, theme::kPanelEdge);
     std::ranges::for_each(std::array<juce::Component*, 29>{
              &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_,
              &noiseWidth_, &decayScale_, &noiseLevel_, &hissColor_, &hissDensity_, &hissDrive_,
@@ -256,12 +259,15 @@ void HatSynthPanel::resized() {
             pair.second->setBounds(pair.first->removeFromTop(36).removeFromRight(56));
         });
     const auto airLockBounds = airLock_.getBounds();
-    playModeBadge_.setBounds(airLockBounds.getX() - 94, airLockBounds.getCentreY() - 13, 86, 26);
-    noiseType_.setBounds(air.removeFromTop(64));
+    playModeBadge_.setBounds(airLockBounds.getX() - 100, airLockBounds.getCentreY() - 14, 92, 28);
+    constexpr int kComboWidth = 228;
+    const auto airCombo = air.removeFromTop(64);
+    noiseType_.setBounds(airCombo.withSizeKeepingCentre(std::min(kComboWidth, airCombo.getWidth()), 64));
     // Contact sits above the stick row it changes.
     const int rowHeight = (stick.getHeight() - 64) / (advanced_ ? 4 : 2);
     layoutRow(stick.removeFromTop(rowHeight), { &bodyLevel_, &bodyTone_, &bodyDecay_ });
-    clickType_.setBounds(stick.removeFromTop(64));
+    const auto contactCombo = stick.removeFromTop(64);
+    clickType_.setBounds(contactCombo.withSizeKeepingCentre(std::min(kComboWidth, contactCombo.getWidth()), 64));
 
     if (advanced_) {
         layoutRows(air, {
@@ -513,10 +519,10 @@ void EnvelopePanel::paint(juce::Graphics& g) {
         g.setColour(theme::kText);
         g.fillEllipse(juce::Rectangle<float>(hot ? 8.0f : 6.5f, hot ? 8.0f : 6.5f).withCentre(point));
     });
-    g.setFont(juce::FontOptions(13.0f));
-    g.setColour(theme::kTextDim);
-    g.drawText(held ? "Key down" : "Strike", juce::Rectangle<float>(plot.getX(), base + 8, 100, 20), juce::Justification::left);
-    g.drawText(held ? "Key up" : "Tail fade", juce::Rectangle<float>(geom.releaseX - 45, base + 8, 90, 20), juce::Justification::centred);
+    g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
+    g.setColour(theme::kText.withAlpha(0.9f));
+    g.drawText(held ? "Key down" : "Strike", juce::Rectangle<float>(plot.getX(), base + 8, 120, 22), juce::Justification::left);
+    g.drawText(held ? "Key up" : "Tail fade", juce::Rectangle<float>(geom.releaseX - 55, base + 8, 110, 22), juce::Justification::centred);
 }
 
 void EnvelopePanel::resized() {
@@ -759,11 +765,15 @@ void EffectsPanel::resized() {
             pair.second->setBounds(sectionBounds_[static_cast<size_t>(pair.first)].getRight() - 67, 7, 56, 36);
         });
 
-    layoutRows(sectionBounds_[0].reduced(8, 10).withTrimmedTop(36), {
+    const auto twoRowArea = [](juce::Rectangle<int> card) {
+        auto inner = card.reduced(8, 10).withTrimmedTop(36);
+        return inner.withSizeKeepingCentre(inner.getWidth(), std::min(inner.getHeight(), 340));
+    };
+    layoutRows(twoRowArea(sectionBounds_[0]), {
         { &distType_, &distDrive_ },
         { &distTone_, &distMix_ }
     });
-    layoutRows(sectionBounds_[1].reduced(7, 10).withTrimmedTop(36), {
+    layoutRows(twoRowArea(sectionBounds_[1]), {
         { &compThresh_, &compRatio_, &compAttack_ },
         { &compRelease_, &compMakeup_, &compMix_ }
     });
@@ -816,10 +826,13 @@ void PeakMeter::paint(juce::Graphics& g) {
     g.setColour(theme::kTextDim);
     g.setFont(juce::FontOptions(12.5f, juce::Font::bold));
     g.drawText("Peak", area.removeFromTop(19), juce::Justification::centred);
-    const auto readout = area.removeFromBottom(20).withSizeKeepingCentre(std::min(getWidth(), 64), 20);
-    const auto light = area.removeFromTop(8).withSizeKeepingCentre(16, 6).toFloat();
-    area.removeFromTop(4);
-    const auto bar = area.withSizeKeepingCentre(12, area.getHeight() - 4).toFloat();
+    const auto readout = area.removeFromBottom(20).withSizeKeepingCentre(std::min(getWidth() - 4, 68), 20);
+    auto barZone = area;
+    const auto light = barZone.removeFromTop(8).toFloat();
+    barZone.removeFromTop(4);
+    const float barX = std::max(6.0f, static_cast<float>(getWidth()) * 0.5f - 18.0f);
+    const juce::Rectangle<float> bar(barX, static_cast<float>(barZone.getY()), 12.0f,
+                                     static_cast<float>(std::max(0, barZone.getHeight() - 4)));
     const auto yFor = [&](float db) {
         return juce::jmap(juce::jlimit(kFloorDb, kTopDb, db), kFloorDb, kTopDb, bar.getBottom(), bar.getY());
     };
@@ -829,13 +842,22 @@ void PeakMeter::paint(juce::Graphics& g) {
     g.setColour(theme::kAccentAqua);
     g.fillRoundedRectangle(bar.withTop(yFor(levelDb_)), 3.0f);
     g.setColour(theme::kTextDim);
-    g.fillRect(bar.withY(yFor(0.0f)).withHeight(1.0f).expanded(3.0f, 0.0f));
+    g.fillRect(bar.withY(yFor(0.0f)).withHeight(1.0f).expanded(2.0f, 0.0f));
+    g.setFont(juce::FontOptions(9.5f, juce::Font::bold));
+    const float tickX = bar.getRight() + 3.0f;
+    const float labelX = tickX + 5.0f;
+    const float labelW = std::max(0.0f, static_cast<float>(getWidth()) - labelX - 2.0f);
+    for (const auto& [tickDb, tickText] : { std::pair{ 0.0f, "0" }, std::pair{ -12.0f, "-12" }, std::pair{ -24.0f, "-24" } }) {
+        const float y = yFor(tickDb);
+        g.fillRect(tickX, y - 0.5f, 4.0f, 1.0f);
+        g.drawText(tickText, juce::Rectangle<float>(labelX, y - 5.0f, labelW, 10.0f), juce::Justification::left, false);
+    }
     if (heldDb_ > kFloorDb) {
         g.setColour(theme::kText);
         g.fillRect(bar.withY(yFor(heldDb_) - 1.0f).withHeight(2.0f));
     }
     g.setColour(clipped_ ? theme::kAccentBrass : theme::kPanelEdge);
-    g.fillRoundedRectangle(light, 2.0f);
+    g.fillRoundedRectangle(light.withSizeKeepingCentre(16.0f, 6.0f).withX(bar.getCentreX() - 8.0f), 2.0f);
 
     auto text = params::formatDb(heldDb_);
     if (heldDb_ <= kFloorDb) text = "-inf dB";
@@ -888,9 +910,9 @@ void OutputPanel::resized() {
     auto row = getLocalBounds().reduced(10, 6).withTrimmedTop(36);
     // The row follows the signal order.
     const std::array<std::pair<juce::Component*, float>, 9> items{{
-        { &masterWidth_, 9.5f }, { &eqLow_, 14.0f }, { &eqMid_, 14.0f }, { &eqHigh_, 14.0f },
-        { &limiterEnabled_, 10.0f }, { &limiterCeiling_, 9.5f }, { &limiterRelease_, 9.5f },
-        { &outputGain_, 9.5f }, { &peakMeter_, 6.0f }
+        { &masterWidth_, 8.8f }, { &eqLow_, 15.5f }, { &eqMid_, 15.5f }, { &eqHigh_, 15.5f },
+        { &limiterEnabled_, 9.0f }, { &limiterCeiling_, 8.8f }, { &limiterRelease_, 8.8f },
+        { &outputGain_, 8.8f }, { &peakMeter_, 8.0f }
     }};
     const float total = std::accumulate(items.begin(), items.end(), 0.0f,
                                         [](float sum, const auto& item) { return sum + item.second; });
