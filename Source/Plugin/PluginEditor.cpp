@@ -227,7 +227,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     : AudioProcessorEditor(&processorToEdit), processor_(processorToEdit),
       presetLibrary_(suite::PresetLibrary::defaultDirectory("openHatter")),
       presetBrowser_(presetLibrary_, editorStyle()),
-      dragBtn_([this] { return processor_.exportHatWav(); }),
+      suiteBar_([this] { return processor_.exportHatWav(); }),
       midiPanel_(processorToEdit), synthPanel_(processorToEdit), outputPanel_(processorToEdit),
       envelopePanel_(processorToEdit), performancePanel_(processorToEdit), effectsPanel_(processorToEdit),
       lockOverlay_(processorToEdit, content_),
@@ -262,9 +262,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     nextPresetBtn_.setName("Next");
     prevPresetBtn_.setTitle("Previous preset");
     nextPresetBtn_.setTitle("Next preset");
-    slotABtn_.setTitle("Slot A");
-    slotBBtn_.setTitle("Slot B");
-    dragBtn_.setTitle("Drag WAV");
+    lockBtn_.setTitle("Lock in");
     presetBox_.setTooltip("Choose a factory hat. The box names the loaded factory or user preset, with * after an edit.");
     prevPresetBtn_.setTooltip("Load the previous preset.");
     nextPresetBtn_.setTooltip("Load the next preset.");
@@ -273,14 +271,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     performanceTab_.setTooltip("Edit velocity, MIDI choke and rolls.");
     effectsTab_.setTooltip("Edit the exciter, dynamics and space.");
     detailBtn_.setTooltip("Show or hide the air filter and bounce settings.");
-    undoBtn_.setTooltip("Undo the last sound change.");
-    redoBtn_.setTooltip("Redo the last undone sound change.");
-    slotABtn_.setTooltip("Hear slot A.");
-    slotBBtn_.setTooltip("Hear slot B.");
-    copyBtn_.setTooltip("Copy the sound you hear into the other A/B slot.");
     lockBtn_.setTooltip("Keep a rendered hit. Drag exports that hit until you unlock.");
-    dragBtn_.setTooltip("Drag the locked hit, or a fresh render, out as a WAV file.");
-    presetsBtn_.setTooltip("Browse factory and user presets, search, and star favorites.");
     presetBox_.setTextWhenNothingSelected("Custom sound");
     presetBox_.onChange = [this] {
         presetBrowser_.disarm();
@@ -293,12 +284,21 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     auditionBtn_.setColour(juce::TextButton::buttonColourId, theme::kAccentBrass);
     auditionBtn_.setColour(juce::TextButton::textColourOffId, theme::kBackground);
     auditionBtn_.onClick = [this] { processor_.triggerAudition(); };
-    undoBtn_.onClick = [this] { processor_.undo(); refreshHistoryButtons(); };
-    redoBtn_.onClick = [this] { processor_.redo(); refreshHistoryButtons(); };
-    slotABtn_.onClick = [this] { presetBrowser_.disarm(); processor_.selectAbSlot(0); refreshHistoryButtons(); };
-    slotBBtn_.onClick = [this] { presetBrowser_.disarm(); processor_.selectAbSlot(1); refreshHistoryButtons(); };
-    copyBtn_.onClick = [this] { presetBrowser_.disarm(); processor_.copyAbToOther(); };
-    presetsBtn_.onClick = [this] { showPresetBrowser(!presetBrowser_.isVisible()); };
+    const auto copySlot = [this](int from) {
+        presetBrowser_.disarm();
+        const int heard = processor_.abSlot();
+        if (heard != from) processor_.selectAbSlot(from);
+        processor_.copyAbToOther();
+        if (heard != from) processor_.selectAbSlot(heard);
+        refreshHistoryButtons();
+    };
+    suiteBar_.onUndo = [this] { processor_.undo(); refreshHistoryButtons(); };
+    suiteBar_.onRedo = [this] { processor_.redo(); refreshHistoryButtons(); };
+    suiteBar_.onShowA = [this] { presetBrowser_.disarm(); processor_.selectAbSlot(0); refreshHistoryButtons(); };
+    suiteBar_.onShowB = [this] { presetBrowser_.disarm(); processor_.selectAbSlot(1); refreshHistoryButtons(); };
+    suiteBar_.onCopyAToB = [copySlot] { copySlot(0); };
+    suiteBar_.onCopyBToA = [copySlot] { copySlot(1); };
+    suiteBar_.onPresets = [this] { showPresetBrowser(!presetBrowser_.isVisible()); };
     lockBtn_.setClickingTogglesState(true);
     lockBtn_.getProperties().set("lockParamId", openhatter::params::kLockIn);
     presetBox_.getProperties().set("lockParamId", openhatter::params::kPreset);
@@ -331,15 +331,13 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
         synthPanel_.setAdvancedMode(detailBtn_.getToggleState());
         setPage(page_);
     };
-    for (auto* button : { &hatTab_, &envelopeTab_, &performanceTab_, &effectsTab_, &detailBtn_,
-                          &slotABtn_, &slotBBtn_, &lockBtn_, &presetsBtn_ }) {
+    for (auto* button : { &hatTab_, &envelopeTab_, &performanceTab_, &effectsTab_, &detailBtn_, &lockBtn_ }) {
         button->setToggleable(true);
         button->setColour(juce::TextButton::buttonOnColourId, theme::kAccentAqua);
     }
-    slotBBtn_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentBrass);
     for (juce::Component* child : std::initializer_list<juce::Component*>{
              &presetBox_, &prevPresetBtn_, &nextPresetBtn_, &auditionBtn_,
-             &undoBtn_, &redoBtn_, &slotABtn_, &slotBBtn_, &copyBtn_, &lockBtn_, &dragBtn_, &presetsBtn_,
+             &suiteBar_, &lockBtn_,
              &hatTab_, &envelopeTab_, &performanceTab_, &effectsTab_, &detailBtn_,
              &midiPanel_, &synthPanel_, &outputPanel_, &envelopePanel_, &performancePanel_, &effectsPanel_ })
         content_.addAndMakeVisible(child);
@@ -424,7 +422,7 @@ void OpenHatterEditor::stepPreset(int delta) {
 
 void OpenHatterEditor::showPresetBrowser(bool show) {
     presetBrowser_.setVisible(show);
-    presetsBtn_.setToggleState(show, juce::dontSendNotification);
+    suiteBar_.setPresetsOpen(show);
     if (show)
         presetBrowser_.refresh();
     setPage(page_);
@@ -450,11 +448,9 @@ void OpenHatterEditor::setPage(Page page) {
 }
 
 void OpenHatterEditor::refreshHistoryButtons() {
-    undoBtn_.setEnabled(processor_.canUndo());
-    redoBtn_.setEnabled(processor_.canRedo());
-    slotABtn_.setToggleState(processor_.abSlot() == 0, juce::dontSendNotification);
-    slotBBtn_.setToggleState(processor_.abSlot() == 1, juce::dontSendNotification);
-    copyBtn_.setTitle(processor_.abSlot() == 0 ? "Copy A to B" : "Copy B to A");
+    suiteBar_.setUndoEnabled(processor_.canUndo(), processor_.canRedo());
+    suiteBar_.setAbSlotB(processor_.abSlot() == 1);
+    suiteBar_.setPresetsOpen(presetBrowser_.isVisible());
 }
 
 void OpenHatterEditor::timerCallback() {
@@ -540,19 +536,9 @@ void OpenHatterEditor::layoutContent() {
     auditionBtn_.setBounds(width - 155, 25, 133, 43);
 
     auto suite = juce::Rectangle<int>(22, 92, std::max(0, width - 44), 38);
-    juce::Component* buttons[] = {
-        &undoBtn_, &redoBtn_, &slotABtn_, &slotBBtn_, &copyBtn_, &lockBtn_, &dragBtn_, &presetsBtn_
-    };
-    constexpr int count = 8;
-    constexpr int gap = 6;
-    const int available = suite.getWidth() - gap * (count - 1);
-    const int buttonW = std::max(44, std::min(150, available / count));
-    const int used = buttonW * count + gap * (count - 1);
-    int x = suite.getX() + std::max(0, (suite.getWidth() - used) / 2);
-    for (auto* button : buttons) {
-        button->setBounds(x, suite.getY(), buttonW, suite.getHeight());
-        x += buttonW + gap;
-    }
+    lockBtn_.setBounds(suite.removeFromRight(110));
+    suite.removeFromRight(8);
+    suiteBar_.setBounds(suite);
 
     hatTab_.setBounds(22, 140, 83, 38);
     envelopeTab_.setBounds(109, 140, 112, 38);

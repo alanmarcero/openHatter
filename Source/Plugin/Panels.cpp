@@ -218,7 +218,7 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
     bodyLevel_.setTooltip("Mix the spun-bronze cymbal shell resonators and low-mid chest punch.");
     bodyTone_.setTooltip("Sweep the bronze shell resonant chest modes from dark warm weight to biting bronze.");
     bodyDecay_.setTooltip("Set how long the bronze cymbal shell resonance sustains.");
-    keyTracking_.setTooltip("Tune metallic partials and shell modes to the played MIDI note. 0 keeps every note identical.");
+    keyTracking_.setTooltip(::suite::eq::kKeyTrackingTip);
     playModeBadge_.setFont(juce::FontOptions(14.5f, juce::Font::bold));
     playModeBadge_.setJustificationType(juce::Justification::centred);
     playModeBadge_.setColour(juce::Label::backgroundColourId, theme::kBackground);
@@ -886,9 +886,9 @@ OutputPanel::OutputPanel(OpenHatterProcessor& processor)
           [&processor](bool on) { processor.setSectionLocked(OpenHatterProcessor::PresetSection::output, on); }),
       limiterDependents_(*processor.parameters.getParameter(params::kLimiterEnabled), "Turn the limiter on to use this.",
                          { &limiterCeiling_, &limiterRelease_ }) {
-    eqLow_.setTooltip("Inner cap sets Low EQ gain (-12 to +12 dB); outer collar snaps Low EQ to notes (E1 to E3).");
-    eqMid_.setTooltip("Inner cap sets Mid EQ gain (-12 to +12 dB); outer collar snaps Mid EQ to notes (B4 to B6).");
-    eqHigh_.setTooltip("Inner cap sets High EQ gain (-12 to +12 dB); outer collar snaps High EQ to notes (A#7 to A#9).");
+    eqLow_.setTooltip(::suite::eq::kLowTip);
+    eqMid_.setTooltip(::suite::eq::kMidTip);
+    eqHigh_.setTooltip(::suite::eq::kHighTip);
     limiterEnabled_.setTooltip("Switch output peak limiting on or off.");
     masterWidth_.setTooltip("Set the stereo width of the output. 100% keeps it unchanged, and 0% is mono.");
     limiterRelease_.setTooltip("Set how fast the limiter recovers after a peak.");

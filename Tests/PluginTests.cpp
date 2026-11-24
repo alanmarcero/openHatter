@@ -3,6 +3,7 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -16,6 +17,8 @@
 #include <ranges>
 #include <utility>
 #include <vector>
+
+using Catch::Matchers::WithinAbs;
 
 namespace {
 std::atomic<uint64_t> pluginCallbackAllocations { 0 };
@@ -191,9 +194,9 @@ TEST_CASE("Readouts use one format per unit and accept typed units", "[plugin][p
     CHECK(shown(ids::kHissColor, -0.08f) == "-8%");
     CHECK(shown(ids::kHissColor, 0.2f) == "+20%");
     CHECK(shown(ids::kNoiseLPF, 17000.0f) == "17.0 kHz");
-    CHECK(shown(ids::kEqMidFreq, 987.77f) == "B5");
+    CHECK(shown(ids::kEqMidFreq, 987.77f) == "A5");
     CHECK(shown(ids::kEqLowFreq, 82.41f) == "E2");
-    CHECK(shown(ids::kEqHighFreq, 7458.62f) == "A#8");
+    CHECK(shown(ids::kEqHighFreq, 7458.62f) == "A8");
     CHECK(shown(ids::kNoiseHPF, 850.0f) == "850 Hz");
     CHECK(shown(ids::kAmpAttack, 0.35f) == "0.35 ms");
     CHECK(shown(ids::kAmpAttack, 9.0f) == "9.0 ms");
@@ -822,7 +825,7 @@ TEST_CASE("OpenHatter host-synced roll repeats the last MIDI hit while transport
 
 TEST_CASE("OpenHatterProcessor provides 56 EDM and trance factory presets", "[plugin]") {
     OpenHatterProcessor processor;
-    REQUIRE(processor.getNumPrograms() == 56);
+    REQUIRE(processor.getNumPrograms() == openhatter::presets::kFactoryProgramCount);
 
     for (int i = 0; i < 56; ++i) {
         processor.setCurrentProgram(i);
@@ -1714,7 +1717,7 @@ TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboa
         return dynamic_cast<juce::Slider*>(&component) != nullptr || dynamic_cast<juce::ComboBox*>(&component) != nullptr
             || dynamic_cast<juce::Button*>(&component) != nullptr;
     });
-    REQUIRE(controls.size() == 100);
+    REQUIRE(controls.size() == 101);
     std::ranges::for_each(controls, [](juce::Component* control) {
         INFO(control->getName() << " " << control->getComponentID());
         // JUCE speaks a button's text when the button has no title.
@@ -1731,7 +1734,7 @@ TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboa
     }), std::back_inserter(sliderTitles), [](juce::Component* slider) { return slider->getTitle(); });
     std::ranges::sort(sliderTitles);
     CHECK(std::ranges::adjacent_find(sliderTitles) == sliderTitles.end());
-    auto* copy = findButton(*editor, "Copy");
+    auto* copy = findButton(*editor, "A to B");
     REQUIRE(copy != nullptr);
     CHECK(copy->getTitle() == "Copy A to B");
 }
@@ -1849,10 +1852,10 @@ TEST_CASE("The editor scales its whole layout at a fixed aspect ratio", "[plugin
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     auto* constrainer = editor->getConstrainer();
     REQUIRE(constrainer != nullptr);
-    CHECK(std::abs(constrainer->getFixedAspectRatio() - 1060.0 / 904.0) < 1.0e-9);
-    CHECK(constrainer->getMinimumWidth() == 742);
+    CHECK(std::abs(constrainer->getFixedAspectRatio() - 1080.0 / 904.0) < 1.0e-9);
+    CHECK(constrainer->getMinimumWidth() == 756);
     CHECK(constrainer->getMinimumHeight() == 632);
-    CHECK(constrainer->getMaximumWidth() == 2120);
+    CHECK(constrainer->getMaximumWidth() == 2160);
     CHECK(constrainer->getMaximumHeight() == 1808);
 
     auto* preview = findButton(*editor, "Preview hat");
@@ -1861,24 +1864,24 @@ TEST_CASE("The editor scales its whole layout at a fixed aspect ratio", "[plugin
         editor->setSize(width, height);
         return editor->getLocalArea(preview, preview->getLocalBounds()).toFloat();
     };
-    const auto design = previewAt(1060, 904);
-    const auto smallest = previewAt(742, 632);
-    const auto largest = previewAt(2120, 1808);
+    const auto design = previewAt(1080, 904);
+    const auto smallest = previewAt(756, 632);
+    const auto largest = previewAt(2160, 1808);
     CHECK(std::abs(smallest.getWidth() / design.getWidth() - 0.7f) < 0.02f);
     CHECK(std::abs(smallest.getHeight() / design.getHeight() - 0.7f) < 0.03f);
     CHECK(std::abs(largest.getWidth() / design.getWidth() - 2.0f) < 0.02f);
     CHECK(std::abs(largest.getHeight() / design.getHeight() - 2.0f) < 0.03f);
     CHECK(std::abs(largest.getX() / design.getX() - 2.0f) < 0.02f);
-    CHECK(processor.editorSize() == juce::Point<int>(2120, 1808));
+    CHECK(processor.editorSize() == juce::Point<int>(2160, 1808));
 
     OpenHatterProcessor freeAspect;
     freeAspect.setEditorSize(1480, 1120);
-    CHECK(freeAspect.editorSize() == juce::Point<int>(1313, 1120));
+    CHECK(freeAspect.editorSize() == juce::Point<int>(1338, 1120));
     juce::MemoryBlock session;
     freeAspect.getStateInformation(session);
     OpenHatterProcessor restored;
     restored.setStateInformation(session.getData(), static_cast<int>(session.getSize()));
-    CHECK(restored.editorSize() == juce::Point<int>(1313, 1120));
+    CHECK(restored.editorSize() == juce::Point<int>(1338, 1120));
 }
 
 TEST_CASE("User presets load through section locks and the editor size is part of the session", "[plugin][presets][resize]") {
@@ -1897,16 +1900,16 @@ TEST_CASE("User presets load through section locks and the editor size is part o
     processor.loadUserPreset(tree, "Saved Hat");
     CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load() - 180.0f) < 0.5f);
 
-    processor.setEditorSize(1590, 1356);
+    processor.setEditorSize(1620, 1356);
     juce::MemoryBlock state;
     processor.getStateInformation(state);
     OpenHatterProcessor restored;
     restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
-    CHECK(restored.editorSize() == juce::Point<int>(1590, 1356));
+    CHECK(restored.editorSize() == juce::Point<int>(1620, 1356));
     CHECK(restored.activeUserPreset() == "Saved Hat");
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(restored.createEditor());
-    CHECK(editor->getWidth() == 1590);
+    CHECK(editor->getWidth() == 1620);
     CHECK(editor->getHeight() == 1356);
     CHECK(editor->isResizable());
 
@@ -2030,4 +2033,29 @@ TEST_CASE("Every RangedAudioParameter can be locked, persists across state resto
     CHECK_FALSE(restored.hasAnyLock());
     for (const auto& [id, _] : lockedValues)
         CHECK_FALSE(restored.isParamLocked(id));
+}
+
+TEST_CASE("EQ bands snap to chromatic notes across two octaves", "[plugin][eq][notes]") {
+    namespace params = openhatter::params;
+    OpenHatterProcessor processor;
+
+    auto checkBand = [&](const char* id, int minMidi, int maxMidi, const char* lowName, const char* midName,
+                         const char* highName, const char* parsedName) {
+        auto* param = processor.parameters.getParameter(id);
+        REQUIRE(param != nullptr);
+        REQUIRE(maxMidi - minMidi == 24);
+        REQUIRE(param->getText(0.0f, 16) == lowName);
+        REQUIRE(param->getText(0.5f, 16) == midName);
+        REQUIRE(param->getText(1.0f, 16) == highName);
+
+        const float parsedNorm = param->getValueForText(parsedName);
+        REQUIRE(param->getText(parsedNorm, 16) == parsedName);
+        const float hz = param->convertFrom0to1(parsedNorm);
+        const float snapped = param->getNormalisableRange().snapToLegalValue(hz * 1.01f);
+        REQUIRE_THAT(snapped, WithinAbs(hz, 0.01f));
+    };
+
+    checkBand(params::kEqLowFreq, params::kEqLowMinMidi, params::kEqLowMaxMidi, "A0", "A1", "A2", "G#1");
+    checkBand(params::kEqMidFreq, params::kEqMidMinMidi, params::kEqMidMaxMidi, "A3", "A4", "A5", "G#4");
+    checkBand(params::kEqHighFreq, params::kEqHighMinMidi, params::kEqHighMaxMidi, "A6", "A7", "A8", "G#7");
 }

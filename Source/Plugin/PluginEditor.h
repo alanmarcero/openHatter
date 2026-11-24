@@ -5,7 +5,7 @@
 #include "PluginProcessor.h"
 #include "PresetBrowser.h"
 #include "PresetLibrary.h"
-#include "WavDragButton.h"
+#include "SuiteBar.h"
 #include <memory>
 
 class OpenHatterEditor : public juce::AudioProcessorEditor, private juce::Timer {
@@ -69,9 +69,8 @@ private:
     juce::TextButton prevPresetBtn_{ "<" }, nextPresetBtn_{ ">" }, auditionBtn_{ "Preview hat" };
     juce::TextButton hatTab_{ "Hat" }, envelopeTab_{ "Envelope" }, performanceTab_{ "Performance" }, effectsTab_{ "Effects" };
     juce::TextButton detailBtn_{ "Detailed controls" };
-    juce::TextButton undoBtn_{ "Undo" }, redoBtn_{ "Redo" }, slotABtn_{ "A" }, slotBBtn_{ "B" }, copyBtn_{ "Copy" };
-    juce::TextButton lockBtn_{ "Lock in" }, presetsBtn_{ "Presets" };
-    suite::WavDragButton dragBtn_;
+    suite::SuiteBar suiteBar_;
+    juce::TextButton lockBtn_{ "Lock in" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> lockAttachment_;
     openhatter::ui::MidiMonitorPanel midiPanel_;
     openhatter::ui::HatSynthPanel synthPanel_;

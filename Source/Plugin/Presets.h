@@ -8,6 +8,9 @@
 
 namespace openhatter::presets {
 
+// Clap, hat, and kick banks are 56 programs. The snare bank is 84.
+inline constexpr int kFactoryProgramCount = 56;
+
 struct FactoryPreset {
     const char* name;
     std::vector<std::pair<juce::String, float>> values;

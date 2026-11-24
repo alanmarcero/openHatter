@@ -1,7 +1,9 @@
 #pragma once
 
 #include "HatEngine.h"
+#include "../suite/EqNotes.h"
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <utility>
 
 namespace openhatter::params {
 
@@ -98,12 +100,14 @@ inline constexpr const char* kRollDivision = "roll_division";
 inline constexpr const char* kRollSwing = "roll_swing";
 inline constexpr const char* kRollAccent = "roll_accent";
 
-inline constexpr int kEqLowMinMidi = 28;   // E1 (41.20 Hz)
-inline constexpr int kEqLowMaxMidi = 52;   // E3 (164.81 Hz)
-inline constexpr int kEqMidMinMidi = 71;   // B4 (493.88 Hz)
-inline constexpr int kEqMidMaxMidi = 95;   // B6 (1975.53 Hz)
-inline constexpr int kEqHighMinMidi = 106; // A#7 (3729.31 Hz)
-inline constexpr int kEqHighMaxMidi = 130; // A#9 (14917.24 Hz)
+inline constexpr int kEqLowMinMidi = suite::eq::kLowMinMidi;
+inline constexpr int kEqLowMaxMidi = suite::eq::kLowMaxMidi;
+inline constexpr int kEqMidMinMidi = suite::eq::kMidMinMidi;
+inline constexpr int kEqMidMaxMidi = suite::eq::kMidMaxMidi;
+inline constexpr int kEqHighMinMidi = suite::eq::kHighMinMidi;
+inline constexpr int kEqHighMaxMidi = suite::eq::kHighMaxMidi;
+
+[[nodiscard]] std::pair<int, int> eqBandMidiLimits(const juce::String& freqParamId) noexcept;
 
 // The editor readouts use the same text as the parameters.
 juce::String formatMs(float ms);

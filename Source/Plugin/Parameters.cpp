@@ -1,4 +1,5 @@
 #include "Parameters.h"
+#include <optional>
 #include <vector>
 
 namespace openhatter::params {
@@ -96,41 +97,24 @@ juce::String formatHz(float hz) {
     return juce::String(juce::roundToInt(hz)) + " Hz";
 }
 
-float eqNoteToHz(int midiNote) noexcept {
-    const int clamped = std::clamp(midiNote, 0, 144);
-    return 440.0f * std::exp2((static_cast<float>(clamped) - 69.0f) / 12.0f);
-}
+float eqNoteToHz(int midiNote) noexcept { return suite::eq::noteToHz(midiNote); }
 
 int eqHzToNearestMidi(float hz, int minMidi, int maxMidi) noexcept {
-    if (!std::isfinite(hz) || hz <= 0.0f) return minMidi;
-    const int midi = juce::roundToInt(69.0f + 12.0f * std::log2(hz / 440.0f));
-    return std::clamp(midi, minMidi, maxMidi);
+    return suite::eq::nearestMidi(hz, minMidi, maxMidi);
 }
 
 juce::String formatEqNote(float hz, int minMidi, int maxMidi) {
-    static constexpr std::array<const char*, 12> kNames{
-        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
-    };
-    const int midi = eqHzToNearestMidi(hz, minMidi, maxMidi);
-    const int octave = midi / 12 - 1;
-    return juce::String(kNames[static_cast<size_t>(midi % 12)]) + juce::String(octave);
+    return suite::eq::formatNote(hz, minMidi, maxMidi);
+}
+
+std::pair<int, int> eqBandMidiLimits(const juce::String& freqParamId) noexcept {
+    return suite::eq::bandLimits(freqParamId);
 }
 
 float parseEqNoteOrHz(const juce::String& text, int minMidi, int maxMidi) {
-    const auto trimmed = text.trim();
-    if (trimmed.isEmpty()) return eqNoteToHz(minMidi);
-    const int semitone = juce::String("C D EF G A B").indexOfIgnoreCase(trimmed.substring(0, 1));
-    if (semitone >= 0) {
-        const auto afterLetter = trimmed.substring(1);
-        const int sharp = afterLetter.startsWithChar('#') ? 1 : 0;
-        const int flat = afterLetter.startsWithChar('b') ? 1 : 0;
-        const auto octaveText = afterLetter.substring(sharp + flat).trim();
-        if (octaveText.isNotEmpty() && octaveText.containsOnly("-0123456789")) {
-            const int midi = (octaveText.getIntValue() + 1) * 12 + semitone + sharp - flat;
-            return eqNoteToHz(std::clamp(midi, minMidi, maxMidi));
-        }
-    }
-    return eqNoteToHz(eqHzToNearestMidi(parseHz(trimmed), minMidi, maxMidi));
+    return suite::eq::parseNoteOrHz(text, minMidi, maxMidi, [](const juce::String& trimmed) {
+        return parseHz(trimmed);
+    });
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
@@ -301,7 +285,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kLimiterRelease, 1 }, "Limiter Release", juce::NormalisableRange<float>(5.0f, 100.0f, 0.5f), 20.0f,
         msText));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
-        juce::ParameterID{ kLimiterEnabled, 1 }, "Limiter Enabled", true));
+        juce::ParameterID{ kLimiterEnabled, 1 }, "Limiter", true));
 
     // Trance Shimmer Reverb & Choke Gate
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
@@ -360,9 +344,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
             });
     };
     const auto makeNoteText = [](int minMidi, int maxMidi) {
-        return withText(
-            [minMidi, maxMidi](float hz) { return formatEqNote(hz, minMidi, maxMidi); },
-            [minMidi, maxMidi](const juce::String& text) { return parseEqNoteOrHz(text, minMidi, maxMidi); });
+        return FloatAttributes()
+            .withStringFromValueFunction([minMidi, maxMidi](float hz, int) { return formatEqNote(hz, minMidi, maxMidi); })
+            .withValueFromStringFunction([minMidi, maxMidi](const juce::String& text) { return parseEqNoteOrHz(text, minMidi, maxMidi); });
     };
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kEqLowFreq, 1 }, "Low EQ Freq", makeNoteRange(kEqLowMinMidi, kEqLowMaxMidi), eqNoteToHz(40),

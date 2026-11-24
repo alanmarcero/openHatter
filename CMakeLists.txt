@@ -61,7 +61,8 @@ if(OH_BUILD_PLUGIN)
         Source/suite/ParameterUndo.cpp
         Source/suite/PresetBrowser.cpp
         Source/suite/PresetLibrary.cpp
-        Source/suite/WavDragButton.cpp)
+        Source/suite/WavDragButton.cpp
+        Source/suite/SuiteBar.cpp)
 
     target_include_directories(OpenHatter PRIVATE
         Source/Core
