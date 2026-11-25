@@ -67,4 +67,4 @@ The stick and pedal oscillators now fade individual overtones as they approach N
 
 The project builds VST3, LV2 and Standalone on macOS, Windows and Linux, plus AU on macOS. See the [latest release](https://github.com/alanmarcero/openHatter/releases/latest) for packaged downloads.
 
-MIT License. See [LICENSE](LICENSE).
+AGPL-3.0. See [LICENSE](LICENSE).
