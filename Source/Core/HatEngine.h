@@ -22,7 +22,6 @@ struct MidiTrigger {
     int noteNumber = 66; // F#4
     float velocity = 1.0f;
     bool audition = false;
-    bool choke = false;
     int midiChannel = 1;
     bool noteOff = false;
 };
@@ -54,12 +53,8 @@ struct HatEffectSettings {
 struct EngineSettings {
     HatSynthSettings synth{};
     HatEffectSettings effects{};
-    int midiChokeNote = 42;
-    int midiChokeCc = 4;
     bool rollEnabled = false;
     int rollDivision = 1; // 0 = 1/8, 1 = 1/16, 2 = 1/32
-    float rollSwing = 0.0f;
-    float rollAccent = 0.25f;
     bool bypass = false;
 };
 
@@ -174,7 +169,6 @@ private:
     int rollMidiChannel_ = 1;
     bool rollFullAdsrActive_ = false;
     float rollVelocity_ = 1.0f;
-    int rollStep_ = 0;
     double nextRollPpq_ = 0.0;
     bool rollTransportWasPlaying_ = false;
 

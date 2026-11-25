@@ -8,7 +8,7 @@ namespace suite {
 /** Compact undo, A/B, preset browser, and WAV drag controls. */
 class SuiteBar : public juce::Component {
 public:
-    explicit SuiteBar(std::function<juce::MemoryBlock()> renderWav);
+    explicit SuiteBar(std::function<juce::File()> makeWavFile);
     void resized() override;
     void setAbSlotB(bool editingB);
     void setUndoEnabled(bool canUndo, bool canRedo);

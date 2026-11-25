@@ -49,11 +49,7 @@ private:
     Knob noiseHPF_;
     Knob noiseLPF_;
     Knob noiseWidth_;
-    Knob decayScale_;
     Knob noiseLevel_;
-    Knob hissColor_;
-    Knob hissDensity_;
-    Knob hissDrive_;
 
     // Spun bronze body & stick articulation
     Knob bodyLevel_;
@@ -115,50 +111,19 @@ private:
     DragHandle activeHandle_ = DragHandle::none;
 };
 
-// Sets a parameter from the next MIDI event. A second click, Escape or 10 s without MIDI cancels it.
-class LearnControl final : public juce::Component, public juce::Timer {
-public:
-    LearnControl(juce::RangedAudioParameter& target, std::atomic<uint32_t>& eventCount, std::atomic<int>& lastValue,
-                 const juce::String& tooltip);
-    void resized() override;
-    bool keyPressed(const juce::KeyPress& key) override;
-    bool cancelIfListening();
-    void timerCallback() override;
-
-private:
-    void stopListening();
-
-    juce::ParameterAttachment target_;
-    std::atomic<uint32_t>& eventCount_;
-    std::atomic<int>& lastValue_;
-    juce::TextButton button_{ "Learn" };
-    uint32_t armedCount_ = 0;
-    int ticksLeft_ = 0;
-};
-
 class PerformancePanel : public juce::Component {
 public:
     explicit PerformancePanel(OpenHatterProcessor& processor);
     void paint(juce::Graphics& g) override;
     void resized() override;
-    bool cancelActiveLearn();
+    void setAdvancedMode(bool) {}
 
 private:
-    Knob velocityAir_;
-    Knob velocityChick_;
-    Knob velocityReverb_;
-    Knob chokeNote_;
-    Knob chokeCc_;
+    Knob velocity_;
     Toggle rollEnabled_;
     Choice rollDivision_;
-    Knob rollSwing_;
-    Knob rollAccent_;
-    LearnControl chokeNoteLearn_;
-    LearnControl chokeCcLearn_;
     DependsOn rollDependents_;
-    DependsOn reverbMixDependents_;
-    juce::Rectangle<int> velocityBounds_, rollBounds_;
-    std::array<juce::Rectangle<int>, 3> curveBounds_{};
+    juce::Rectangle<int> rollBounds_;
 };
 
 class EffectsPanel : public juce::Component {
@@ -166,6 +131,7 @@ public:
     explicit EffectsPanel(OpenHatterProcessor& processor);
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void setAdvancedMode(bool advanced);
 
 private:
     Choice distType_;
@@ -194,6 +160,7 @@ private:
     DependsOn exciterMixDependents_;
     DependsOn compMixDependents_;
     std::array<juce::Rectangle<int>, 3> sectionBounds_{};
+    bool advanced_ = false;
 };
 
 // Shows output peaks in dBFS, holds each for 1 s, and latches a clip light until a click.

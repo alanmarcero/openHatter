@@ -17,13 +17,13 @@ class OpenHatterProcessor : public juce::AudioProcessor,
 public:
     enum class PresetSection : size_t { articulation, envelope, air, exciter, dynamics, spaceAndOutput, output, performance, count };
 
-    // The design size. The editor scales it from 70% to 200%.
+    // Same window as the kick: 1080x764, free aspect, within the shared limits.
     static constexpr int kEditorWidth = 1080;
-    static constexpr int kEditorHeight = 904;
-    static constexpr int kEditorMinWidth = kEditorWidth * 7 / 10;
-    static constexpr int kEditorMinHeight = kEditorHeight * 7 / 10;
-    static constexpr int kEditorMaxWidth = kEditorWidth * 2;
-    static constexpr int kEditorMaxHeight = kEditorHeight * 2;
+    static constexpr int kEditorHeight = 764;
+    static constexpr int kEditorMinWidth = 900;
+    static constexpr int kEditorMinHeight = 570;
+    static constexpr int kEditorMaxWidth = 1600;
+    static constexpr int kEditorMaxHeight = 1280;
 
     OpenHatterProcessor();
     ~OpenHatterProcessor() override;
@@ -69,15 +69,18 @@ public:
 
     [[nodiscard]] int abSlot() const noexcept { return ab_.active(); }
     void selectAbSlot(int slot);
-    void copyAbToOther();
+    // Copies the named slot onto the other slot. Hearing stays on the slot already selected.
+    void copyAbSlot(int from, int to);
 
     void setEditorSize(int width, int height) noexcept;
-    // The largest size at the design aspect ratio that fits in width x height, from 70% to 200%.
+    // Clamps a window into the editor limits. Width and height are independent.
     [[nodiscard]] static juce::Point<int> fitEditorSize(int width, int height) noexcept;
     [[nodiscard]] juce::Point<int> editorSize() const noexcept { return { editorWidth_, editorHeight_ }; }
 
     // Locked render when Lock In is on, otherwise a fresh offline hit that is not stored.
     [[nodiscard]] juce::MemoryBlock exportHatWav();
+    // Writes that render to a file, then returns the file for a drag.
+    [[nodiscard]] juce::File createHatWavFile();
     void serviceLockIn();
 
     [[nodiscard]] juce::String activeUserPreset() const;

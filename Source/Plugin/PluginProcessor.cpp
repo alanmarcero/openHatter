@@ -135,13 +135,6 @@ void OpenHatterProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::M
                 .audition = false,
                 .midiChannel = msg.getChannel()
             });
-        } else if (msg.isNoteOff() && msg.getNoteNumber() == settings.midiChokeNote) {
-            appendTrigger({
-                .sampleOffset = meta.samplePosition,
-                .noteNumber = msg.getNoteNumber(),
-                .velocity = 0.0f,
-                .choke = true
-            });
         } else if (msg.isNoteOff()) {
             appendTrigger({
                 .sampleOffset = meta.samplePosition,
@@ -387,25 +380,27 @@ void OpenHatterProcessor::selectAbSlot(int slot) {
     restoreSlotState(ab_.slot(slot));
 }
 
-void OpenHatterProcessor::copyAbToOther() {
+void OpenHatterProcessor::copyAbSlot(int from, int to) {
+    from = from == 1 ? 1 : 0;
+    to = to == 1 ? 1 : 0;
+    if (from == to)
+        return;
     ab_.storeActive(captureSlotState());
-    ab_.copyActiveToInactive();
-    parameterUndo_->clearSlot(1 - ab_.active());
+    ab_.copySlot(from, to);
+    parameterUndo_->clearSlot(to);
+    if (ab_.active() == to)
+        restoreSlotState(ab_.slot(to));
 }
 
 void OpenHatterProcessor::setEditorSize(int width, int height) noexcept {
-    if (width < kEditorMinWidth || height < kEditorMinHeight)
-        return;
     const auto fitted = fitEditorSize(width, height);
     editorWidth_ = fitted.x;
     editorHeight_ = fitted.y;
 }
 
 juce::Point<int> OpenHatterProcessor::fitEditorSize(int width, int height) noexcept {
-    const double designWidth = kEditorWidth;
-    const double scale = std::clamp(std::min(width / designWidth, height / static_cast<double>(kEditorHeight)),
-                                    kEditorMinWidth / designWidth, kEditorMaxWidth / designWidth);
-    return { juce::roundToInt(kEditorWidth * scale), juce::roundToInt(kEditorHeight * scale) };
+    return { std::clamp(width, kEditorMinWidth, kEditorMaxWidth),
+             std::clamp(height, kEditorMinHeight, kEditorMaxHeight) };
 }
 
 juce::MemoryBlock OpenHatterProcessor::exportHatWav() {
@@ -416,6 +411,20 @@ juce::MemoryBlock OpenHatterProcessor::exportHatWav() {
     if (wav.empty())
         wav = renderOfflineWav();
     return { wav.data(), wav.size() };
+}
+
+juce::File OpenHatterProcessor::createHatWavFile() {
+    const auto wav = exportHatWav();
+    if (wav.getSize() < 12)
+        return {};
+    auto directory = juce::File::getSpecialLocation(juce::File::tempDirectory)
+                         .getChildFile("Alan Marcero")
+                         .getChildFile("openHatter");
+    directory.createDirectory();
+    auto file = directory.getNonexistentChildFile("openHatter-hat", ".wav", false);
+    if (!file.replaceWithData(wav.getData(), wav.getSize()))
+        return {};
+    return file;
 }
 
 void OpenHatterProcessor::serviceLockIn() {
@@ -525,8 +534,7 @@ void OpenHatterProcessor::applyBinaryState(const void* data, int sizeInBytes, bo
 
     const int catalog = static_cast<int>(state.getProperty("preset_catalog_version", 0));
     if (catalog < 6) {
-        constexpr std::array<const char*, 6> kNewEngineParams{{
-            openhatter::params::kHissColor, openhatter::params::kHissDensity, openhatter::params::kHissDrive,
+        constexpr std::array<const char*, 3> kNewEngineParams{{
             openhatter::params::kBodyLevel, openhatter::params::kBodyTone, openhatter::params::kBodyDecay
         }};
         std::ranges::for_each(kNewEngineParams, [&](const char* paramId) {

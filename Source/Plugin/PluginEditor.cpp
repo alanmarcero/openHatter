@@ -227,7 +227,7 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     : AudioProcessorEditor(&processorToEdit), processor_(processorToEdit),
       presetLibrary_(suite::PresetLibrary::defaultDirectory("openHatter")),
       presetBrowser_(presetLibrary_, editorStyle()),
-      suiteBar_([this] { return processor_.exportHatWav(); }),
+      suiteBar_([this] { return processor_.createHatWavFile(); }),
       midiPanel_(processorToEdit), synthPanel_(processorToEdit), outputPanel_(processorToEdit),
       envelopePanel_(processorToEdit), performancePanel_(processorToEdit), effectsPanel_(processorToEdit),
       lockOverlay_(processorToEdit, content_),
@@ -266,11 +266,11 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     presetBox_.setTooltip("Choose a factory hat. The box names the loaded factory or user preset, with * after an edit.");
     prevPresetBtn_.setTooltip("Load the previous preset.");
     nextPresetBtn_.setTooltip("Load the next preset.");
-    hatTab_.setTooltip("Shape the air tail and stick strike.");
-    envelopeTab_.setTooltip("Choose one-shot or held notes and shape the amplitude envelope.");
-    performanceTab_.setTooltip("Edit velocity, MIDI choke and rolls.");
+    hatTab_.setTooltip("Choose one-shot or held notes and shape the amplitude envelope.");
+    layersTab_.setTooltip("Shape the air tail, bronze body, and stick strike.");
+    patternTab_.setTooltip("Edit the velocity curve and the host roll.");
     effectsTab_.setTooltip("Edit the exciter, dynamics and space.");
-    detailBtn_.setTooltip("Show or hide the air filter and bounce settings.");
+    detailBtn_.setTooltip("Show the essential controls or every sound design control.");
     lockBtn_.setTooltip("Keep a rendered hit. Drag exports that hit until you unlock.");
     presetBox_.setTextWhenNothingSelected("Custom sound");
     presetBox_.onChange = [this] {
@@ -284,20 +284,12 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     auditionBtn_.setColour(juce::TextButton::buttonColourId, theme::kAccentBrass);
     auditionBtn_.setColour(juce::TextButton::textColourOffId, theme::kBackground);
     auditionBtn_.onClick = [this] { processor_.triggerAudition(); };
-    const auto copySlot = [this](int from) {
-        presetBrowser_.disarm();
-        const int heard = processor_.abSlot();
-        if (heard != from) processor_.selectAbSlot(from);
-        processor_.copyAbToOther();
-        if (heard != from) processor_.selectAbSlot(heard);
-        refreshHistoryButtons();
-    };
     suiteBar_.onUndo = [this] { processor_.undo(); refreshHistoryButtons(); };
     suiteBar_.onRedo = [this] { processor_.redo(); refreshHistoryButtons(); };
     suiteBar_.onShowA = [this] { presetBrowser_.disarm(); processor_.selectAbSlot(0); refreshHistoryButtons(); };
     suiteBar_.onShowB = [this] { presetBrowser_.disarm(); processor_.selectAbSlot(1); refreshHistoryButtons(); };
-    suiteBar_.onCopyAToB = [copySlot] { copySlot(0); };
-    suiteBar_.onCopyBToA = [copySlot] { copySlot(1); };
+    suiteBar_.onCopyAToB = [this] { presetBrowser_.disarm(); processor_.copyAbSlot(0, 1); refreshHistoryButtons(); };
+    suiteBar_.onCopyBToA = [this] { presetBrowser_.disarm(); processor_.copyAbSlot(1, 0); refreshHistoryButtons(); };
     suiteBar_.onPresets = [this] { showPresetBrowser(!presetBrowser_.isVisible()); };
     lockBtn_.setClickingTogglesState(true);
     lockBtn_.getProperties().set("lockParamId", openhatter::params::kLockIn);
@@ -323,22 +315,25 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     });
 
     hatTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::hat); };
-    envelopeTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::envelope); };
-    performanceTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::performance); };
+    layersTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::layers); };
+    patternTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::pattern); };
     effectsTab_.onClick = [this] { showPresetBrowser(false); setPage(Page::effects); };
     detailBtn_.setClickingTogglesState(true);
     detailBtn_.onClick = [this] {
-        synthPanel_.setAdvancedMode(detailBtn_.getToggleState());
+        const bool advanced = detailBtn_.getToggleState();
+        synthPanel_.setAdvancedMode(advanced);
+        effectsPanel_.setAdvancedMode(advanced);
+        performancePanel_.setAdvancedMode(advanced);
         setPage(page_);
     };
-    for (auto* button : { &hatTab_, &envelopeTab_, &performanceTab_, &effectsTab_, &detailBtn_, &lockBtn_ }) {
+    for (auto* button : { &hatTab_, &layersTab_, &patternTab_, &effectsTab_, &detailBtn_, &lockBtn_ }) {
         button->setToggleable(true);
         button->setColour(juce::TextButton::buttonOnColourId, theme::kAccentAqua);
     }
     for (juce::Component* child : std::initializer_list<juce::Component*>{
              &presetBox_, &prevPresetBtn_, &nextPresetBtn_, &auditionBtn_,
              &suiteBar_, &lockBtn_,
-             &hatTab_, &envelopeTab_, &performanceTab_, &effectsTab_, &detailBtn_,
+             &hatTab_, &layersTab_, &patternTab_, &effectsTab_, &detailBtn_,
              &midiPanel_, &synthPanel_, &outputPanel_, &envelopePanel_, &performancePanel_, &effectsPanel_ })
         content_.addAndMakeVisible(child);
     content_.addChildComponent(presetBrowser_);
@@ -349,8 +344,6 @@ OpenHatterEditor::OpenHatterEditor(OpenHatterProcessor& processorToEdit)
     syncPresetBox();
     setResizeLimits(OpenHatterProcessor::kEditorMinWidth, OpenHatterProcessor::kEditorMinHeight,
                     OpenHatterProcessor::kEditorMaxWidth, OpenHatterProcessor::kEditorMaxHeight);
-    getConstrainer()->setFixedAspectRatio(static_cast<double>(OpenHatterProcessor::kEditorWidth)
-                                          / OpenHatterProcessor::kEditorHeight);
     setResizable(true, true);
     setSize(restoredSize.x, restoredSize.y);
     refreshHistoryButtons();
@@ -432,15 +425,15 @@ void OpenHatterEditor::setPage(Page page) {
     page_ = page;
     const bool browser = presetBrowser_.isVisible();
     const bool hat = page == Page::hat && !browser;
-    for (auto [tab, selected] : { std::pair{ &hatTab_, page == Page::hat }, { &envelopeTab_, page == Page::envelope },
-                                  { &performanceTab_, page == Page::performance }, { &effectsTab_, page == Page::effects } })
+    for (auto [tab, selected] : { std::pair{ &hatTab_, page == Page::hat }, { &layersTab_, page == Page::layers },
+                                  { &patternTab_, page == Page::pattern }, { &effectsTab_, page == Page::effects } })
         tab->setToggleState(selected, juce::dontSendNotification);
-    detailBtn_.setVisible(hat);
-    midiPanel_.setVisible(hat && !detailBtn_.getToggleState());
-    synthPanel_.setVisible(hat);
+    detailBtn_.setVisible(!browser);
+    midiPanel_.setVisible(hat);
+    synthPanel_.setVisible(page == Page::layers && !browser);
     outputPanel_.setVisible(hat);
-    envelopePanel_.setVisible(page == Page::envelope && !browser);
-    performancePanel_.setVisible(page == Page::performance && !browser);
+    envelopePanel_.setVisible(hat);
+    performancePanel_.setVisible(page == Page::pattern && !browser);
     effectsPanel_.setVisible(page == Page::effects && !browser);
     lockOverlay_.toFront(false);
     presetBrowser_.toFront(false);
@@ -469,8 +462,6 @@ void OpenHatterEditor::timerCallback() {
 
 bool OpenHatterEditor::keyPressed(const juce::KeyPress& key) {
     if (key == juce::KeyPress::escapeKey) {
-        if (performancePanel_.cancelActiveLearn())
-            return true;
         if (presetBrowser_.isVisible()) {
             showPresetBrowser(false);
             return true;
@@ -501,7 +492,6 @@ bool OpenHatterEditor::keyPressed(const juce::KeyPress& key) {
 
 void OpenHatterEditor::paint(juce::Graphics& g) {
     g.fillAll(theme::kBackground);
-    g.addTransform(content_.getTransform());
     g.setColour(theme::kPanel);
     g.fillRect(0, 0, content_.getWidth(), 136);
     g.setColour(theme::kAccentBrass);
@@ -518,44 +508,54 @@ void OpenHatterEditor::paint(juce::Graphics& g) {
     g.drawText("Bronze & air hi-hat synth", 74, 49, 210, 22, juce::Justification::left);
     g.setColour(theme::kText.withAlpha(0.92f));
     g.setFont(juce::FontOptions(15.5f, juce::Font::bold));
-    g.drawText("Preset", 309, 7, 220, 22, juce::Justification::left);
+    g.drawText("Preset", presetBox_.getX(), 7, presetBox_.getWidth(), 22, juce::Justification::left);
 }
 
 void OpenHatterEditor::resized() {
-    content_.setTransform(juce::RectanglePlacement().getTransformToFit(content_.getLocalBounds().toFloat(),
-                                                                       getLocalBounds().toFloat()));
+    content_.setBounds(getLocalBounds());
+    layoutContent();
     processor_.setEditorSize(getWidth(), getHeight());
     juce::AudioProcessorEditor::resized();
 }
 
 void OpenHatterEditor::layoutContent() {
     const int width = content_.getWidth();
-    presetBox_.setBounds(308, 33, 422, 38);
-    prevPresetBtn_.setBounds(736, 32, 40, 40);
-    nextPresetBtn_.setBounds(780, 32, 40, 40);
     auditionBtn_.setBounds(width - 155, 25, 133, 43);
+    auto presetRow = juce::Rectangle<int>(300, 32, std::max(120, width - 467), 40);
+    nextPresetBtn_.setBounds(presetRow.removeFromRight(40));
+    presetRow.removeFromRight(4);
+    prevPresetBtn_.setBounds(presetRow.removeFromRight(40));
+    presetRow.removeFromRight(6);
+    presetBox_.setBounds(presetRow);
 
-    auto suite = juce::Rectangle<int>(22, 92, std::max(0, width - 44), 38);
+    const int chromeTop = 92;
+    const int tabTop = 140;
+    const int bodyTop = 186;
+    auto suite = juce::Rectangle<int>(22, chromeTop, std::max(0, width - 44), 38);
     lockBtn_.setBounds(suite.removeFromRight(110));
     suite.removeFromRight(8);
     suiteBar_.setBounds(suite);
 
-    hatTab_.setBounds(22, 140, 83, 38);
-    envelopeTab_.setBounds(109, 140, 112, 38);
-    performanceTab_.setBounds(225, 140, 130, 38);
-    effectsTab_.setBounds(359, 140, 92, 38);
-    detailBtn_.setBounds(width - 177, 140, 155, 38);
-    auto body = content_.getLocalBounds().reduced(22, 0).withTrimmedTop(186).withTrimmedBottom(20);
+    hatTab_.setBounds(22, tabTop, 78, 38);
+    layersTab_.setBounds(104, tabTop, 92, 38);
+    patternTab_.setBounds(200, tabTop, 100, 38);
+    effectsTab_.setBounds(304, tabTop, 96, 38);
+    detailBtn_.setBounds(width - 190, tabTop, 168, 38);
+    auto body = content_.getLocalBounds().reduced(22, 0).withTrimmedTop(bodyTop).withTrimmedBottom(12);
     presetBrowser_.setBounds(body);
-    envelopePanel_.setBounds(body);
-    effectsPanel_.setBounds(body);
-    performancePanel_.setBounds(body);
-    if (!detailBtn_.getToggleState()) {
-        midiPanel_.setBounds(body.removeFromTop(164));
-        body.removeFromTop(10);
-    }
-    outputPanel_.setBounds(body.removeFromBottom(150));
-    body.removeFromBottom(10);
     synthPanel_.setBounds(body);
+    performancePanel_.setBounds(body);
+    effectsPanel_.setBounds(body);
+    auto hat = body;
+    const bool showMonitor = hat.getHeight() > 500;
+    const int outputHeight = 150;
+    midiPanel_.setVisible(page_ == Page::hat && !presetBrowser_.isVisible() && showMonitor);
+    if (showMonitor) {
+        midiPanel_.setBounds(hat.removeFromTop(72));
+        hat.removeFromTop(8);
+    }
+    outputPanel_.setBounds(hat.removeFromBottom(outputHeight));
+    hat.removeFromBottom(8);
+    envelopePanel_.setBounds(hat);
     lockOverlay_.setBounds(content_.getLocalBounds());
 }

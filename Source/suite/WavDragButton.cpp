@@ -2,8 +2,11 @@
 
 namespace suite {
 
-WavDragButton::WavDragButton(std::function<juce::MemoryBlock()> renderWav)
-    : juce::TextButton("Drag"), renderWav_(std::move(renderWav)) {}
+WavDragButton::WavDragButton(std::function<juce::File()> makeFile)
+    : juce::TextButton("Drag WAV"), makeFile_(std::move(makeFile)) {
+    setMouseCursor(juce::MouseCursor::DraggingHandCursor);
+    setTooltip("Drag the frozen hit out as a WAV. With no frozen hit, a fresh hit is rendered.");
+}
 
 void WavDragButton::mouseDown(const juce::MouseEvent& event) {
     dragStarted_ = false;
@@ -11,14 +14,10 @@ void WavDragButton::mouseDown(const juce::MouseEvent& event) {
 }
 
 void WavDragButton::mouseDrag(const juce::MouseEvent& event) {
-    if (dragStarted_ || renderWav_ == nullptr || event.getDistanceFromDragStart() < 8)
+    if (dragStarted_ || makeFile_ == nullptr || event.getDistanceFromDragStart() < 8)
         return;
-    const auto wav = renderWav_();
-    if (wav.getSize() < 12)
-        return;
-    auto file = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                    .getChildFile("openHatter-" + juce::Uuid().toString() + ".wav");
-    if (!file.replaceWithData(wav.getData(), wav.getSize()))
+    const auto file = makeFile_();
+    if (!file.existsAsFile())
         return;
     dragStarted_ = true;
     juce::DragAndDropContainer::performExternalDragDropOfFiles({ file.getFullPathName() }, false, this);

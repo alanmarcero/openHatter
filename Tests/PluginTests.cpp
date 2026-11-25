@@ -138,22 +138,21 @@ TEST_CASE("OpenHatterProcessor instantiates with valid parameters", "[plugin]") 
     REQUIRE(processor.parameters.getParameter(openhatter::params::kFlamSpread) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kClickType) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kNoiseType) != nullptr);
-    REQUIRE(processor.parameters.getParameter(openhatter::params::kHissColor) != nullptr);
-    REQUIRE(processor.parameters.getParameter(openhatter::params::kHissDensity) != nullptr);
-    REQUIRE(processor.parameters.getParameter(openhatter::params::kHissDrive) != nullptr);
+    REQUIRE(processor.parameters.getParameter(openhatter::params::kVelocity) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kBodyLevel) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kBodyTone) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kBodyDecay) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kKeyTracking) != nullptr);
+    CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kKeyTracking)->load() - 1.0f) < 0.001f);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kDistDrive) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kCompThresh) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kLimiterCeiling) != nullptr);
     REQUIRE(processor.parameters.getParameter(openhatter::params::kReverbMix) != nullptr);
 }
 
-TEST_CASE("OpenHatter decay morph and echo controls are automatable", "[plugin][parameters]") {
+TEST_CASE("OpenHatter echo control is automatable", "[plugin][parameters]") {
     OpenHatterProcessor processor;
-    for (const auto* id : { openhatter::params::kDecayScale, openhatter::params::kEchoMix }) {
+    for (const auto* id : { openhatter::params::kEchoMix }) {
         auto* parameter = processor.parameters.getParameter(id);
         REQUIRE(parameter != nullptr);
         CHECK(parameter->isAutomatable());
@@ -191,8 +190,8 @@ TEST_CASE("Readouts use one format per unit and accept typed units", "[plugin][p
         return parameter->convertFrom0to1(parameter->getValueForText(entry));
     };
     CHECK(shown(ids::kNoiseLevel, 0.86f) == "86%");
-    CHECK(shown(ids::kHissColor, -0.08f) == "-8%");
-    CHECK(shown(ids::kHissColor, 0.2f) == "+20%");
+    CHECK(shown(ids::kNoiseCurve, -0.08f) == "-8%");
+    CHECK(shown(ids::kNoiseCurve, 0.2f) == "+20%");
     CHECK(shown(ids::kNoiseLPF, 17000.0f) == "17.0 kHz");
     CHECK(shown(ids::kEqMidFreq, 987.77f) == "A5");
     CHECK(shown(ids::kEqLowFreq, 82.41f) == "E2");
@@ -237,7 +236,7 @@ TEST_CASE("Control labels name the right controls and match the host names", "[p
             && processor.parameters.getParameter(component.getComponentID()) != nullptr;
     };
     const auto everyControl = findAll(*editor, false, isBound);
-    REQUIRE(everyControl.size() == 66);
+    REQUIRE(everyControl.size() == 56);
     std::ranges::for_each(everyControl, [&](juce::Component* control) {
         const auto hostName = processor.parameters.getParameter(control->getComponentID())->getName(64);
         INFO(control->getName() << " is " << hostName << " in the host");
@@ -254,13 +253,14 @@ TEST_CASE("Control labels name the right controls and match the host names", "[p
     CHECK(editorBounds(ids::kBodyLevel).getBottom() <= editorBounds(ids::kClickType).getY());
     CHECK(editorBounds(ids::kClickType).getBottom() <= editorBounds(ids::kPreBursts).getY());
 
-    auto* detail = findButton(*editor, "Detailed controls");
+    auto* detail = findButton(*editor, "Advanced controls");
     REQUIRE(detail != nullptr);
+    click(*findButton(*editor, "Layers"));
     click(*detail);
     std::vector<juce::String> names;
     std::ranges::transform(findAll(*editor, true, isBound), std::back_inserter(names),
                            [](juce::Component* control) { return control->getName(); });
-    REQUIRE(names.size() == 36);
+    REQUIRE(names.size() == 22);
     std::ranges::sort(names);
     CHECK(std::ranges::adjacent_find(names) == names.end());
 }
@@ -312,8 +312,7 @@ TEST_CASE("Switched-off sections dim the controls they disable", "[plugin][ui][i
         auto* parameter = processor.parameters.getParameter(id);
         parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
     };
-    const std::array dependents{ ids::kLimiterCeiling, ids::kLimiterRelease, ids::kRollDivision, ids::kRollSwing,
-                                 ids::kRollAccent, ids::kReverseMix };
+    const std::array dependents{ ids::kLimiterCeiling, ids::kLimiterRelease, ids::kRollDivision, ids::kReverseMix };
 
     set(ids::kLimiterEnabled, 0.0f);
     set(ids::kRollEnabled, 0.0f);
@@ -347,7 +346,7 @@ TEST_CASE("Controls dim while the level they depend on is at zero", "[plugin][ui
         parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
     };
     const std::array<std::pair<const char*, std::vector<const char*>>, 6> levels{{
-        { ids::kReverbMix, { ids::kReverbSize, ids::kReverbDecay, ids::kReverbDamp, ids::kReverbGate, ids::kVelocityReverb } },
+        { ids::kReverbMix, { ids::kReverbSize, ids::kReverbDecay, ids::kReverbDamp, ids::kReverbGate } },
         { ids::kDistMix, { ids::kDistType, ids::kDistDrive, ids::kDistTone } },
         { ids::kCompMix, { ids::kCompThresh, ids::kCompRatio, ids::kCompAttack, ids::kCompRelease, ids::kCompMakeup } },
         { ids::kReverseMode, { ids::kReverseMix } },
@@ -379,12 +378,11 @@ TEST_CASE("Controls dim while the level they depend on is at zero", "[plugin][ui
     CHECK(control(ids::kNoiseDecay)->getParentComponent()->getAlpha() > 0.99f);
 }
 
-TEST_CASE("OpenHatter decay scale and tempo-synced echo shape output", "[plugin][dsp]") {
+TEST_CASE("OpenHatter tempo-synced echo shapes output", "[plugin][dsp]") {
     OpenHatterProcessor dryProc, enhancedProc;
     dryProc.prepareToPlay(48000.0, 16000);
     enhancedProc.prepareToPlay(48000.0, 16000);
-    for (const auto& [id, val] : { std::pair{openhatter::params::kDecayScale, 1.5f},
-                                   {openhatter::params::kEchoMix, 0.8f} }) {
+    for (const auto& [id, val] : { std::pair{openhatter::params::kEchoMix, 0.8f} }) {
         auto* param = enhancedProc.parameters.getParameter(id);
         REQUIRE(param != nullptr);
         param->setValueNotifyingHost(param->convertTo0to1(val));
@@ -403,10 +401,9 @@ TEST_CASE("OpenHatter decay scale and tempo-synced echo shape output", "[plugin]
     REQUIRE(lateEnhanced > lateDry + 1.0f);
 }
 
-TEST_CASE("OpenHatter decay morph and echo map to render settings and survive state restore", "[plugin][parameters]") {
+TEST_CASE("OpenHatter echo maps to render settings and survives state restore", "[plugin][parameters]") {
     OpenHatterProcessor processor;
-    const std::array<std::pair<const char*, float>, 2> values {{
-        { openhatter::params::kDecayScale, 1.6f },
+    const std::array<std::pair<const char*, float>, 1> values {{
         { openhatter::params::kEchoMix, 0.45f }
     }};
     for (const auto& [id, value] : values) {
@@ -416,7 +413,6 @@ TEST_CASE("OpenHatter decay morph and echo map to render settings and survive st
     }
 
     const auto settings = openhatter::params::readSettings(processor.parameters);
-    CHECK(std::abs(settings.synth.decayScale - 1.6f) < 0.011f);
     CHECK(std::abs(settings.effects.echoMix - 0.45f) < 0.011f);
 
     juce::MemoryBlock state;
@@ -444,20 +440,18 @@ TEST_CASE("OpenHatter presets reset the envelope unless the envelope section is 
     CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kAmpAttack)->load() - 7.0f) < 0.1f);
 }
 
-TEST_CASE("OpenHatter exposes the approved velocity, choke, and roll controls", "[plugin][performance]") {
+TEST_CASE("OpenHatter exposes one velocity path and a straight roll", "[plugin][performance]") {
     OpenHatterProcessor processor;
-    const std::array<const char*, 3> velocityIds {
-        "velocity_air", "velocity_chick", "velocity_reverb"
-    };
-    for (const auto* id : velocityIds)
-        REQUIRE(processor.parameters.getParameter(id) != nullptr);
-
-    REQUIRE(processor.parameters.getParameter("midi_choke_note") != nullptr);
-    REQUIRE(processor.parameters.getParameter("midi_choke_cc") != nullptr);
+    REQUIRE(processor.parameters.getParameter(openhatter::params::kVelocity) != nullptr);
+    REQUIRE(processor.parameters.getParameter("velocity_air") == nullptr);
+    REQUIRE(processor.parameters.getParameter("velocity_chick") == nullptr);
+    REQUIRE(processor.parameters.getParameter("velocity_reverb") == nullptr);
+    REQUIRE(processor.parameters.getParameter("midi_choke_note") == nullptr);
+    REQUIRE(processor.parameters.getParameter("midi_choke_cc") == nullptr);
     REQUIRE(processor.parameters.getParameter("roll_enabled") != nullptr);
     REQUIRE(processor.parameters.getParameter("roll_division") != nullptr);
-    REQUIRE(processor.parameters.getParameter("roll_swing") != nullptr);
-    REQUIRE(processor.parameters.getParameter("roll_accent") != nullptr);
+    REQUIRE(processor.parameters.getParameter("roll_swing") == nullptr);
+    REQUIRE(processor.parameters.getParameter("roll_accent") == nullptr);
 }
 
 TEST_CASE("OpenHatter exposes opt-in Full ADSR with a 20-second release range", "[plugin][midi]") {
@@ -479,14 +473,20 @@ TEST_CASE("Full ADSR applies matching note-off at its exact MIDI sample offset",
         parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
     };
     setValue("amp_enabled", 1.0f);
+    setValue(openhatter::params::kKeyTracking, 0.0f);
     setValue(openhatter::params::kAmpAttack, 0.05f);
     setValue(openhatter::params::kAmpDecay, 1.0f);
     setValue(openhatter::params::kAmpSustain, 1.0f);
     setValue(openhatter::params::kAmpRelease, 0.0f);
     setValue(openhatter::params::kReverbMix, 0.0f);
+    setValue(openhatter::params::kEchoMix, 0.0f);
     setValue(openhatter::params::kDistMix, 0.0f);
     setValue(openhatter::params::kCompMix, 0.0f);
     setValue(openhatter::params::kLimiterEnabled, 0.0f);
+    setValue(openhatter::params::kBodyLevel, 0.0f);
+    setValue(openhatter::params::kPreLevel, 0.0f);
+    setValue(openhatter::params::kNoiseDecay, 40.0f);
+    setValue(openhatter::params::kOutputGain, -6.0f);
     processor.prepareToPlay(48000.0, 512);
 
     juce::AudioBuffer<float> buffer(2, 512);
@@ -731,7 +731,7 @@ TEST_CASE("OpenHatter air velocity curve shapes the response independently of th
             REQUIRE(parameter != nullptr);
             parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
         };
-        setValue("velocity_air", velocityCurve);
+        setValue(openhatter::params::kVelocity, velocityCurve);
         setValue(openhatter::params::kNoiseLevel, 1.0f);
         setValue(openhatter::params::kClickLevel, 0.0f);
         setValue(openhatter::params::kPreLevel, 0.0f);
@@ -755,51 +755,6 @@ TEST_CASE("OpenHatter air velocity curve shapes the response independently of th
     const float compressedResponse = renderPeak(2.0f);
     REQUIRE(linearResponse > 0.0f);
     REQUIRE(compressedResponse < linearResponse * 0.8f);
-}
-
-TEST_CASE("OpenHatter configured MIDI choke note closes a ringing hat", "[plugin][midi]") {
-    OpenHatterProcessor processor;
-    auto* reverbMix = processor.parameters.getParameter(openhatter::params::kReverbMix);
-    reverbMix->setValueNotifyingHost(reverbMix->convertTo0to1(0.0f));
-    processor.prepareToPlay(48000.0, 2048);
-
-    juce::AudioBuffer<float> first(2, 256);
-    juce::MidiBuffer noteOn;
-    noteOn.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(120)), 0);
-    processor.processBlock(first, noteOn);
-    REQUIRE(processor.displayTriggerCount.load() == 1);
-
-    juce::AudioBuffer<float> afterChoke(2, 2048);
-    juce::MidiBuffer noteOff;
-    noteOff.addEvent(juce::MidiMessage::noteOff(1, 42), 64);
-    processor.processBlock(afterChoke, noteOff);
-    float tailPeak = 0.0f;
-    for (int channel = 0; channel < 2; ++channel)
-        for (int sample = 512; sample < afterChoke.getNumSamples(); ++sample)
-            tailPeak = std::max(tailPeak, std::abs(afterChoke.getSample(channel, sample)));
-    REQUIRE(tailPeak < 1.0e-6f);
-}
-
-TEST_CASE("OpenHatter configured MIDI choke CC closes a ringing hat at its sample offset", "[plugin][midi]") {
-    OpenHatterProcessor processor;
-    auto* reverbMix = processor.parameters.getParameter(openhatter::params::kReverbMix);
-    reverbMix->setValueNotifyingHost(reverbMix->convertTo0to1(0.0f));
-    processor.prepareToPlay(48000.0, 2048);
-
-    juce::AudioBuffer<float> first(2, 256);
-    juce::MidiBuffer noteOn;
-    noteOn.addEvent(juce::MidiMessage::noteOn(1, 46, static_cast<juce::uint8>(120)), 0);
-    processor.processBlock(first, noteOn);
-
-    juce::AudioBuffer<float> afterChoke(2, 2048);
-    juce::MidiBuffer chokeCc;
-    chokeCc.addEvent(juce::MidiMessage::controllerEvent(1, 4, 127), 64);
-    processor.processBlock(afterChoke, chokeCc);
-    float tailPeak = 0.0f;
-    for (int channel = 0; channel < 2; ++channel)
-        for (int sample = 512; sample < afterChoke.getNumSamples(); ++sample)
-            tailPeak = std::max(tailPeak, std::abs(afterChoke.getSample(channel, sample)));
-    REQUIRE(tailPeak < 1.0e-6f);
 }
 
 TEST_CASE("OpenHatter host-synced roll repeats the last MIDI hit while transport advances", "[plugin][performance]") {
@@ -875,8 +830,8 @@ TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]"
         REQUIRE(parameter != nullptr);
         parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
     };
-    setValue("midi_choke_note", 49.0f);
-    setValue("decay_scale", 1.4f);
+    setValue(openhatter::params::kVelocity, 2.4f);
+    setValue(openhatter::params::kEchoMix, 0.4f);
     setValue("roll_enabled", 1.0f);
     setValue(openhatter::params::kAmpEnabled, 1.0f);
     setValue(openhatter::params::kAmpRelease, 20000.0f);
@@ -891,8 +846,8 @@ TEST_CASE("OpenHatterProcessor saves and restores state information", "[plugin]"
     const float p1 = proc1.parameters.getRawParameterValue(openhatter::params::kDistDrive)->load();
     const float p2 = proc2.parameters.getRawParameterValue(openhatter::params::kDistDrive)->load();
     REQUIRE(std::abs(p1 - p2) < 0.001f);
-    REQUIRE(std::abs(proc2.parameters.getRawParameterValue("midi_choke_note")->load() - 49.0f) < 0.001f);
-    REQUIRE(std::abs(proc2.parameters.getRawParameterValue("decay_scale")->load() - 1.4f) < 0.011f);
+    REQUIRE(std::abs(proc2.parameters.getRawParameterValue(openhatter::params::kVelocity)->load() - 2.4f) < 0.02f);
+    REQUIRE(std::abs(proc2.parameters.getRawParameterValue(openhatter::params::kEchoMix)->load() - 0.4f) < 0.011f);
     REQUIRE(proc2.parameters.getRawParameterValue("roll_enabled")->load() > 0.5f);
     REQUIRE(proc2.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() > 0.5f);
     REQUIRE(std::abs(proc2.parameters.getRawParameterValue(openhatter::params::kAmpRelease)->load() - 20000.0f) < 0.1f);
@@ -1023,11 +978,12 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
     processor.processBlock(audio, midi);
     CHECK(audio.getMagnitude(0, 512) > .05f);
     CHECK(processor.displayTriggerCount.load() == 2);
+    click("Layers");
     CHECK(find(find, *editor, openhatter::params::kNoiseHold) == nullptr);
-    click("Detailed controls");
+    click("Advanced controls");
     CHECK(find(find, *editor, openhatter::params::kNoiseHold) != nullptr);
     capture("detail");
-    click("Envelope");
+    click("Hat");
     click("Hold notes");
     REQUIRE(processor.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() > .5f);
     for (auto [id, value] : { std::pair{ openhatter::params::kAmpAttack, 9.0f },
@@ -1039,13 +995,13 @@ TEST_CASE("Native editor browses, previews and edits held and one-shot hats", "[
         CHECK(std::abs(processor.parameters.getRawParameterValue(id)->load() - value) < .01f);
     }
     capture("envelope");
-    click("Hat");
-    click("Detailed controls");
+    click("Layers");
+    click("Advanced controls");
     capture("held");
-    click("Envelope");
+    click("Hat");
     click("One-shot");
     CHECK(processor.parameters.getRawParameterValue(openhatter::params::kAmpEnabled)->load() < .5f);
-    click("Performance");
+    click("Pattern");
     click("Roll off");
     CHECK(processor.parameters.getRawParameterValue(openhatter::params::kRollEnabled)->load() > .5f);
     capture("performance");
@@ -1081,16 +1037,12 @@ TEST_CASE("The look-and-feel dims disabled buttons, knobs and menus", "[plugin][
 TEST_CASE("OpenHatter ADSR points drag interactively and update envelope knobs and parameters", "[plugin][gui][adsr]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
-    auto* envTab = findButton(*editor, "Envelope");
-    REQUIRE(envTab != nullptr);
-    click(*envTab);
-
     auto* envPanel = findOne(*editor, false, [](juce::Component& component) {
         return dynamic_cast<openhatter::ui::EnvelopePanel*>(&component) != nullptr;
     });
     REQUIRE(envPanel->isVisible());
 
-    const auto plot = envPanel->getLocalBounds().reduced(40, 0).withTrimmedTop(114).withTrimmedBottom(200).toFloat();
+    const auto plot = envPanel->getLocalBounds().reduced(40, 0).withTrimmedTop(72).withTrimmedBottom(140).toFloat();
     const auto getProp = [&](const char* id) {
         auto* p = processor.parameters.getParameter(id);
         REQUIRE(p != nullptr);
@@ -1346,10 +1298,9 @@ TEST_CASE("Most factory hats stay noisy instead of ringing like a bell", "[plugi
         if (peakiness >= 14.0) ++ringing;
         else ++noisy;
     });
-    // The two rides keep a bell. The rest of the bank should not.
-    CHECK(ringing >= 2);
+    // Air color, density and drive are gone, so the bank stays a noise hat.
     CHECK(ringing <= 4);
-    CHECK(noisy >= 50);
+    CHECK(noisy >= 52);
 }
 
 TEST_CASE("OpenHatter exposes 3-band EQ with glide and Output controls on the main page", "[plugin][ui][eq]") {
@@ -1471,7 +1422,7 @@ TEST_CASE("A/B compare restores full sound and section locks", "[plugin][ab]") {
     REQUIRE(gain != nullptr);
     gain->setValueNotifyingHost(gain->convertTo0to1(3.5f));
     processor.setSectionLocked(OpenHatterProcessor::PresetSection::envelope, true);
-    processor.copyAbToOther();
+    processor.copyAbSlot(0, 1);
     gain->setValueNotifyingHost(gain->convertTo0to1(-8.0f));
     processor.setSectionLocked(OpenHatterProcessor::PresetSection::envelope, false);
     processor.selectAbSlot(1);
@@ -1506,7 +1457,7 @@ TEST_CASE("Each A/B slot keeps its own undo history", "[plugin][undo][ab]") {
     processor.undo();
     CHECK(std::abs(gainNow() - start) < 0.05f);
 
-    processor.copyAbToOther();
+    processor.copyAbSlot(0, 1);
     processor.selectAbSlot(1);
     CHECK_FALSE(processor.canUndo());
     CHECK_FALSE(processor.canRedo());
@@ -1618,98 +1569,6 @@ TEST_CASE("The Output strip meters peaks after Output gain in signal order", "[p
     CHECK(ceiling->getName() == "Limiter ceiling");
 }
 
-TEST_CASE("Performance draws velocity curves and names the choke note", "[plugin][ui][performance]") {
-    namespace ids = openhatter::params;
-    OpenHatterProcessor processor;
-    auto* chokeNote = processor.parameters.getParameter(ids::kMidiChokeNote);
-    CHECK(chokeNote->getText(chokeNote->convertTo0to1(42.0f), 0) == "F#2 (42)");
-    const auto typedNote = [&](const char* text) {
-        return juce::roundToInt(chokeNote->convertFrom0to1(chokeNote->getValueForText(text)));
-    };
-    CHECK(typedNote("F#2") == 42);
-    CHECK(typedNote("Gb2") == 42);
-    CHECK(typedNote("42") == 42);
-    CHECK(typedNote("F#2 (42)") == 42);
-    CHECK(typedNote("c4") == 60);
-    CHECK(typedNote("Bb2") == 46);
-
-    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
-    click(*findButton(*editor, "Performance"));
-    auto* panel = findOne(*editor, true, [](juce::Component& component) {
-        return dynamic_cast<openhatter::ui::PerformancePanel*>(&component) != nullptr;
-    });
-    const auto curves = panel->getLocalBounds().withHeight(400);
-    const auto before = panel->createComponentSnapshot(curves);
-    auto* airCurve = processor.parameters.getParameter(ids::kVelocityAir);
-    airCurve->setValueNotifyingHost(airCurve->convertTo0to1(4.0f));
-    const auto after = panel->createComponentSnapshot(curves);
-    int changed = 0;
-    std::ranges::for_each(std::views::iota(0, curves.getHeight()), [&](int y) {
-        std::ranges::for_each(std::views::iota(0, curves.getWidth() / 3), [&](int x) {
-            changed += before.getPixelAt(x, y) != after.getPixelAt(x, y);
-        });
-    });
-    CHECK(changed > 300);
-
-    auto* choke = findOne(*panel, true, [](juce::Component& component) {
-        return component.getComponentID() == ids::kMidiChokeNote;
-    });
-    CHECK(panel->getLocalArea(choke, choke->getLocalBounds()).getY() > 420);
-}
-
-TEST_CASE("Learn sets the choke note and CC from the next MIDI event and can be cancelled", "[plugin][ui][learn]") {
-    namespace ids = openhatter::params;
-    OpenHatterProcessor processor;
-    processor.prepareToPlay(48000.0, 512);
-    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
-    juce::AudioBuffer<float> audio(2, 512);
-    const auto send = [&](const juce::MidiMessage& message) {
-        juce::MidiBuffer midi;
-        midi.addEvent(message, 0);
-        processor.processBlock(audio, midi);
-    };
-    const auto learnFor = [&](const char* titleWord) {
-        return dynamic_cast<openhatter::ui::LearnControl*>(findOne(*editor, false, [&](juce::Component& component) {
-            return dynamic_cast<openhatter::ui::LearnControl*>(&component) != nullptr
-                && component.getChildComponent(0)->getTitle().contains(titleWord);
-        }));
-    };
-    const auto value = [&](const char* id) { return processor.parameters.getRawParameterValue(id)->load(); };
-    auto* noteLearn = learnFor("Note");
-    auto* ccLearn = learnFor("CC");
-    auto* noteButton = dynamic_cast<juce::TextButton*>(noteLearn->getChildComponent(0));
-    auto* ccButton = dynamic_cast<juce::TextButton*>(ccLearn->getChildComponent(0));
-    REQUIRE(noteButton != nullptr);
-    REQUIRE(ccButton != nullptr);
-
-    click(*noteButton);
-    CHECK(noteButton->getButtonText() == "Listening");
-    CHECK(noteButton->getToggleState());
-    send(juce::MidiMessage::noteOn(1, 49, 0.8f));
-    noteLearn->timerCallback();
-    CHECK(std::abs(value(ids::kMidiChokeNote) - 49.0f) < 0.5f);
-    CHECK(noteButton->getButtonText() == "Learn");
-    processor.undo();
-    CHECK(std::abs(value(ids::kMidiChokeNote) - 42.0f) < 0.5f);
-
-    click(*ccButton);
-    send(juce::MidiMessage::controllerEvent(1, 21, 100));
-    ccLearn->timerCallback();
-    CHECK(std::abs(value(ids::kMidiChokeCc) - 21.0f) < 0.5f);
-
-    click(*ccButton);
-    click(*ccButton);
-    CHECK_FALSE(ccLearn->isTimerRunning());
-    click(*ccButton);
-    CHECK(ccLearn->keyPressed(juce::KeyPress(juce::KeyPress::escapeKey)));
-    CHECK_FALSE(ccLearn->isTimerRunning());
-    click(*ccButton);
-    std::ranges::for_each(std::views::iota(0, 200), [&](int) { ccLearn->timerCallback(); });
-    CHECK_FALSE(ccLearn->isTimerRunning());
-    CHECK(ccButton->getButtonText() == "Learn");
-    CHECK(std::abs(value(ids::kMidiChokeCc) - 21.0f) < 0.5f);
-}
-
 TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboard focus", "[plugin][ui][a11y]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
@@ -1717,7 +1576,7 @@ TEST_CASE("Every control has a tooltip and a spoken title, and knobs take keyboa
         return dynamic_cast<juce::Slider*>(&component) != nullptr || dynamic_cast<juce::ComboBox*>(&component) != nullptr
             || dynamic_cast<juce::Button*>(&component) != nullptr;
     });
-    REQUIRE(controls.size() == 101);
+    REQUIRE(controls.size() == 89);
     std::ranges::for_each(controls, [](juce::Component* control) {
         INFO(control->getName() << " " << control->getComponentID());
         // JUCE speaks a button's text when the button has no title.
@@ -1826,7 +1685,7 @@ TEST_CASE("The header names the loaded preset and marks edits per slot and sessi
     CHECK(processor.presetDisplayName() == "Room Hat 2");
 
     edit(600.0f);
-    processor.copyAbToOther();
+    processor.copyAbSlot(0, 1);
     processor.setCurrentProgram(5);
     processor.selectAbSlot(1);
     CHECK(processor.presetDisplayName() == "Room Hat 2 *");
@@ -1847,41 +1706,34 @@ TEST_CASE("The header names the loaded preset and marks edits per slot and sessi
     CHECK(box->getText() == processor.getProgramName(5) + " *");
 }
 
-TEST_CASE("The editor scales its whole layout at a fixed aspect ratio", "[plugin][ui][resize]") {
+TEST_CASE("The editor opens at the kick size and resizes without a fixed aspect", "[plugin][ui][resize]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     auto* constrainer = editor->getConstrainer();
     REQUIRE(constrainer != nullptr);
-    CHECK(std::abs(constrainer->getFixedAspectRatio() - 1080.0 / 904.0) < 1.0e-9);
-    CHECK(constrainer->getMinimumWidth() == 756);
-    CHECK(constrainer->getMinimumHeight() == 632);
-    CHECK(constrainer->getMaximumWidth() == 2160);
-    CHECK(constrainer->getMaximumHeight() == 1808);
+    CHECK(std::abs(constrainer->getFixedAspectRatio()) < 1.0e-9);
+    CHECK(constrainer->getMinimumWidth() == 900);
+    CHECK(constrainer->getMinimumHeight() == 570);
+    CHECK(constrainer->getMaximumWidth() == 1600);
+    CHECK(constrainer->getMaximumHeight() == 1280);
+    CHECK(editor->getWidth() == 1080);
+    CHECK(editor->getHeight() == 764);
 
     auto* preview = findButton(*editor, "Preview hat");
     REQUIRE(preview != nullptr);
-    const auto previewAt = [&](int width, int height) {
-        editor->setSize(width, height);
-        return editor->getLocalArea(preview, preview->getLocalBounds()).toFloat();
-    };
-    const auto design = previewAt(1080, 904);
-    const auto smallest = previewAt(756, 632);
-    const auto largest = previewAt(2160, 1808);
-    CHECK(std::abs(smallest.getWidth() / design.getWidth() - 0.7f) < 0.02f);
-    CHECK(std::abs(smallest.getHeight() / design.getHeight() - 0.7f) < 0.03f);
-    CHECK(std::abs(largest.getWidth() / design.getWidth() - 2.0f) < 0.02f);
-    CHECK(std::abs(largest.getHeight() / design.getHeight() - 2.0f) < 0.03f);
-    CHECK(std::abs(largest.getX() / design.getX() - 2.0f) < 0.02f);
-    CHECK(processor.editorSize() == juce::Point<int>(2160, 1808));
+    editor->setSize(1400, 900);
+    const auto placed = editor->getLocalArea(preview, preview->getLocalBounds());
+    CHECK(editor->getLocalBounds().contains(placed));
+    CHECK(processor.editorSize() == juce::Point<int>(1400, 900));
 
     OpenHatterProcessor freeAspect;
     freeAspect.setEditorSize(1480, 1120);
-    CHECK(freeAspect.editorSize() == juce::Point<int>(1338, 1120));
+    CHECK(freeAspect.editorSize() == juce::Point<int>(1480, 1120));
     juce::MemoryBlock session;
     freeAspect.getStateInformation(session);
     OpenHatterProcessor restored;
     restored.setStateInformation(session.getData(), static_cast<int>(session.getSize()));
-    CHECK(restored.editorSize() == juce::Point<int>(1338, 1120));
+    CHECK(restored.editorSize() == juce::Point<int>(1480, 1120));
 }
 
 TEST_CASE("User presets load through section locks and the editor size is part of the session", "[plugin][presets][resize]") {
@@ -1900,17 +1752,17 @@ TEST_CASE("User presets load through section locks and the editor size is part o
     processor.loadUserPreset(tree, "Saved Hat");
     CHECK(std::abs(processor.parameters.getRawParameterValue(openhatter::params::kNoiseDecay)->load() - 180.0f) < 0.5f);
 
-    processor.setEditorSize(1620, 1356);
+    processor.setEditorSize(1400, 980);
     juce::MemoryBlock state;
     processor.getStateInformation(state);
     OpenHatterProcessor restored;
     restored.setStateInformation(state.getData(), static_cast<int>(state.getSize()));
-    CHECK(restored.editorSize() == juce::Point<int>(1620, 1356));
+    CHECK(restored.editorSize() == juce::Point<int>(1400, 980));
     CHECK(restored.activeUserPreset() == "Saved Hat");
 
     std::unique_ptr<juce::AudioProcessorEditor> editor(restored.createEditor());
-    CHECK(editor->getWidth() == 1620);
-    CHECK(editor->getHeight() == 1356);
+    CHECK(editor->getWidth() == 1400);
+    CHECK(editor->getHeight() == 980);
     CHECK(editor->isResizable());
 
     editor->setSize(OpenHatterProcessor::kEditorMinWidth, OpenHatterProcessor::kEditorMinHeight);

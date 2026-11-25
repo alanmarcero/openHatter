@@ -1060,9 +1060,10 @@ HatSynthLayers HatSynth::processSampleLayers(const HatSynthSettings& settings) n
         airPair[1] = mid - side;
     }
 
-    const float airVelocity = std::pow(velocity_, std::clamp(settings.velocityAir, 0.25f, 4.0f));
-    const float chickVelocity = std::pow(velocity_, std::clamp(settings.velocityChick, 0.25f, 4.0f));
-    const float reverbVelocity = std::pow(velocity_, std::clamp(settings.velocityReverb, 0.25f, 4.0f));
+    const float hitVelocity = std::pow(velocity_, std::clamp(settings.velocityCurve, 0.25f, 4.0f));
+    const float airVelocity = hitVelocity;
+    const float chickVelocity = hitVelocity;
+    const float reverbVelocity = hitVelocity;
     const float unscaledAirL = airPair[0];
     const float unscaledAirR = airPair[1];
     const float airL = unscaledAirL * airVelocity;

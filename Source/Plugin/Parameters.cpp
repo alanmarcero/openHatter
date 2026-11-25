@@ -50,22 +50,6 @@ float parseGate(const juce::String& text) {
     return parseMs(text);
 }
 
-// Reads F#2, Gb2, 42 or F#2 (42).
-int parseNote(const juce::String& text) {
-    const auto trimmed = text.trim();
-    if (trimmed.containsChar('('))
-        return trimmed.fromFirstOccurrenceOf("(", false, false).getIntValue();
-    // Each letter's index in this string is its semitone above C.
-    const int letter = juce::String("C D EF G A B").indexOfChar(juce::CharacterFunctions::toUpperCase(trimmed[0]));
-    if (letter < 0)
-        return trimmed.getIntValue();
-    const auto rest = trimmed.substring(1);
-    const bool sharp = rest.startsWithChar('#');
-    const bool flat = rest.startsWithChar('b');
-    const int octave = rest.substring(sharp || flat ? 1 : 0).getIntValue();
-    return (octave + 5 - kMiddleCOctave) * 12 + letter + (sharp ? 1 : 0) - (flat ? 1 : 0);
-}
-
 FloatAttributes withText(std::function<juce::String(float)> format, std::function<float(const juce::String&)> parse) {
     return FloatAttributes()
         .withStringFromValueFunction([formatValue = std::move(format)](float value, int maximumLength) {
@@ -145,10 +129,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kPreLevel, 1 }, "Bounce Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.65f,
         percentText));
 
-    // Open / closed decay morph and tempo-synced echo
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kDecayScale, 1 }, "Decay Morph", juce::NormalisableRange<float>(0.25f, 2.0f, 0.01f), 1.0f,
-        percentText));
+    // Tempo-synced echo
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kEchoMix, 1 }, "Echo Mix", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f,
         percentText));
@@ -205,16 +186,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kNoiseLevel, 1 }, "Air Level", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.88f,
         percentText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kVelocityAir, 1 }, "Air Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kHissColor, 1 }, "Air Color", juce::NormalisableRange<float>(-1.0f, 1.0f, 0.01f), 0.0f,
-        signedPercentText));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kHissDensity, 1 }, "Air Density", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.35f,
-        percentText));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kHissDrive, 1 }, "Air Saturation", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f,
-        percentText));
+        juce::ParameterID{ kVelocity, 1 }, "Velocity", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
 
     // Spun Bronze Cymbal Body
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
@@ -238,9 +210,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
         juce::ParameterID{ kClickFreq, 1 }, "Stick Tone", juce::NormalisableRange<float>(1000.0f, 14000.0f, 10.0f, 0.35f), 6800.0f,
         hzText));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kVelocityChick, 1 }, "Stick Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kKeyTracking, 1 }, "Key Tracking", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.0f,
+        juce::ParameterID{ kKeyTracking, 1 }, "Key Tracking", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 1.0f,
         percentText));
 
     // Shimmer Saturation & Exciter
@@ -303,8 +273,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kReverbMix, 1 }, "Reverb Mix", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.24f,
         percentText));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kVelocityReverb, 1 }, "Reverb Velocity Curve", juce::NormalisableRange<float>(0.25f, 4.0f, 0.01f, 0.5f), 1.0f));
 
     // Reverse & Sync
     juce::StringArray revModes{ "Off", "Beat End (Sync)", "Beat 4 Auto", "1/2 Beat", "1/4 Beat" };
@@ -366,26 +334,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{ kEqHighDb, 1 }, "High EQ Gain", juce::NormalisableRange<float>(-12.0f, 12.0f, 0.1f), 0.0f,
         dbText));
-    params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID{ kMidiChokeNote, 1 }, "MIDI Choke Note", 0, 127, 42,
-        juce::AudioParameterIntAttributes()
-            .withStringFromValueFunction([](int note, int) {
-                return juce::MidiMessage::getMidiNoteName(note, true, true, kMiddleCOctave) + " (" + juce::String(note) + ")";
-            })
-            .withValueFromStringFunction(parseNote)));
-    params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID{ kMidiChokeCc, 1 }, "MIDI Choke CC", 0, 119, 4));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{ kRollEnabled, 1 }, "Roll Enabled", false));
     juce::StringArray rollDivisions{ "1/8", "1/16", "1/32" };
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{ kRollDivision, 1 }, "Roll Division", rollDivisions, 1));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kRollSwing, 1 }, "Roll Swing", juce::NormalisableRange<float>(0.0f, 0.49f, 0.01f), 0.0f,
-        percentText));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID{ kRollAccent, 1 }, "Roll Accent", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.25f,
-        percentText));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID{ kPreset, 1 }, "Preset Index", 0, 55, 0));
 
@@ -404,7 +357,6 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     }
     s.synth.preChickLevel = *apvts.getRawParameterValue(kPreLevel);
 
-    if (const auto* pDecayScale = apvts.getRawParameterValue(kDecayScale)) s.synth.decayScale = *pDecayScale;
     if (const auto* pEchoMix = apvts.getRawParameterValue(kEchoMix)) s.effects.echoMix = *pEchoMix;
     s.synth.fullAdsrEnabled = *apvts.getRawParameterValue(kAmpEnabled) > 0.5f;
     s.synth.ampAttackMs = *apvts.getRawParameterValue(kAmpAttack);
@@ -421,10 +373,7 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     s.synth.noiseLPF = *apvts.getRawParameterValue(kNoiseLPF);
     s.synth.noiseStereoWidth = *apvts.getRawParameterValue(kNoiseStereoWidth);
     s.synth.noiseLevel = *apvts.getRawParameterValue(kNoiseLevel);
-    s.synth.velocityAir = *apvts.getRawParameterValue(kVelocityAir);
-    if (const auto* pColor = apvts.getRawParameterValue(kHissColor)) s.synth.hissColor = *pColor;
-    if (const auto* pDensity = apvts.getRawParameterValue(kHissDensity)) s.synth.hissDensity = *pDensity;
-    if (const auto* pDrive = apvts.getRawParameterValue(kHissDrive)) s.synth.hissDrive = *pDrive;
+    s.synth.velocityCurve = *apvts.getRawParameterValue(kVelocity);
     if (const auto* pBodyLevel = apvts.getRawParameterValue(kBodyLevel)) s.synth.bodyLevel = *pBodyLevel;
     if (const auto* pBodyTone = apvts.getRawParameterValue(kBodyTone)) s.synth.bodyTone = *pBodyTone;
     if (const auto* pBodyDecay = apvts.getRawParameterValue(kBodyDecay)) s.synth.bodyDecayMs = *pBodyDecay;
@@ -434,7 +383,6 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     }
     s.synth.chickLevel = *apvts.getRawParameterValue(kClickLevel);
     s.synth.chickFreqHz = *apvts.getRawParameterValue(kClickFreq);
-    s.synth.velocityChick = *apvts.getRawParameterValue(kVelocityChick);
     if (const auto* pKeyTracking = apvts.getRawParameterValue(kKeyTracking)) s.synth.keyTracking = *pKeyTracking;
 
     s.synth.reverbSize = *apvts.getRawParameterValue(kReverbSize);
@@ -442,7 +390,6 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     s.synth.reverbDamp = *apvts.getRawParameterValue(kReverbDamp);
     s.synth.reverbGateMs = *apvts.getRawParameterValue(kReverbGate);
     s.synth.reverbMix = *apvts.getRawParameterValue(kReverbMix);
-    s.synth.velocityReverb = *apvts.getRawParameterValue(kVelocityReverb);
 
     s.effects.distType = static_cast<openhatter::core::DistortionType>(static_cast<int>(*apvts.getRawParameterValue(kDistType)));
     s.effects.distDrive = *apvts.getRawParameterValue(kDistDrive);
@@ -471,12 +418,8 @@ openhatter::core::EngineSettings readSettings(const juce::AudioProcessorValueTre
     s.effects.eq.highGainDb = *apvts.getRawParameterValue(kEqHighDb);
     s.effects.stereoWidth = *apvts.getRawParameterValue(kStereoWidth);
     s.effects.outputGainDb = *apvts.getRawParameterValue(kOutputGain);
-    s.midiChokeNote = static_cast<int>(*apvts.getRawParameterValue(kMidiChokeNote));
-    s.midiChokeCc = static_cast<int>(*apvts.getRawParameterValue(kMidiChokeCc));
     s.rollEnabled = *apvts.getRawParameterValue(kRollEnabled) > 0.5f;
     s.rollDivision = static_cast<int>(*apvts.getRawParameterValue(kRollDivision));
-    s.rollSwing = *apvts.getRawParameterValue(kRollSwing);
-    s.rollAccent = *apvts.getRawParameterValue(kRollAccent);
 
     return s;
 }

@@ -16,6 +16,12 @@ void AbCompare::copyActiveToInactive() {
     slots_[static_cast<size_t>(1 - active_)] = slots_[static_cast<size_t>(active_)];
 }
 
+void AbCompare::copySlot(int from, int to) {
+    from = from == 1 ? 1 : 0;
+    to = to == 1 ? 1 : 0;
+    slots_[static_cast<size_t>(to)] = slots_[static_cast<size_t>(from)];
+}
+
 void AbCompare::setActive(int slot) noexcept {
     active_ = slot == 1 ? 1 : 0;
 }

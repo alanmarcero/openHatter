@@ -164,6 +164,7 @@ TEST_CASE("HatSynth air layer is unpitched, so every MIDI note gets the same bri
     settings.noiseLevel = 0.9f;
     settings.chickLevel = 0.0f;
     settings.preChickLevel = 0.0f;
+    settings.keyTracking = 0.0f;
     settings.reverbMix = 0.0f;
 
     const auto renderAir = [&settings](int note, double rate) {
@@ -207,8 +208,7 @@ TEST_CASE("HatSynth gives reverb an independent velocity response", "[core][synt
         settings.chickLevel = 0.0f;
         settings.preChickLevel = 0.0f;
         settings.reverbMix = 1.0f;
-        settings.velocityAir = 2.0f;
-        settings.velocityReverb = reverbCurve;
+        settings.velocityCurve = reverbCurve;
         synth.trigger(settings, velocity);
         float maximum = 0.0f;
         while (synth.isPlaying()) {

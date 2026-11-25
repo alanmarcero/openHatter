@@ -11,6 +11,7 @@ public:
     void prime(const juce::MemoryBlock& state);
     void storeActive(const juce::MemoryBlock& state);
     void copyActiveToInactive();
+    void copySlot(int from, int to);
     void setActive(int slot) noexcept;
     void setSlots(int active, juce::MemoryBlock slotA, juce::MemoryBlock slotB);
 

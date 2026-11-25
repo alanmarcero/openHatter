@@ -58,7 +58,7 @@ struct HatSynthSettings {
     float noiseLPF = 16500.0f;    // 1500..20000 Hz low-pass filter cutoff
     float noiseStereoWidth = 1.2f;// 0 (mono) .. 2 (ultra-wide stereo shimmer)
     float noiseLevel = 0.88f;     // 0..1
-    float velocityAir = 1.0f;
+    float velocityCurve = 1.0f;   // one exponent for air, stick, and reverb
 
     // Hiss Tone, Density & Analog Saturation Options
     float hissColor = 0.0f;       // -1 (warm bronze tilt) .. +1 (airy crystal sheen)
@@ -74,8 +74,7 @@ struct HatSynthSettings {
     ChickType chickType = ChickType::CrispStick;
     float chickLevel = 0.45f;     // 0..1
     float chickFreqHz = 6800.0f;  // 1000..14000 Hz
-    float velocityChick = 1.0f;
-    float keyTracking = 0.0f;     // 0..1 fractional MIDI pitch tracking across metallic & body modes
+    float keyTracking = 1.0f;     // 0..1 fractional MIDI pitch tracking across metallic & body modes
 
     // Shimmer Reverb & Choke Gate Tail
     float reverbSize = 0.55f;     // 0.1..1.0
@@ -83,7 +82,6 @@ struct HatSynthSettings {
     float reverbDamp = 0.25f;     // 0..1 high damping
     float reverbGateMs = 320.0f;  // 0 (off) .. 1500 ms
     float reverbMix = 0.24f;      // 0..1
-    float velocityReverb = 1.0f;
 
     bool operator==(const HatSynthSettings&) const noexcept = default;
 };

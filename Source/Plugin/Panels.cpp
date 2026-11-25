@@ -12,8 +12,6 @@ namespace openhatter::ui {
 namespace {
 
 constexpr const char* kVelocityCurveHint = "Below 1.00 lifts soft hits. Above 1.00 makes them quieter.";
-constexpr int kLearnPollHz = 20;
-constexpr int kLearnTimeoutTicks = kLearnPollHz * 10;
 
 void drawSection(juce::Graphics& g, juce::Rectangle<int> bounds,
                  const juce::String& title, juce::Colour accent) {
@@ -67,9 +65,8 @@ void MidiMonitorPanel::timerCallback() {
     }
     const int note = processor_.displayMidiNoteReceived.load() ? processor_.displayMidiNoteNumber.load() : -1;
     const float velocity = processor_.displayVelocity.load();
-    const float decayScale = std::clamp(processor_.parameters.getRawParameterValue(params::kDecayScale)->load(), 0.25f, 2.0f);
-    const float air = processor_.parameters.getRawParameterValue(params::kNoiseDecay)->load() * decayScale;
-    const float body = processor_.parameters.getRawParameterValue(params::kBodyDecay)->load() * decayScale;
+    const float air = processor_.parameters.getRawParameterValue(params::kNoiseDecay)->load();
+    const float body = processor_.parameters.getRawParameterValue(params::kBodyDecay)->load();
     if (note != lastNote_ || !juce::approximatelyEqual(velocity, lastVelocity_)
         || !juce::approximatelyEqual(air, airMs_) || !juce::approximatelyEqual(body, bodyMs_)) {
         lastNote_ = note;
@@ -152,11 +149,7 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
       noiseHPF_(processor.parameters, params::kNoiseHPF, "High-pass", theme::kAccentAqua),
       noiseLPF_(processor.parameters, params::kNoiseLPF, "Low-pass", theme::kAccentAqua),
       noiseWidth_(processor.parameters, params::kNoiseStereoWidth, "Air width", theme::kAccentAqua),
-      decayScale_(processor.parameters, params::kDecayScale, "Decay morph", theme::kAccentAqua),
       noiseLevel_(processor.parameters, params::kNoiseLevel, "Air level", theme::kAccentAqua),
-      hissColor_(processor.parameters, params::kHissColor, "Air color", theme::kAccentAqua),
-      hissDensity_(processor.parameters, params::kHissDensity, "Density", theme::kAccentAqua),
-      hissDrive_(processor.parameters, params::kHissDrive, "Saturation", theme::kAccentAqua),
       bodyLevel_(processor.parameters, params::kBodyLevel, "Body level", theme::kAccentBrass),
       bodyTone_(processor.parameters, params::kBodyTone, "Body tone", theme::kAccentBrass),
       bodyDecay_(processor.parameters, params::kBodyDecay, "Body decay", theme::kAccentBrass),
@@ -182,11 +175,11 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
           playModeBadge_.setText(held ? "Held" : "One-shot", juce::dontSendNotification);
           playModeBadge_.setColour(juce::Label::textColourId, accent);
           playModeBadge_.setColour(juce::Label::outlineColourId, accent.withAlpha(0.6f));
-          playModeBadge_.setTooltip(held ? "MIDI notes sustain until note-off. Choose One-shot on Envelope to change it."
-                                         : "Each MIDI note plays its full air tail. Choose Hold notes on Envelope to change it.");
+          playModeBadge_.setTooltip(held ? "MIDI notes sustain until note-off. Choose One-shot on Hat to change it."
+                                         : "Each MIDI note plays its full air tail. Choose Hold notes on Hat to change it.");
           std::ranges::for_each(std::array{ &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_ }, [held](Knob* knob) {
               knob->setActive(!held, "Held notes ignore this setting. Only Preview hat uses it. "
-                                     "Choose One-shot on Envelope to use it.");
+                                     "Choose One-shot on Hat to use it.");
           });
       }),
       airLevelDependents_(*processor.parameters.getParameter(params::kNoiseLevel), "Raise Air level to hear this.",
@@ -202,10 +195,6 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
     noiseCurve_.setTooltip("Shape the air decay. Negative values drop fast and then trail off. Positive values stay loud longer.");
     noiseHPF_.setTooltip("Cut the air below this frequency. Higher values thin the tail.");
     noiseWidth_.setTooltip("Set the stereo width of the air. 100% keeps the source width, and 0% is mono.");
-    decayScale_.setTooltip("Scale the air and body decays together to morph between closed and open hats.");
-    hissColor_.setTooltip("Tilt the air tone from warm bronze (-100%) to bright shimmer (+100%).");
-    hissDensity_.setTooltip("Control metallic harmonic modulation, unison spread, or comb feedback density.");
-    hissDrive_.setTooltip("Add analog saturation to the air and bronze body layers.");
     clickType_.setTooltip("Choose the stick sound: a crisp stick, a pedal foot or a laser tick.");
     preBursts_.setTooltip("Set how many times the stick strikes. The last strike is the main hit.");
     clickFreq_.setTooltip("Set the pitch of the stick click.");
@@ -222,9 +211,9 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
     playModeBadge_.setFont(juce::FontOptions(14.5f, juce::Font::bold));
     playModeBadge_.setJustificationType(juce::Justification::centred);
     playModeBadge_.setColour(juce::Label::backgroundColourId, theme::kBackground);
-    std::ranges::for_each(std::array<juce::Component*, 29>{
+    std::ranges::for_each(std::array<juce::Component*, 25>{
              &noiseType_, &noiseAttack_, &noiseHold_, &noiseDecay_, &noiseCurve_, &noiseHPF_, &noiseLPF_,
-             &noiseWidth_, &decayScale_, &noiseLevel_, &hissColor_, &hissDensity_, &hissDrive_,
+             &noiseWidth_, &noiseLevel_,
              &bodyLevel_, &bodyTone_, &bodyDecay_, &preBursts_, &preSpread_, &preDecay_, &preJitter_,
              &flamSpread_, &keyTracking_, &preLevel_, &clickType_, &clickLevel_, &clickFreq_,
              &articulationLock_, &airLock_, &playModeBadge_ },
@@ -235,8 +224,8 @@ HatSynthPanel::HatSynthPanel(OpenHatterProcessor& processor)
 
 void HatSynthPanel::setAdvancedMode(bool advanced) {
     advanced_ = advanced;
-    std::ranges::for_each(std::array<juce::Component*, 12>{
-             &noiseAttack_, &noiseHold_, &noiseCurve_, &noiseHPF_, &noiseWidth_, &decayScale_,
+    std::ranges::for_each(std::array<juce::Component*, 11>{
+             &noiseAttack_, &noiseHold_, &noiseCurve_, &noiseHPF_, &noiseWidth_,
              &preSpread_, &preDecay_, &preJitter_, &flamSpread_, &keyTracking_, &preLevel_ },
         [advanced](juce::Component* knob) { knob->setVisible(advanced); });
     resized();
@@ -272,9 +261,8 @@ void HatSynthPanel::resized() {
     if (advanced_) {
         layoutRows(air, {
             { &noiseDecay_, &noiseLPF_, &noiseLevel_ },
-            { &hissColor_, &hissDensity_, &hissDrive_ },
             { &noiseAttack_, &noiseHold_, &noiseCurve_ },
-            { &noiseHPF_, &noiseWidth_, &decayScale_ }
+            { &noiseHPF_, &noiseWidth_ }
         });
         layoutRows(stick, {
             { &preBursts_, &clickFreq_, &clickLevel_ },
@@ -284,8 +272,7 @@ void HatSynthPanel::resized() {
         return;
     }
     layoutRows(air, {
-        { &noiseDecay_, &noiseLPF_, &noiseLevel_ },
-        { &hissColor_, &hissDensity_, &hissDrive_ }
+        { &noiseDecay_, &noiseLPF_, &noiseLevel_ }
     });
     layoutRows(stick, { { &preBursts_, &clickFreq_, &clickLevel_ } });
 }
@@ -332,7 +319,7 @@ EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
 }
 
 EnvelopePanel::EnvelopeGeometry EnvelopePanel::computeGeometry() const noexcept {
-    const auto plot = getLocalBounds().reduced(40, 0).withTrimmedTop(114).withTrimmedBottom(200).toFloat();
+    const auto plot = getLocalBounds().reduced(40, 0).withTrimmedTop(72).withTrimmedBottom(140).toFloat();
     const auto relative = [](const Knob& knob) {
         auto& slider = const_cast<Knob&>(knob).slider();
         return static_cast<float>(slider.valueToProportionOfLength(slider.getValue()));
@@ -529,160 +516,33 @@ void EnvelopePanel::resized() {
     envelopeLock_.setBounds(getWidth() - 67, 7, 56, 36);
     oneShot_.setBounds(getWidth() - 252, 46, 110, 38);
     holdNotes_.setBounds(getWidth() - 138, 46, 114, 38);
-    layoutRow(getLocalBounds().reduced(24, 0).removeFromBottom(161), { &attack_, &decay_, &sustain_, &release_ });
-}
-
-LearnControl::LearnControl(juce::RangedAudioParameter& target, std::atomic<uint32_t>& eventCount,
-                           std::atomic<int>& lastValue, const juce::String& tooltip)
-    : target_(target, [](float) {}), eventCount_(eventCount), lastValue_(lastValue) {
-    setWantsKeyboardFocus(true);
-    button_.setTitle("Learn " + target.getName(64));
-    button_.setTooltip(tooltip);
-    button_.setToggleable(true);
-    button_.setColour(juce::TextButton::buttonOnColourId, theme::kAccentCoral);
-    button_.onClick = [this] {
-        if (isTimerRunning()) {
-            stopListening();
-            return;
-        }
-        armedCount_ = eventCount_.load();
-        ticksLeft_ = kLearnTimeoutTicks;
-        button_.setToggleState(true, juce::dontSendNotification);
-        button_.setButtonText("Listening");
-        grabKeyboardFocus();
-        startTimerHz(kLearnPollHz);
-    };
-    addAndMakeVisible(button_);
-}
-
-void LearnControl::resized() {
-    button_.setBounds(getLocalBounds().withSizeKeepingCentre(std::min(130, getWidth() - 8), 38));
-}
-
-bool LearnControl::keyPressed(const juce::KeyPress& key) {
-    if (key != juce::KeyPress::escapeKey)
-        return false;
-    return cancelIfListening();
-}
-
-bool LearnControl::cancelIfListening() {
-    if (!isTimerRunning())
-        return false;
-    stopListening();
-    return true;
-}
-
-void LearnControl::timerCallback() {
-    if (eventCount_.load() != armedCount_) {
-        target_.setValueAsCompleteGesture(static_cast<float>(lastValue_.load()));
-        stopListening();
-        return;
-    }
-    if (--ticksLeft_ <= 0)
-        stopListening();
-}
-
-void LearnControl::stopListening() {
-    stopTimer();
-    button_.setToggleState(false, juce::dontSendNotification);
-    button_.setButtonText("Learn");
+    const int knobBand = std::min(161, std::max(110, getHeight() - 96));
+    layoutRow(getLocalBounds().reduced(24, 0).removeFromBottom(knobBand), { &attack_, &decay_, &sustain_, &release_ });
 }
 
 PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)
-    : velocityAir_(processor.parameters, params::kVelocityAir, "Air", theme::kAccentAqua),
-      velocityChick_(processor.parameters, params::kVelocityChick, "Stick", theme::kAccentCoral),
-      velocityReverb_(processor.parameters, params::kVelocityReverb, "Reverb", theme::kAccentAqua),
-      chokeNote_(processor.parameters, params::kMidiChokeNote, "Choke note", theme::kAccentCoral),
-      chokeCc_(processor.parameters, params::kMidiChokeCc, "Choke CC", theme::kAccentCoral),
+    : velocity_(processor.parameters, params::kVelocity, "Velocity", theme::kAccentAqua),
       rollEnabled_(processor.parameters, params::kRollEnabled, "Roll off", "Roll on", theme::kAccentBrass),
       rollDivision_(processor.parameters, params::kRollDivision, "Division", theme::kAccentBrass),
-      rollSwing_(processor.parameters, params::kRollSwing, "Swing", theme::kAccentBrass),
-      rollAccent_(processor.parameters, params::kRollAccent, "Accent", theme::kAccentBrass),
-      chokeNoteLearn_(*processor.parameters.getParameter(params::kMidiChokeNote), processor.displayNoteCount,
-                      processor.displayMidiNoteNumber,
-                      "Click, then play a note to set the choke note. Click again or press Escape to cancel."),
-      chokeCcLearn_(*processor.parameters.getParameter(params::kMidiChokeCc), processor.displayControllerCount,
-                    processor.displayLastController,
-                    "Click, then move a hardware control to set the choke CC. Click again or press Escape to cancel."),
       rollDependents_(*processor.parameters.getParameter(params::kRollEnabled), "Turn Roll on to use this.",
-                      { &rollDivision_, &rollSwing_, &rollAccent_ }),
-      reverbMixDependents_(*processor.parameters.getParameter(params::kReverbMix),
-                           "Raise the reverb Mix on Effects to hear this.", { &velocityReverb_ }) {
-    std::ranges::for_each(std::array<juce::Component*, 11>{
-             &velocityAir_, &velocityChick_, &velocityReverb_, &chokeNote_, &chokeCc_,
-             &rollEnabled_, &rollDivision_, &rollSwing_, &rollAccent_, &chokeNoteLearn_, &chokeCcLearn_},
+                      { &rollDivision_ }) {
+    std::ranges::for_each(std::array<juce::Component*, 3>{ &velocity_, &rollEnabled_, &rollDivision_ },
         [this](juce::Component* component) { addAndMakeVisible(component); });
-
-    velocityAir_.setTooltip(juce::String("Shape the air level against velocity. ") + kVelocityCurveHint);
-    velocityChick_.setTooltip(juce::String("Shape the stick level against velocity. ") + kVelocityCurveHint);
-    velocityReverb_.setTooltip(juce::String("Shape the reverb send against velocity. ") + kVelocityCurveHint);
-    const std::array knobs{ &velocityAir_, &velocityChick_, &velocityReverb_ };
-    std::ranges::for_each(std::views::iota(size_t{0}, knobs.size()), [&](size_t i) {
-        knobs[i]->slider().onValueChange = [this, i] { repaint(curveBounds_[i]); };
-    });
-    chokeNote_.setTooltip("A note-off for this MIDI note chokes the current hat and stops the roll.");
-    chokeCc_.setTooltip("A value of 64 or higher on this CC chokes the current hat and stops the roll.");
+    velocity_.setTooltip(juce::String("Shape air, stick, and reverb with one velocity curve. ") + kVelocityCurveHint);
     rollEnabled_.setTooltip("Start a host-tempo hat roll after the next MIDI note-on.");
     rollDivision_.setTooltip("Host-synced roll step size.");
-    rollSwing_.setTooltip("Delays alternating roll steps while keeping the average rate on the host grid.");
-    rollAccent_.setTooltip("Velocity boost for every fourth roll hit.");
 }
 
 void PerformancePanel::paint(juce::Graphics& g) {
-    drawSection(g, velocityBounds_, "Velocity response", theme::kAccentAqua);
-    drawSection(g, rollBounds_, "Host roll & MIDI choke", theme::kAccentCoral);
-    g.setColour(theme::kTextDim);
-    g.setFont(juce::FontOptions(15.0f));
-    g.drawText(juce::String("Each curve plots level against velocity. ") + kVelocityCurveHint,
-               velocityBounds_.getX() + 22, velocityBounds_.getY() + 40, velocityBounds_.getWidth() - 44, 22,
-               juce::Justification::left);
-
-    const std::array knobs{ &velocityAir_, &velocityChick_, &velocityReverb_ };
-    std::ranges::for_each(std::views::iota(size_t{0}, knobs.size()), [&](size_t i) {
-        const auto plot = curveBounds_[i].toFloat();
-        g.setColour(theme::kBackground);
-        g.fillRoundedRectangle(plot, 6.0f);
-        g.setColour(theme::kPanelEdge);
-        g.drawRoundedRectangle(plot, 6.0f, 1.0f);
-        const auto inner = plot.reduced(10.0f);
-        g.drawLine({ inner.getBottomLeft(), inner.getTopRight() }, 1.0f);
-        const float exponent = static_cast<float>(knobs[i]->slider().getValue());
-        juce::Path curve;
-        curve.startNewSubPath(inner.getBottomLeft());
-        std::ranges::for_each(std::views::iota(1, 41), [&](int step) {
-            const float velocity = static_cast<float>(step) / 40.0f;
-            curve.lineTo(inner.getX() + inner.getWidth() * velocity,
-                         inner.getBottom() - inner.getHeight() * std::pow(velocity, exponent));
-        });
-        g.setColour(knobs[i]->slider().findColour(juce::Slider::rotarySliderFillColourId));
-        g.strokePath(curve, juce::PathStrokeType(2.4f));
-    });
+    drawSection(g, rollBounds_, "Pattern", theme::kAccentCoral);
 }
 
 void PerformancePanel::resized() {
-    auto area = getLocalBounds();
-    velocityBounds_ = area.removeFromTop(410);
-    rollBounds_ = area.withTrimmedTop(10);
-    auto velocity = velocityBounds_.reduced(10, 9).withTrimmedTop(64);
-    layoutRow(velocity.removeFromBottom(150), { &velocityAir_, &velocityChick_, &velocityReverb_ });
-    const int column = velocity.getWidth() / 3;
-    std::ranges::for_each(curveBounds_, [&](juce::Rectangle<int>& plot) {
-        plot = velocity.removeFromLeft(column).withSizeKeepingCentre(std::min(column - 40, 240), velocity.getHeight() - 16);
-    });
-    auto roll = rollBounds_.reduced(11, 9).withTrimmedTop(34);
-    auto modes = roll.removeFromLeft(144);
+    rollBounds_ = getLocalBounds();
+    auto roll = rollBounds_.reduced(11, 9).withTrimmedTop(40);
+    auto modes = roll.removeFromLeft(180);
     layoutRows(modes, { { &rollEnabled_ }, { &rollDivision_ } });
-    // Reserve the Learn strip across the entire 4-knob row so all dials share one baseline.
-    auto learnStrip = roll.removeFromBottom(46);
-    layoutRow(roll, { &rollSwing_, &rollAccent_, &chokeNote_, &chokeCc_ });
-    chokeNoteLearn_.setBounds(chokeNote_.getX(), learnStrip.getY(), chokeNote_.getWidth(), learnStrip.getHeight());
-    chokeCcLearn_.setBounds(chokeCc_.getX(), learnStrip.getY(), chokeCc_.getWidth(), learnStrip.getHeight());
-}
-
-bool PerformancePanel::cancelActiveLearn() {
-    const bool noteCancelled = chokeNoteLearn_.cancelIfListening();
-    const bool ccCancelled = chokeCcLearn_.cancelIfListening();
-    return noteCancelled || ccCancelled;
+    layoutRow(roll.removeFromTop(160), { &velocity_ });
 }
 
 EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
@@ -746,6 +606,16 @@ EffectsPanel::EffectsPanel(OpenHatterProcessor& processor)
              &reverbDamp_, &reverbGate_, &reverbMix_, &echoMix_, &reverseMode_, &reverseMix_,
              &exciterLock_, &dynamicsLock_, &spaceLock_},
         [this](juce::Component* component) { addAndMakeVisible(component); });
+    setAdvancedMode(false);
+}
+
+void EffectsPanel::setAdvancedMode(bool advanced) {
+    advanced_ = advanced;
+    std::ranges::for_each(std::array<juce::Component*, 8>{
+            &distTone_, &compAttack_, &compRelease_, &compMakeup_,
+            &reverbDamp_, &reverbGate_, &reverseMode_, &reverseMix_ },
+        [advanced](juce::Component* control) { control->setVisible(advanced); });
+    resized();
 }
 
 void EffectsPanel::paint(juce::Graphics& g) {
@@ -769,6 +639,12 @@ void EffectsPanel::resized() {
         auto inner = card.reduced(8, 10).withTrimmedTop(36);
         return inner.withHeight(std::min(inner.getHeight(), 320));
     };
+    if (!advanced_) {
+        layoutRows(twoRowArea(sectionBounds_[0]), { { &distType_ }, { &distDrive_, &distMix_ } });
+        layoutRows(twoRowArea(sectionBounds_[1]), { { &compThresh_, &compRatio_, &compMix_ } });
+        layoutRows(twoRowArea(sectionBounds_[2]), { { &reverbSize_, &reverbDecay_, &reverbMix_, &echoMix_ } });
+        return;
+    }
     layoutRows(twoRowArea(sectionBounds_[0]), {
         { &distType_, &distDrive_ },
         { &distTone_, &distMix_ }
@@ -908,11 +784,11 @@ void OutputPanel::paint(juce::Graphics& g) {
 
 void OutputPanel::resized() {
     outputLock_.setBounds(getWidth() - 67, 7, 56, 36);
-    auto row = getLocalBounds().reduced(10, 6).withTrimmedTop(36);
+    auto row = getLocalBounds().reduced(10, 6).withTrimmedTop(46);
     // The row follows the signal order.
     const std::array<std::pair<juce::Component*, float>, 9> items{{
-        { &masterWidth_, 8.8f }, { &eqLow_, 15.5f }, { &eqMid_, 15.5f }, { &eqHigh_, 15.5f },
-        { &limiterEnabled_, 9.0f }, { &limiterCeiling_, 8.8f }, { &limiterRelease_, 8.8f },
+        { &masterWidth_, 8.8f }, { &eqLow_, 20.0f }, { &eqMid_, 20.0f }, { &eqHigh_, 20.0f },
+        { &limiterEnabled_, 12.0f }, { &limiterCeiling_, 8.8f }, { &limiterRelease_, 8.8f },
         { &outputGain_, 8.8f }, { &peakMeter_, 8.0f }
     }};
     const float total = std::accumulate(items.begin(), items.end(), 0.0f,

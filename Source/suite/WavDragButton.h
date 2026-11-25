@@ -5,17 +5,17 @@
 
 namespace suite {
 
-// Starts an external file drag of a WAV produced by the callback.
+// Starts an external file drag. The callback writes the WAV before the drag begins.
 class WavDragButton : public juce::TextButton {
 public:
-    explicit WavDragButton(std::function<juce::MemoryBlock()> renderWav);
+    explicit WavDragButton(std::function<juce::File()> makeFile);
 
     void mouseDown(const juce::MouseEvent& event) override;
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
 
 private:
-    std::function<juce::MemoryBlock()> renderWav_;
+    std::function<juce::File()> makeFile_;
     bool dragStarted_ = false;
 };
 

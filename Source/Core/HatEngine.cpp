@@ -202,7 +202,6 @@ void HatEngine::reset() noexcept {
     reversePreviewRenderCount_ = 0;
     rollActive_ = false;
     rollFullAdsrActive_ = false;
-    rollStep_ = 0;
     nextRollPpq_ = 0.0;
     rollTransportWasPlaying_ = false;
     currentPeak_ = 0.0f;
@@ -323,17 +322,12 @@ void HatEngine::process(
     constexpr std::array<double, 3> rollStepLengths { 0.5, 0.25, 0.125 };
     const int divisionIndex = std::clamp(settings.rollDivision, 0, 2);
     const double rollStepPpq = rollStepLengths[static_cast<size_t>(divisionIndex)];
-    const double swing = std::clamp(static_cast<double>(settings.rollSwing), 0.0, 0.49);
     if (!settings.rollEnabled)
         rollActive_ = false;
-    if (rollActive_ && transport.isPlaying && !rollTransportWasPlaying_) {
-        const double nextGrid = (std::floor(ppq / rollStepPpq) + 1.0) * rollStepPpq;
-        nextRollPpq_ = nextGrid + (rollStep_ % 2 == 1 ? rollStepPpq * swing : 0.0);
-    }
-    if (transport.ppqPosition && std::abs(*transport.ppqPosition - fallbackPpq_) > 0.5 && rollActive_) {
-        const double nextGrid = (std::floor(ppq / rollStepPpq) + 1.0) * rollStepPpq;
-        nextRollPpq_ = nextGrid + (rollStep_ % 2 == 1 ? rollStepPpq * swing : 0.0);
-    }
+    if (rollActive_ && transport.isPlaying && !rollTransportWasPlaying_)
+        nextRollPpq_ = (std::floor(ppq / rollStepPpq) + 1.0) * rollStepPpq;
+    if (transport.ppqPosition && std::abs(*transport.ppqPosition - fallbackPpq_) > 0.5 && rollActive_)
+        nextRollPpq_ = (std::floor(ppq / rollStepPpq) + 1.0) * rollStepPpq;
     rollTransportWasPlaying_ = transport.isPlaying;
 
     int triggerIdx = 0;
@@ -344,12 +338,6 @@ void HatEngine::process(
     for (int sample = 0; sample < numSamples; ++sample) {
         while (ccIdx < static_cast<int>(controlChanges.size()) && controlChanges[ccIdx].sampleOffset <= sample) {
             const auto& cc = controlChanges[ccIdx++];
-            if (cc.controller == settings.midiChokeCc && cc.value >= 64) {
-                synth_.choke();
-                rollActive_ = false;
-                reversePlayHead_ = -1;
-                isReversing_ = false;
-            }
             if (cc.controller == 7) {
                 ccVolume_ = static_cast<float>(cc.value) / 127.0f;
             } else if (cc.controller == 74) {
@@ -367,13 +355,6 @@ void HatEngine::process(
 
         while (triggerIdx < static_cast<int>(midiTriggers.size()) && midiTriggers[triggerIdx].sampleOffset <= sample) {
             const auto& trig = midiTriggers[triggerIdx++];
-            if (trig.choke) {
-                synth_.choke();
-                rollActive_ = false;
-                reversePlayHead_ = -1;
-                isReversing_ = false;
-                continue;
-            }
             if (trig.noteOff) {
                 synth_.noteOff(trig.noteNumber, trig.midiChannel, settings.synth);
                 if (rollFullAdsrActive_ && trig.noteNumber == rollNoteNumber_
@@ -394,26 +375,17 @@ void HatEngine::process(
                 rollMidiChannel_ = trig.midiChannel;
                 rollFullAdsrActive_ = settings.synth.fullAdsrEnabled;
                 rollVelocity_ = trig.velocity;
-                rollStep_ = 1;
                 nextRollPpq_ = (std::floor(ppq / rollStepPpq) + 1.0) * rollStepPpq;
-                if (rollStep_ % 2 == 1)
-                    nextRollPpq_ += rollStepPpq * swing;
             }
         }
 
         if (rollActive_ && settings.rollEnabled && transport.isPlaying) {
             int catchupSteps = 0;
             while (ppq + 1.0e-10 >= nextRollPpq_ && catchupSteps++ < 8) {
-                const float accent = rollStep_ % 4 == 3
-                    ? 1.0f + std::clamp(settings.rollAccent, 0.0f, 1.0f)
-                    : 1.0f;
                 triggerHat(settings, ppq, transport.bpm, beatsPerBar,
-                           std::clamp(rollVelocity_ * accent, 0.0f, 1.0f),
-                           rollNoteNumber_, rollMidiChannel_, false, false);
+                           rollVelocity_, rollNoteNumber_, rollMidiChannel_, false, false);
                 rollFullAdsrActive_ = settings.synth.fullAdsrEnabled;
-                rollStep_ = (rollStep_ + 1) % 4;
-                const double interval = rollStepPpq * (rollStep_ % 2 == 1 ? 1.0 + swing : 1.0 - swing);
-                nextRollPpq_ += interval;
+                nextRollPpq_ += rollStepPpq;
             }
         }
 

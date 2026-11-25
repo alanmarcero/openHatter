@@ -2,8 +2,8 @@
 
 namespace suite {
 
-SuiteBar::SuiteBar(std::function<juce::MemoryBlock()> renderWav)
-    : drag_(std::move(renderWav)) {
+SuiteBar::SuiteBar(std::function<juce::File()> makeWavFile)
+    : drag_(std::move(makeWavFile)) {
     undo_.setTooltip("Undo the last sound change.");
     redo_.setTooltip("Redo the last undone sound change.");
     a_.setTooltip("Hear slot A.");

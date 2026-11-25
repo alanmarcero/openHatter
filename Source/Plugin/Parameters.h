@@ -15,8 +15,7 @@ inline constexpr const char* kPreJitter = "pre_jitter";
 inline constexpr const char* kFlamSpread = "flam_spread";
 inline constexpr const char* kPreLevel = "pre_level";
 
-// Decay morph, echo and amplitude envelope
-inline constexpr const char* kDecayScale = "decay_scale";
+// Echo and amplitude envelope
 inline constexpr const char* kEchoMix = "echo_mix";
 inline constexpr const char* kAmpEnabled = "amp_enabled";
 inline constexpr const char* kAmpAttack = "amp_attack";
@@ -34,10 +33,7 @@ inline constexpr const char* kNoiseHPF = "noise_hpf";
 inline constexpr const char* kNoiseLPF = "noise_lpf";
 inline constexpr const char* kNoiseStereoWidth = "noise_stereo_width";
 inline constexpr const char* kNoiseLevel = "noise_level";
-inline constexpr const char* kVelocityAir = "velocity_air";
-inline constexpr const char* kHissColor = "hiss_color";
-inline constexpr const char* kHissDensity = "hiss_density";
-inline constexpr const char* kHissDrive = "hiss_drive";
+inline constexpr const char* kVelocity = "velocity";
 
 // Spun Bronze Cymbal Body
 inline constexpr const char* kBodyLevel = "body_level";
@@ -48,7 +44,6 @@ inline constexpr const char* kBodyDecay = "body_decay";
 inline constexpr const char* kClickType = "click_type";
 inline constexpr const char* kClickLevel = "click_level";
 inline constexpr const char* kClickFreq = "click_freq";
-inline constexpr const char* kVelocityChick = "velocity_chick";
 inline constexpr const char* kKeyTracking = "key_tracking";
 
 // Shimmer Saturation & Exciter
@@ -76,7 +71,6 @@ inline constexpr const char* kReverbDecay = "reverb_decay";
 inline constexpr const char* kReverbDamp = "reverb_damp";
 inline constexpr const char* kReverbGate = "reverb_gate";
 inline constexpr const char* kReverbMix = "reverb_mix";
-inline constexpr const char* kVelocityReverb = "velocity_reverb";
 
 // Reverse Swell & Sync
 inline constexpr const char* kReverseMode = "reverse_mode";
@@ -93,12 +87,8 @@ inline constexpr const char* kEqMidDb = "eq_mid_db";
 inline constexpr const char* kEqHighFreq = "eq_high_freq";
 inline constexpr const char* kEqHighDb = "eq_high_db";
 inline constexpr const char* kPreset = "preset";
-inline constexpr const char* kMidiChokeNote = "midi_choke_note";
-inline constexpr const char* kMidiChokeCc = "midi_choke_cc";
 inline constexpr const char* kRollEnabled = "roll_enabled";
 inline constexpr const char* kRollDivision = "roll_division";
-inline constexpr const char* kRollSwing = "roll_swing";
-inline constexpr const char* kRollAccent = "roll_accent";
 
 inline constexpr int kEqLowMinMidi = suite::eq::kLowMinMidi;
 inline constexpr int kEqLowMaxMidi = suite::eq::kLowMaxMidi;
@@ -118,7 +108,7 @@ int eqHzToNearestMidi(float hz, int minMidi, int maxMidi) noexcept;
 juce::String formatEqNote(float hz, int minMidi, int maxMidi);
 float parseEqNoteOrHz(const juce::String& text, int minMidi, int maxMidi);
 
-// The MIDI monitor and the choke note both call middle C "C4".
+// The MIDI monitor calls middle C "C4".
 inline constexpr int kMiddleCOctave = 4;
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

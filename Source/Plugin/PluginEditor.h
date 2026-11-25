@@ -50,7 +50,7 @@ private:
         LockOverlay& overlay_;
     };
 
-    enum class Page { hat, envelope, performance, effects };
+    enum class Page { hat, layers, pattern, effects };
     void setPage(Page page);
     void layoutContent();
     void timerCallback() override;
@@ -67,8 +67,8 @@ private:
     suite::PresetBrowser presetBrowser_;
     juce::ComboBox presetBox_;
     juce::TextButton prevPresetBtn_{ "<" }, nextPresetBtn_{ ">" }, auditionBtn_{ "Preview hat" };
-    juce::TextButton hatTab_{ "Hat" }, envelopeTab_{ "Envelope" }, performanceTab_{ "Performance" }, effectsTab_{ "Effects" };
-    juce::TextButton detailBtn_{ "Detailed controls" };
+    juce::TextButton hatTab_{ "Hat" }, layersTab_{ "Layers" }, patternTab_{ "Pattern" }, effectsTab_{ "Effects" };
+    juce::TextButton detailBtn_{ "Advanced controls" };
     suite::SuiteBar suiteBar_;
     juce::TextButton lockBtn_{ "Lock in" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> lockAttachment_;
