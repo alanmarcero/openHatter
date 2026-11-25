@@ -1,5 +1,10 @@
 # Changelog
 
+## v4.8.4
+
+- Aligns the suite bar, presets, WAV drag behavior, and editor layout.
+- Aligns the JUCE 8 license and hardens CI.
+
 ## v4.8.3
 
 - **Note-Snapped EQ:** Snap all three EQ bands to chromatic notes (A-G with sharps) across two-octave ranges (`E1` to `E3`, `B4` to `B6`, `A#7` to `A#9`), matching OpenKicker's EQ design and behavior.
