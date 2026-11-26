@@ -1042,7 +1042,7 @@ TEST_CASE("OpenHatter ADSR points drag interactively and update envelope knobs a
     });
     REQUIRE(envPanel->isVisible());
 
-    const auto plot = envPanel->getLocalBounds().reduced(40, 0).withTrimmedTop(72).withTrimmedBottom(140).toFloat();
+    const auto plot = envPanel->getLocalBounds().reduced(40, 0).withTrimmedTop(96).withTrimmedBottom(154).toFloat();
     const auto getProp = [&](const char* id) {
         auto* p = processor.parameters.getParameter(id);
         REQUIRE(p != nullptr);
