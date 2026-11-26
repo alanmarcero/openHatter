@@ -13,6 +13,11 @@ namespace {
 
 constexpr const char* kVelocityCurveHint = "Below 1.00 lifts soft hits. Above 1.00 makes them quieter.";
 
+// Envelope card rows, top to bottom: title and mode switch, plot, strike and tail labels, knob row.
+constexpr int kEnvelopePlotTop = 96;
+constexpr int kEnvelopeLabelStrip = 30;
+constexpr int kEnvelopeKnobBand = 124;
+
 void drawSection(juce::Graphics& g, juce::Rectangle<int> bounds,
                  const juce::String& title, juce::Colour accent) {
     g.setColour(theme::kPanel);
@@ -319,7 +324,8 @@ EnvelopePanel::EnvelopePanel(OpenHatterProcessor& processor)
 }
 
 EnvelopePanel::EnvelopeGeometry EnvelopePanel::computeGeometry() const noexcept {
-    const auto plot = getLocalBounds().reduced(40, 0).withTrimmedTop(72).withTrimmedBottom(140).toFloat();
+    const auto plot = getLocalBounds().reduced(40, 0).withTrimmedTop(kEnvelopePlotTop)
+        .withTrimmedBottom(kEnvelopeKnobBand + kEnvelopeLabelStrip).toFloat();
     const auto relative = [](const Knob& knob) {
         auto& slider = const_cast<Knob&>(knob).slider();
         return static_cast<float>(slider.valueToProportionOfLength(slider.getValue()));
@@ -508,16 +514,15 @@ void EnvelopePanel::paint(juce::Graphics& g) {
     });
     g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
     g.setColour(theme::kText.withAlpha(0.9f));
-    g.drawText(held ? "Key down" : "Strike", juce::Rectangle<float>(plot.getX(), base + 8, 120, 22), juce::Justification::left);
-    g.drawText(held ? "Key up" : "Tail fade", juce::Rectangle<float>(geom.releaseX - 55, base + 8, 110, 22), juce::Justification::centred);
+    g.drawText(held ? "Key down" : "Strike", juce::Rectangle<float>(plot.getX(), base + 6, 120, 22), juce::Justification::left);
+    g.drawText(held ? "Key up" : "Tail fade", juce::Rectangle<float>(geom.releaseX - 55, base + 6, 110, 22), juce::Justification::centred);
 }
 
 void EnvelopePanel::resized() {
     envelopeLock_.setBounds(getWidth() - 67, 7, 56, 36);
     oneShot_.setBounds(getWidth() - 252, 46, 110, 38);
     holdNotes_.setBounds(getWidth() - 138, 46, 114, 38);
-    const int knobBand = std::min(161, std::max(110, getHeight() - 96));
-    layoutRow(getLocalBounds().reduced(24, 0).removeFromBottom(knobBand), { &attack_, &decay_, &sustain_, &release_ });
+    layoutRow(getLocalBounds().reduced(24, 0).removeFromBottom(kEnvelopeKnobBand), { &attack_, &decay_, &sustain_, &release_ });
 }
 
 PerformancePanel::PerformancePanel(OpenHatterProcessor& processor)

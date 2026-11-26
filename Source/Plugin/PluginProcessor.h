@@ -17,11 +17,11 @@ class OpenHatterProcessor : public juce::AudioProcessor,
 public:
     enum class PresetSection : size_t { articulation, envelope, air, exciter, dynamics, spaceAndOutput, output, performance, count };
 
-    // Same window as the kick: 1080x764, free aspect, within the shared limits.
+    // The shared 1080 width. The Hat page stacks monitor, envelope and output, so it keeps its own, taller height.
     static constexpr int kEditorWidth = 1080;
-    static constexpr int kEditorHeight = 764;
+    static constexpr int kEditorHeight = 960;
     static constexpr int kEditorMinWidth = 900;
-    static constexpr int kEditorMinHeight = 570;
+    static constexpr int kEditorMinHeight = 700;
     static constexpr int kEditorMaxWidth = 1600;
     static constexpr int kEditorMaxHeight = 1280;
 

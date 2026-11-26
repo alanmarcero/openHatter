@@ -201,6 +201,15 @@ OpenHatterEditor::LockMouseListener::LockMouseListener(OpenHatterProcessor& proc
 void OpenHatterEditor::LockMouseListener::mouseDown(const juce::MouseEvent& event) {
     if (!event.mods.isPopupMenu() || event.eventComponent == nullptr)
         return;
+    auto* component = event.eventComponent;
+    while (component != nullptr && component != &root_) {
+        if (auto* eq = dynamic_cast<openhatter::ui::DualEqKnob*>(component)) {
+            if (eq->freqPillBounds().toFloat().contains(event.getEventRelativeTo(eq).position))
+                return;
+            break;
+        }
+        component = component->getParentComponent();
+    }
     const auto targets = resolveLockTargets(event.eventComponent, root_, processor_.parameters);
     if (targets.empty())
         return;
@@ -547,15 +556,19 @@ void OpenHatterEditor::layoutContent() {
     performancePanel_.setBounds(body);
     effectsPanel_.setBounds(body);
     auto hat = body;
-    const bool showMonitor = hat.getHeight() > 500;
-    const int outputHeight = 150;
+    // The monitor only shows while the envelope card keeps room for its plot, labels and knobs.
+    constexpr int monitorHeight = 170;
+    constexpr int outputHeight = 150;
+    constexpr int gap = 8;
+    constexpr int envelopeMinHeight = 340;
+    const bool showMonitor = hat.getHeight() - outputHeight - gap >= envelopeMinHeight + monitorHeight + gap;
     midiPanel_.setVisible(page_ == Page::hat && !presetBrowser_.isVisible() && showMonitor);
     if (showMonitor) {
-        midiPanel_.setBounds(hat.removeFromTop(72));
-        hat.removeFromTop(8);
+        midiPanel_.setBounds(hat.removeFromTop(monitorHeight));
+        hat.removeFromTop(gap);
     }
     outputPanel_.setBounds(hat.removeFromBottom(outputHeight));
-    hat.removeFromBottom(8);
+    hat.removeFromBottom(gap);
     envelopePanel_.setBounds(hat);
     lockOverlay_.setBounds(content_.getLocalBounds());
 }

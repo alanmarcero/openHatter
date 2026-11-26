@@ -287,7 +287,25 @@ void DualEqKnob::mouseExit(const juce::MouseEvent&) {
 }
 
 void DualEqKnob::mouseDown(const juce::MouseEvent& event) {
-    if (event.mods.isPopupMenu() || !hitsOuterRing(event.position)) return;
+    if (event.mods.isPopupMenu()) {
+        if (!freqPillBounds().toFloat().contains(event.position) || freqAttachment_ == nullptr) return;
+        auto* param = state_.getParameter(freqId_);
+        if (param == nullptr) return;
+        const auto [minMidi, maxMidi] = openhatter::params::eqBandMidiLimits(freqId_);
+        const int current = suite::eq::nearestMidi(freqHz_, minMidi, maxMidi);
+        auto menu = suite::eq::noteMenu(minMidi, maxMidi, current, 1);
+        menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(this),
+            [this, minMidi, maxMidi](int itemId) {
+                const auto midi = suite::eq::midiFromNoteItem(itemId, 1, minMidi, maxMidi);
+                if (!midi || freqAttachment_ == nullptr) return;
+                const float hz = suite::eq::noteToHz(*midi);
+                freqHz_ = hz;
+                freqAttachment_->setValueAsCompleteGesture(hz);
+                repaint();
+            });
+        return;
+    }
+    if (!hitsOuterRing(event.position)) return;
     auto* param = state_.getParameter(freqId_);
     if (param == nullptr || freqAttachment_ == nullptr) return;
     freqSlider_.grabKeyboardFocus();

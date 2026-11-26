@@ -1706,18 +1706,18 @@ TEST_CASE("The header names the loaded preset and marks edits per slot and sessi
     CHECK(box->getText() == processor.getProgramName(5) + " *");
 }
 
-TEST_CASE("The editor opens at the kick size and resizes without a fixed aspect", "[plugin][ui][resize]") {
+TEST_CASE("The editor opens at its design size and resizes without a fixed aspect", "[plugin][ui][resize]") {
     OpenHatterProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
     auto* constrainer = editor->getConstrainer();
     REQUIRE(constrainer != nullptr);
     CHECK(std::abs(constrainer->getFixedAspectRatio()) < 1.0e-9);
     CHECK(constrainer->getMinimumWidth() == 900);
-    CHECK(constrainer->getMinimumHeight() == 570);
+    CHECK(constrainer->getMinimumHeight() == 700);
     CHECK(constrainer->getMaximumWidth() == 1600);
     CHECK(constrainer->getMaximumHeight() == 1280);
     CHECK(editor->getWidth() == 1080);
-    CHECK(editor->getHeight() == 764);
+    CHECK(editor->getHeight() == 960);
 
     auto* preview = findButton(*editor, "Preview hat");
     REQUIRE(preview != nullptr);
@@ -1910,4 +1910,8 @@ TEST_CASE("EQ bands snap to chromatic notes across two octaves", "[plugin][eq][n
     checkBand(params::kEqLowFreq, params::kEqLowMinMidi, params::kEqLowMaxMidi, "A0", "A1", "A2", "G#1");
     checkBand(params::kEqMidFreq, params::kEqMidMinMidi, params::kEqMidMaxMidi, "A3", "A4", "A5", "G#4");
     checkBand(params::kEqHighFreq, params::kEqHighMinMidi, params::kEqHighMaxMidi, "A6", "A7", "A8", "G#7");
+    const auto noteMenu = suite::eq::noteMenu(params::kEqLowMinMidi, params::kEqLowMaxMidi, 28, 1);
+    CHECK(noteMenu.getNumItems() == params::kEqLowMaxMidi - params::kEqLowMinMidi + 1);
+    CHECK(suite::eq::midiFromNoteItem(8, 1, params::kEqLowMinMidi, params::kEqLowMaxMidi) == 28);
+    CHECK_FALSE(suite::eq::midiFromNoteItem(0, 1, params::kEqLowMinMidi, params::kEqLowMaxMidi).has_value());
 }
