@@ -1,5 +1,9 @@
 # Changelog
 
+## v4.8.6
+
+- Lines the envelope drag points up with the taller hat page.
+
 ## v4.8.5
 
 - Gives the hat page room for the full cymbal monitor, envelope, and output row.
