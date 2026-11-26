@@ -1,5 +1,10 @@
 # Changelog
 
+## v4.8.5
+
+- Gives the hat page room for the full cymbal monitor, envelope, and output row.
+- Right-click an EQ note to pick a note in that band.
+
 ## v4.8.4
 
 - Aligns the suite bar, presets, WAV drag behavior, and editor layout.
