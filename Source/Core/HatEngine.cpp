@@ -88,7 +88,10 @@ std::vector<uint8_t> HatWavCache::toWavBytes() const {
 }
 
 bool HatWavCache::fromWavBytes(const std::vector<uint8_t>& wavBytes) {
-    if (wavBytes.size() < 44) {
+    clear();
+    constexpr size_t kMaxWavBytes = 64u * 1024u * 1024u;
+    constexpr size_t kMaxWavFrames = 384000u * 16u;
+    if (wavBytes.size() < 44 || wavBytes.size() > kMaxWavBytes) {
         return false;
     }
 
@@ -100,6 +103,7 @@ bool HatWavCache::fromWavBytes(const std::vector<uint8_t>& wavBytes) {
     uint16_t numChannels = 0;
     uint32_t sRate = 48000;
     uint16_t formatTag = 0;
+    uint16_t bitsPerSample = 0;
     size_t dataOffset = 0;
     size_t dataSize = 0;
 
@@ -109,43 +113,63 @@ bool HatWavCache::fromWavBytes(const std::vector<uint8_t>& wavBytes) {
         uint32_t chunkSize = 0;
         std::memcpy(&chunkSize, wavBytes.data() + offset + 4, 4);
         offset += 8;
+        if (chunkSize > wavBytes.size() - offset) {
+            return false;
+        }
 
         if (std::memcmp(chunkId, "fmt ", 4) == 0 && chunkSize >= 16) {
             std::memcpy(&formatTag, wavBytes.data() + offset, 2);
             std::memcpy(&numChannels, wavBytes.data() + offset + 2, 2);
             std::memcpy(&sRate, wavBytes.data() + offset + 4, 4);
+            std::memcpy(&bitsPerSample, wavBytes.data() + offset + 14, 2);
         } else if (std::memcmp(chunkId, "data", 4) == 0) {
             dataOffset = offset;
             dataSize = chunkSize;
             break;
         }
 
-        offset += chunkSize;
+        const size_t paddedSize = static_cast<size_t>(chunkSize) + (chunkSize & 1u);
+        if (paddedSize > wavBytes.size() - offset) {
+            break;
+        }
+        offset += paddedSize;
     }
 
-    if (dataOffset == 0 || numChannels == 0 || (formatTag != 3 && formatTag != 1)) {
+    if (dataOffset == 0 || (numChannels != 1 && numChannels != 2)
+        || sRate < 8000 || sRate > 384000
+        || !((formatTag == 3 && bitsPerSample == 32) || (formatTag == 1 && bitsPerSample == 16))) {
+        return false;
+    }
+
+    const size_t bytesPerSample = formatTag == 3 ? sizeof(float) : sizeof(int16_t);
+    const size_t bytesPerFrame = static_cast<size_t>(numChannels) * bytesPerSample;
+    if (bytesPerFrame == 0 || dataSize % bytesPerFrame != 0 || dataSize > wavBytes.size() - dataOffset) {
+        return false;
+    }
+    const size_t numFrames = dataSize / bytesPerFrame;
+    if (numFrames == 0 || numFrames > kMaxWavFrames) {
         return false;
     }
 
     sampleRate_ = sRate;
-    const size_t bytesPerFrame = numChannels * (formatTag == 3 ? sizeof(float) : 2);
-    const size_t numFrames = dataSize / bytesPerFrame;
-
     left_.resize(numFrames);
     right_.resize(numFrames);
 
-    if (formatTag == 3) {
-        const auto* floatPtr = reinterpret_cast<const float*>(wavBytes.data() + dataOffset);
-        for (size_t i = 0; i < numFrames; ++i) {
-            left_[i] = floatPtr[i * numChannels];
-            right_[i] = (numChannels > 1) ? floatPtr[i * numChannels + 1] : left_[i];
+    const uint8_t* dataPtr = wavBytes.data() + dataOffset;
+    auto readSample = [formatTag](const uint8_t* ptr) noexcept -> float {
+        if (formatTag == 3) {
+            float sample = 0.0f;
+            std::memcpy(&sample, ptr, sizeof(float));
+            return std::isfinite(sample) ? sample : 0.0f;
         }
-    } else {
-        const auto* intPtr = reinterpret_cast<const int16_t*>(wavBytes.data() + dataOffset);
-        for (size_t i = 0; i < numFrames; ++i) {
-            left_[i] = static_cast<float>(intPtr[i * numChannels]) / 32768.0f;
-            right_[i] = (numChannels > 1) ? static_cast<float>(intPtr[i * numChannels + 1]) / 32768.0f : left_[i];
-        }
+        int16_t raw = 0;
+        std::memcpy(&raw, ptr, sizeof(int16_t));
+        return static_cast<float>(raw) / 32768.0f;
+    };
+    for (size_t i = 0; i < numFrames; ++i) {
+        const uint8_t* framePtr = dataPtr + i * bytesPerFrame;
+        left_[i] = readSample(framePtr);
+        right_[i] = numChannels > 1 ? readSample(framePtr + bytesPerSample) : left_[i];
     }
 
     isLocked_ = true;

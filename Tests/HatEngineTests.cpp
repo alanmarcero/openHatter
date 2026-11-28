@@ -408,3 +408,24 @@ TEST_CASE("HatEngine ping-pong echo feedback damps highs and clears low mud acro
     CHECK(secondHighRatio < firstHighRatio * 0.72);
 }
 
+TEST_CASE("HatWavCache rejects truncated or overflowing chunkSize without OOB reads", "[core][engine][security]") {
+    std::vector<uint8_t> malformed(44, 0);
+    std::memcpy(malformed.data(), "RIFF", 4);
+    std::memcpy(malformed.data() + 8, "WAVE", 4);
+    std::memcpy(malformed.data() + 12, "fmt ", 4);
+    malformed[16] = 16;
+    malformed[20] = 3; // IEEE float
+    malformed[22] = 2; // stereo
+    malformed[24] = 0x80;
+    malformed[25] = 0xBB; // 48000 Hz
+    malformed[34] = 32;
+    std::memcpy(malformed.data() + 36, "data", 4);
+    malformed[40] = 0xFF;
+    malformed[41] = 0xFF;
+    malformed[42] = 0xFF;
+    malformed[43] = 0x7F; // huge chunkSize past buffer end
+
+    HatWavCache cache;
+    REQUIRE_FALSE(cache.fromWavBytes(malformed));
+    REQUIRE_FALSE(cache.isLocked());
+}
