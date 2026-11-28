@@ -1,5 +1,9 @@
 # Changelog
 
+## v4.8.7
+
+- Bounds-checks RIFF/WAV chunks and frame counts in `HatWavCache::fromWavBytes` and removes unaligned pointer casts.
+
 ## v4.8.6
 
 - Lines the envelope drag points up with the taller hat page.
